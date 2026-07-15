@@ -1,0 +1,10 @@
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: 3.11
+
+run:
+  command: gunicorn -b 0.0.0.0:80 app:app
+  persistenceMount: /data
+  containerPort: 80

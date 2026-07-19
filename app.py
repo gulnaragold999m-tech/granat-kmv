@@ -1,11 +1,20 @@
 import os
 import requests
-from flask import Flask, send_from_directory, request, jsonify
+from flask import Flask, send_from_directory, request, jsonify, redirect
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6080897180")
+
+OLD_HOST = "granat-site-granatgold999.amvera.io"
+NEW_DOMAIN = "https://granat-kmv.ru"
+
+
+@app.before_request
+def redirect_old_domain():
+    if request.host.lower() == OLD_HOST:
+        return redirect(NEW_DOMAIN + request.full_path.rstrip("?"), code=301)
 
 
 @app.route("/")

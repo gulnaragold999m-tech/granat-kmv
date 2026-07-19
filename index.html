@@ -37,9 +37,10 @@
     body { font-family: 'Montserrat', sans-serif; color: #1C1C1C; background: #F9F3EB; }
     h1, h2, h3, .serif { font-family: 'Playfair Display', Georgia, serif; }
     .gold-line { border: none; height: 1px; background: linear-gradient(to right, transparent, #D4AF37, transparent); }
-    .nav-link { position: relative; }
+    .nav-link { position: relative; transition: color 200ms ease; }
     .nav-link::after { content: ''; position: absolute; bottom: -3px; left: 0; width: 100%; height: 1px; background: var(--gold-gradient); transform: scaleX(0); transform-origin: left; transition: transform 200ms var(--ease-out); }
     @media (hover: hover) and (pointer: fine) { .nav-link:hover::after { transform: scaleX(1); } }
+    @media (max-width: 768px) { nav { opacity: 0; transform: translateX(-20px); transition: opacity 300ms ease, transform 300ms ease; } nav.show { opacity: 1; transform: translateX(0); } }
     .studio-logo-gold {
       font-family: 'Playfair Display', serif; font-weight: 700; text-transform: uppercase; letter-spacing: .18em;
       background: linear-gradient(135deg, #f7e5b5 0%, #d4af37 40%, #b8860b 70%, #f7e5b5 100%);
@@ -50,10 +51,12 @@
       -webkit-background-clip: text; background-clip: text;
       -webkit-text-fill-color: transparent; color: transparent;
     }
-    .btn-gold { background: linear-gradient(120deg, #b8860b 0%, #e6c04a 28%, #f3d271 48%, #d4af37 70%, #b8860b 100%); color: #3a0b12; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 15px 34px; border: none; cursor: pointer; transition: filter .2s, letter-spacing .2s, box-shadow .2s, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; box-shadow: 0 6px 20px -6px rgba(212,175,55,.5); }
+    .btn-gold { background: linear-gradient(120deg, #b8860b 0%, #e6c04a 28%, #f3d271 48%, #d4af37 70%, #b8860b 100%); color: #3a0b12; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 15px 34px; border: none; cursor: pointer; transition: filter .2s, letter-spacing .2s, box-shadow .2s, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; box-shadow: 0 6px 20px -6px rgba(212,175,55,.5); min-height: 44px; border-radius: 4px; }
     .btn-gold:active { transform: scale(0.97); }
-    .btn-outline { background: transparent; color: #D4AF37; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 14px 32px; border: 1.5px solid #D4AF37; cursor: pointer; transition: background .2s ease-out, color .2s ease-out, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; }
+    .btn-gold:focus-visible { outline: 3px solid #D4AF37; outline-offset: 2px; }
+    .btn-outline { background: transparent; color: #D4AF37; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 14px 32px; border: 1.5px solid #D4AF37; cursor: pointer; transition: background .2s ease-out, color .2s ease-out, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; min-height: 44px; border-radius: 4px; }
     .btn-outline:active { transform: scale(0.97); }
+    .btn-outline:focus-visible { outline: 3px solid #D4AF37; outline-offset: 2px; }
     @media (hover: hover) and (pointer: fine) {
       .btn-gold:hover { filter: brightness(1.08); letter-spacing: .11em; box-shadow: 0 10px 26px -6px rgba(212,175,55,.7); }
       .btn-outline:hover { background: rgba(212,175,55,.12); }
@@ -83,10 +86,12 @@
       animation: comet-twinkle 3.6s ease-in-out infinite alternate;
     }
     .ai-orb.docked { left: auto !important; right: 24px; bottom: 24px; top: auto; transform: none !important; width: 24px; height: 24px; }
+    @media (max-width: 768px) { .ai-orb.docked { bottom: 80px; animation: comet-twinkle 3.6s ease-in-out infinite alternate !important; } }
     .comet-dot {
       position: fixed; left: 0; top: 0; border-radius: 50%; pointer-events: none; z-index: 9997; will-change: transform, opacity;
       background: radial-gradient(circle, rgba(255,240,200,0.45) 0%, rgba(212,175,55,0.2) 45%, rgba(212,175,55,0) 75%); filter: blur(0.5px);
     }
+    @media (max-width: 768px) { .comet-dot { display: none; } }
     .orb-bubble {
       position: absolute; right: 30px; top: 50%; transform: translateY(-50%) translateX(8px);
       background: rgba(58,11,18,.95); color: #f7e5b5; font-size: 12.5px; line-height: 1.35; font-weight: 600;
@@ -104,8 +109,8 @@
     }
     @keyframes comet-pulse { 0%,100% { box-shadow: 0 0 16px 4px rgba(230,192,74,0.2), 0 0 34px 10px rgba(212,175,55,0.1); } 50% { box-shadow: 0 0 24px 7px rgba(230,192,74,0.36), 0 0 52px 16px rgba(212,175,55,0.2); } }
     @media (prefers-reduced-motion: reduce) { .ai-orb { animation: none; } .comet-dot { display: none; } }
-    .reveal { opacity: 0; transform: translateY(26px); transition: opacity 500ms var(--ease-out), transform 500ms var(--ease-out); }
-    .reveal.visible { opacity: 1; transform: none; }
+    .reveal { opacity: 0; transform: translateY(26px); transition: opacity 600ms var(--ease-smooth), transform 600ms var(--ease-smooth); }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
     .kicker {
       text-transform: uppercase; letter-spacing: .22em; font-size: 11px; font-weight: 700; display: inline-block;
       background: var(--gold-gradient);
@@ -114,7 +119,7 @@
 
     /* Логотип с воздушной 3D-орбитой */
     .logo-orbit {
-      position: relative; width: 340px; height: 250px; max-width: 90vw; margin: 0 auto 22px;
+      position: relative; width: clamp(240px, 80vw, 340px); height: clamp(150px, 60vw, 250px); margin: 0 auto 22px;
       filter: drop-shadow(0 0 46px rgba(212,175,55,0.18));
     }
     .logo-orbit .logo-img {
@@ -144,10 +149,12 @@
   .brand-logo{background:url(/logo.png) center/cover no-repeat;border-radius:50%;display:inline-block;}
     .port-cat { margin-top: 42px; }
     .port-cat h3 { font-family: 'Playfair Display', Georgia, serif; font-size: 1.4rem; color: #4A0E17; margin-bottom: 14px; }
-    .port-strip { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+    .port-strip { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; position: relative; }
+    .port-strip::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 40px; background: linear-gradient(90deg, transparent 0%, rgba(74,14,23,.08) 70%, rgba(74,14,23,.15) 100%); pointer-events: none; }
     .port-strip::-webkit-scrollbar { height: 6px; }
     .port-strip::-webkit-scrollbar-thumb { background: rgba(212,175,55,.4); border-radius: 3px; }
-    .port-strip figure { flex: 0 0 auto; width: 228px; margin: 0; scroll-snap-align: start; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 34px rgba(74,14,23,.14); background: #fff; }
+    .port-strip figure { flex: 0 0 auto; width: 228px; margin: 0; scroll-snap-align: start; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 34px rgba(74,14,23,.14); background: #fff; transition: transform .3s ease; }
+    @media (max-width: 640px) { .port-strip figure { width: 200px; } }
     .port-strip img { width: 228px; height: 290px; object-fit: cover; display: block; transition: transform .35s ease; }
     .port-strip figure:hover img { transform: scale(1.05); }
     .port-strip figcaption { padding: 10px 12px; font-size: 13px; color: #4A0E17; opacity: .82; }
@@ -172,6 +179,21 @@
     @media (max-width: 760px) { .print-visual { width: 108px; opacity: 0.11; right: -8px; top: 18px; } }
     @media (prefers-reduced-motion: reduce) { .print-visual, .print-visual .print-paper { animation: none; } }
     @media (prefers-reduced-motion: reduce) { .product-card h3::before, #cifra article h3::before { animation: none; } }
+    /* Мобильная оптимизация */
+    @media (max-width: 640px) {
+      .max-w-6xl { padding-left: 12px; padding-right: 12px; }
+      p { line-height: 1.6; }
+      p.text-white\/75 { opacity: 0.90; }
+      p.text-white\/70 { opacity: 0.85; }
+      p.opacity-80 { opacity: 0.85; }
+    }
+    /* Улучшение фокусов для доступности */
+    input:focus-visible, textarea:focus-visible { outline: 3px solid #D4AF37; outline-offset: 1px; }
+    label { cursor: pointer; }
+    /* Плавные переходы для интерактивных элементов */
+    .port-strip figure:active { transform: scale(0.98); }
+    a { transition: color 200ms ease; }
+    a:focus-visible { outline-offset: 2px; }
   </style>
 </head>
 <body>
@@ -373,21 +395,22 @@
         <div class="grid md:grid-cols-2 gap-6 mt-12">
           <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
             <h3 class="text-xl font-bold mb-2 gold-grad">Сайты под заявки</h3>
-            <p class="text-white/70 text-sm leading-relaxed">Лендинги и сайты, которые продают, а не просто «висят» в интернете. Как этот — сделан кодом.</p>
+            <p class="text-white/70 text-sm leading-relaxed">Лендинги и сайты, которые продают, а не просто «висят» в интернете. Как этот — сделан кодом. От 15 000 ₽, срок от 7 дней.</p>
           </article>
           <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
             <h3 class="text-xl font-bold mb-2 gold-grad">Telegram-боты</h3>
-            <p class="text-white/70 text-sm leading-relaxed">Приём заказов, ответы клиентам, уведомления о заявках. Наш бот-помощник Джарвис — пример.</p>
+            <p class="text-white/70 text-sm leading-relaxed">Приём заказов, ответы клиентам, уведомления о заявках. Наш бот-помощник Джарвис — пример. От 15 000 ₽, с интеграцией CRM/оплаты/записи — от 40 000 ₽.</p>
           </article>
           <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
             <h3 class="text-xl font-bold mb-2 gold-grad">Мини-приложения</h3>
-            <p class="text-white/70 text-sm leading-relaxed">Простые цифровые инструменты под конкретную задачу вашего бизнеса.</p>
+            <p class="text-white/70 text-sm leading-relaxed">Простые цифровые инструменты под конкретную задачу: бронирование, оплата, личный кабинет. От 60 000 ₽, по брифу.</p>
           </article>
           <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
             <h3 class="text-xl font-bold mb-2 gold-grad">Автоматизация</h3>
-            <p class="text-white/70 text-sm leading-relaxed">Формы, заявки, таблицы и уведомления — убираем рутину и связываем всё вместе.</p>
+            <p class="text-white/70 text-sm leading-relaxed">Формы, заявки, таблицы и уведомления — убираем рутину и связываем всё вместе. Стоимость — по задаче, обсчитываем на консультации.</p>
           </article>
         </div>
+        <p class="text-white/50 text-sm mt-6 reveal">Цены стартовые. Точную стоимость и срок называем после короткого обсуждения задачи — консультация бесплатная.</p>
       </div>
     </section>
 

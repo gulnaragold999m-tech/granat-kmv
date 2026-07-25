@@ -109,29 +109,35 @@ def privacy():
 
 
 def count_undelivered(hours=24):
-    """Заявки, которые легли на диск и не дошли в Telegram за последние N часов.
+    """Заявки, зависшие ПОСЛЕ последней успешной отправки.
 
-    Старые намеренно не считаем: иначе сторож будет вечно напоминать о давно
-    неактуальном, и на его сообщения перестанут обращать внимание.
+    Любая дошедшая заявка обнуляет счёт: значит связь восстановилась, и
+    вспоминать о прежнем сбое больше незачем. Иначе сторож неделю будет
+    поминать давно почившую проблему, и его перестанут читать.
+    Старше N часов тоже не считаем — на случай, если успешных не было вовсе.
     """
     cutoff = now_msk() - timedelta(hours=hours)
-    found = 0
+    pending = 0
     try:
         with open(ORDERS_FILE, encoding="utf-8") as f:
             for line in f:
                 try:
                     rec = json.loads(line)
-                    if rec.get("delivered"):
-                        continue
+                except Exception:
+                    continue
+                if rec.get("delivered"):
+                    pending = 0
+                    continue
+                try:
                     if datetime.fromisoformat(rec["at"]) >= cutoff:
-                        found += 1
+                        pending += 1
                 except Exception:
                     continue
     except FileNotFoundError:
         return 0
     except Exception:
         return -1
-    return found
+    return pending
 
 
 @app.route("/api/health")

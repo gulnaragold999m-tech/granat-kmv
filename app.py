@@ -2,6 +2,7 @@ import os
 import json
 import socket
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from flask import Flask, send_from_directory, request, jsonify, redirect
@@ -30,6 +31,15 @@ CHAT_ID = (
 # Постоянное хранилище Amvera: заявка ложится сюда, даже если Telegram молчит.
 ORDERS_FILE = "/data/orders.jsonl"
 
+# Контейнер живёт по Гринвичу, а смотреть на заявки нам по-московски.
+TZ = ZoneInfo("Europe/Moscow")
+
+
+def now_msk():
+    """Московское время без пометки о зоне — чтобы в файле было понятно
+    и сравнение со старыми записями не ломалось."""
+    return datetime.now(TZ).replace(tzinfo=None)
+
 OLD_HOST = "granat-site-granatgold999.amvera.io"
 NEW_DOMAIN = "https://granat-kmv.ru"
 
@@ -41,7 +51,7 @@ def mask(s):
 
 def save_order(payload, delivered, reason=""):
     record = {
-        "at": datetime.now().isoformat(timespec="seconds"),
+        "at": now_msk().isoformat(timespec="seconds"),
         "delivered": delivered,
         "reason": reason,
         **payload,
@@ -104,7 +114,7 @@ def count_undelivered(hours=24):
     Старые намеренно не считаем: иначе сторож будет вечно напоминать о давно
     неактуальном, и на его сообщения перестанут обращать внимание.
     """
-    cutoff = datetime.now() - timedelta(hours=hours)
+    cutoff = now_msk() - timedelta(hours=hours)
     found = 0
     try:
         with open(ORDERS_FILE, encoding="utf-8") as f:

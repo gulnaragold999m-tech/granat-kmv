@@ -98,6 +98,43 @@ def privacy():
     return send_from_directory(".", "privacy.html")
 
 
+def count_undelivered():
+    """Сколько заявок легло на диск, но не дошло в Telegram."""
+    try:
+        with open(ORDERS_FILE, encoding="utf-8") as f:
+            return sum(1 for line in f if '"delivered": false' in line)
+    except FileNotFoundError:
+        return 0
+    except Exception:
+        return -1
+
+
+@app.route("/api/health")
+def health():
+    """Самопроверка для сторожа: жив ли сайт и принимает ли Telegram наш токен.
+
+    Никому ничего не отправляет — поэтому дёргать можно хоть каждые пять минут.
+    Именно этой проверки не хватало 25.07.2026, когда форма молча падала
+    с 401 Unauthorized и об этом никто не знал.
+    """
+    ok, reason = False, "TELEGRAM_BOT_TOKEN не задан"
+    if TOKEN:
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=10)
+            ok = r.status_code == 200 and r.json().get("ok") is True
+            if not ok:
+                reason = f"HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            reason = f"{type(e).__name__}: {e}"
+
+    return jsonify(
+        ok=ok,
+        telegram="ok" if ok else mask(reason),
+        chat_id_set=bool(CHAT_ID),
+        undelivered=count_undelivered(),
+    )
+
+
 @app.route("/api/order", methods=["POST"])
 def order():
     data = request.get_json(silent=True) or request.form or {}

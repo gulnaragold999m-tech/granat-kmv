@@ -1,7 +1,7 @@
 import os
 import json
 import socket
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from flask import Flask, send_from_directory, request, jsonify, redirect
@@ -98,15 +98,30 @@ def privacy():
     return send_from_directory(".", "privacy.html")
 
 
-def count_undelivered():
-    """Сколько заявок легло на диск, но не дошло в Telegram."""
+def count_undelivered(hours=24):
+    """Заявки, которые легли на диск и не дошли в Telegram за последние N часов.
+
+    Старые намеренно не считаем: иначе сторож будет вечно напоминать о давно
+    неактуальном, и на его сообщения перестанут обращать внимание.
+    """
+    cutoff = datetime.now() - timedelta(hours=hours)
+    found = 0
     try:
         with open(ORDERS_FILE, encoding="utf-8") as f:
-            return sum(1 for line in f if '"delivered": false' in line)
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                    if rec.get("delivered"):
+                        continue
+                    if datetime.fromisoformat(rec["at"]) >= cutoff:
+                        found += 1
+                except Exception:
+                    continue
     except FileNotFoundError:
         return 0
     except Exception:
         return -1
+    return found
 
 
 @app.route("/api/health")
@@ -119,13 +134,21 @@ def health():
     """
     ok, reason = False, "TELEGRAM_BOT_TOKEN не задан"
     if TOKEN:
-        try:
-            r = requests.get(f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=10)
-            ok = r.status_code == 200 and r.json().get("ok") is True
-            if not ok:
+        # Две попытки и запас по времени: один медленный ответ Telegram
+        # не должен выглядеть как поломка формы.
+        for _ in range(2):
+            try:
+                r = requests.get(
+                    f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=8
+                )
+                ok = r.status_code == 200 and r.json().get("ok") is True
+                if ok:
+                    break
                 reason = f"HTTP {r.status_code}: {r.text[:200]}"
-        except Exception as e:
-            reason = f"{type(e).__name__}: {e}"
+                if 400 <= r.status_code < 500:
+                    break  # чужой токен — повторять бессмысленно
+            except Exception as e:
+                reason = f"{type(e).__name__}: {e}"
 
     return jsonify(
         ok=ok,

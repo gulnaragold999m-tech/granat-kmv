@@ -1,14 +1,85 @@
 import os
+import json
+import socket
+from datetime import datetime
+
 import requests
 from flask import Flask, send_from_directory, request, jsonify, redirect
 
+# Принудительно ходим по IPv4. На Amvera исходящие соединения по IPv6 не
+# проходят (Errno 101 "Network is unreachable"), а requests может выбрать
+# именно IPv6-адрес api.telegram.org и упасть, хотя IPv4 работает.
+try:
+    import urllib3.util.connection as urllib3_cn
+
+    urllib3_cn.allowed_gai_family = lambda: socket.AF_INET
+except Exception as e:
+    print(f"[init] IPv4-режим не включился: {e}", flush=True)
+
 app = Flask(__name__, static_folder=".", static_url_path="")
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6080897180")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+# Читаем оба варианта имени, чтобы не зависеть от того, как переменная
+# названа в панели Amvera.
+CHAT_ID = (
+    os.getenv("ADMIN_CHAT_ID")
+    or os.getenv("TELEGRAM_CHAT_ID")
+    or "6080897180"
+).strip()
+
+# Постоянное хранилище Amvera: заявка ложится сюда, даже если Telegram молчит.
+ORDERS_FILE = "/data/orders.jsonl"
 
 OLD_HOST = "granat-site-granatgold999.amvera.io"
 NEW_DOMAIN = "https://granat-kmv.ru"
+
+
+def mask(s):
+    """Чтобы токен не утёк ни в лог, ни тем более в ответ браузеру."""
+    return s.replace(TOKEN, "***") if TOKEN else s
+
+
+def save_order(payload, delivered, reason=""):
+    record = {
+        "at": datetime.now().isoformat(timespec="seconds"),
+        "delivered": delivered,
+        "reason": reason,
+        **payload,
+    }
+    try:
+        os.makedirs(os.path.dirname(ORDERS_FILE), exist_ok=True)
+        with open(ORDERS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[order] заявку не удалось записать на диск: {e}", flush=True)
+
+
+def send_to_telegram(text):
+    """Возвращает (ok, причина). Причину пишем в лог, наружу не отдаём."""
+    if not TOKEN:
+        print("[telegram] TELEGRAM_BOT_TOKEN не задан", flush=True)
+        return False, "no_token"
+
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    last = ""
+    for attempt in (1, 2, 3):
+        try:
+            r = requests.post(
+                url, json={"chat_id": CHAT_ID, "text": text}, timeout=15
+            )
+            if r.status_code == 200:
+                return True, ""
+            # Главное, чего не хватало раньше: сам ответ Telegram в логе.
+            last = f"HTTP {r.status_code}: {r.text[:300]}"
+            print(f"[telegram] попытка {attempt} — {mask(last)}", flush=True)
+            # 4xx означает, что мы шлём что-то не то (чат не найден, бот
+            # заблокирован) — повторять бессмысленно.
+            if 400 <= r.status_code < 500:
+                break
+        except Exception as e:
+            last = f"{type(e).__name__}: {e}"
+            print(f"[telegram] попытка {attempt} — сеть: {mask(last)}", flush=True)
+    return False, mask(last)
 
 
 @app.before_request
@@ -37,6 +108,7 @@ def order():
     phone = (data.get("phone") or "").strip()
     service = (data.get("service") or "").strip()
     notes = (data.get("notes") or "").strip()
+    payload = {"name": name, "phone": phone, "service": service, "notes": notes}
 
     lines = ["🔔 НОВАЯ ЗАЯВКА С САЙТА", "", f"👤 Имя: {name}"]
     if phone:
@@ -45,23 +117,17 @@ def order():
         lines.append(f"🛍 Услуга: {service}")
     if notes:
         lines.append(f"📝 Пожелания: {notes}")
-    text = "\n".join(lines)
 
-    if not TOKEN:
-        return jsonify(ok=False, error="Сервер не настроен"), 500
+    ok, reason = send_to_telegram("\n".join(lines))
+    save_order(payload, delivered=ok, reason=reason)
 
-    try:
-        r = requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={"chat_id": CHAT_ID, "text": text},
-            timeout=15,
-        )
-        if r.status_code != 200:
-            return jsonify(ok=False, error="Telegram error"), 502
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)), 500
+    if ok:
+        return jsonify(ok=True)
 
-    return jsonify(ok=True)
+    # Заявка на диске лежит, но до Telegram не дошла. Браузеру отдаём
+    # нейтральный текст — он покажет клиенту кнопки WhatsApp/Telegram.
+    print(f"[order] заявка сохранена, но не доставлена: {reason}", flush=True)
+    return jsonify(ok=False, saved=True, error="not_delivered"), 200
 
 
 if __name__ == "__main__":

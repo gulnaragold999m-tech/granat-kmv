@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Студия ГРАНАТ — печать, дизайн и сайты для бизнеса · Лермонтов</title>
+  <meta name="description" content="Студия «Гранат», Лермонтов: премиальная полиграфия — приглашения, сертификаты, тиснение золотом, плоттерная резка — и цифра: сайты, Telegram-боты, автоматизация. Печать и код под одной крышей." />
+  <!-- Open Graph / превью при шаринге в Telegram, VK, WhatsApp — обнови URL после переезда на короткий домен -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:title" content="Студия ГРАНАТ — печать, дизайн и сайты для бизнеса · Лермонтов" />
+  <meta property="og:description" content="Премиальная полиграфия и цифра: приглашения, сертификаты, тиснение золотом — и сайты, Telegram-боты, автоматизация. Печать и код под одной крышей." />
+  <meta property="og:image" content="https://granat-kmv.ru/logo.png" />
+  <meta property="og:url" content="https://granat-kmv.ru/" />
+  <link rel="canonical" href="https://granat-kmv.ru/" />
+  <meta name="twitter:card" content="summary" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#4A0E17', secondary: '#F9F3EB', accent: '#D4AF37', ink: '#1C1C1C' },
+          fontFamily: { serif: ['"Playfair Display"', 'Georgia', 'serif'], sans: ['Montserrat', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --gold-gradient: linear-gradient(120deg, #a9781f 0%, #e6c04a 22%, #f7e5b5 45%, #e6c04a 62%, #c8961f 82%, #a9781f 100%);
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Montserrat', sans-serif; color: #1C1C1C; background: #F9F3EB; }
+    h1, h2, h3, .serif { font-family: 'Playfair Display', Georgia, serif; }
+    .gold-line { border: none; height: 1px; background: linear-gradient(to right, transparent, #D4AF37, transparent); }
+    .nav-link { position: relative; transition: color 200ms ease; }
+    .nav-link::after { content: ''; position: absolute; bottom: -3px; left: 0; width: 100%; height: 1px; background: var(--gold-gradient); transform: scaleX(0); transform-origin: left; transition: transform 200ms var(--ease-out); }
+    @media (hover: hover) and (pointer: fine) { .nav-link:hover::after { transform: scaleX(1); } }
+    @media (max-width: 768px) { nav { opacity: 0; transform: translateX(-20px); transition: opacity 300ms ease, transform 300ms ease; } nav.show { opacity: 1; transform: translateX(0); } }
+    .studio-logo-gold {
+      font-family: 'Playfair Display', serif; font-weight: 700; text-transform: uppercase; letter-spacing: .18em;
+      background: linear-gradient(135deg, #f7e5b5 0%, #d4af37 40%, #b8860b 70%, #f7e5b5 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline-block;
+    }
+    .gold-grad {
+      background: var(--gold-gradient);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+    }
+    .btn-gold { background: linear-gradient(120deg, #b8860b 0%, #e6c04a 28%, #f3d271 48%, #d4af37 70%, #b8860b 100%); color: #3a0b12; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 15px 34px; border: none; cursor: pointer; transition: filter .2s, letter-spacing .2s, box-shadow .2s, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; box-shadow: 0 6px 20px -6px rgba(212,175,55,.5); min-height: 44px; border-radius: 4px; }
+    .btn-gold:active { transform: scale(0.97); }
+    .btn-gold:focus-visible { outline: 3px solid #D4AF37; outline-offset: 2px; }
+    .btn-outline { background: transparent; color: #D4AF37; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 14px 32px; border: 1.5px solid #D4AF37; cursor: pointer; transition: background .2s ease-out, color .2s ease-out, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; min-height: 44px; border-radius: 4px; }
+    .btn-outline:active { transform: scale(0.97); }
+    .btn-outline:focus-visible { outline: 3px solid #D4AF37; outline-offset: 2px; }
+    @media (hover: hover) and (pointer: fine) {
+      .btn-gold:hover { filter: brightness(1.08); letter-spacing: .11em; box-shadow: 0 10px 26px -6px rgba(212,175,55,.7); }
+      .btn-outline:hover { background: rgba(212,175,55,.12); }
+    }
+    .product-card {
+      transition: box-shadow .35s ease, border-color .35s ease;
+      box-shadow: 0 0 20px rgba(212,175,55,0.10), 0 12px 30px rgba(74,14,23,0.08);
+      will-change: transform;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .product-card:hover { box-shadow: 0 0 36px rgba(212,175,55,0.32), 0 16px 42px rgba(74,14,23,0.16); }
+    }
+    .product-card:nth-child(3n+1) { animation: card-float-a 6.6s ease-in-out infinite; }
+    .product-card:nth-child(3n+2) { animation: card-float-b 8.2s ease-in-out infinite; }
+    .product-card:nth-child(3n+3) { animation: card-float-c 7.3s ease-in-out infinite; }
+    @keyframes card-float-a { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-11px); } }
+    @keyframes card-float-b { 0%,100% { transform: translateY(-7px); } 50% { transform: translateY(9px); } }
+    @keyframes card-float-c { 0%,100% { transform: translateY(4px); } 50% { transform: translateY(-13px); } }
+    @media (prefers-reduced-motion: reduce) { .product-card { animation: none; } }
+
+    /* ИИ-проводник — полупрозрачная комета */
+    .ai-orb {
+      position: fixed; left: 0; top: 0; width: 20px; height: 20px; z-index: 9998; cursor: pointer; border-radius: 50%; will-change: transform;
+      background: radial-gradient(circle at 42% 38%, rgba(255,248,224,0.5) 0%, rgba(230,192,74,0.3) 42%, rgba(212,175,55,0.09) 70%, rgba(212,175,55,0) 100%);
+      box-shadow: 0 0 14px 4px rgba(230,192,74,0.2), 0 0 30px 10px rgba(212,175,55,0.09);
+      filter: blur(0.4px);
+      animation: comet-twinkle 3.6s ease-in-out infinite alternate;
+    }
+    .ai-orb.docked { left: auto !important; right: 24px; bottom: 24px; top: auto; transform: none !important; width: 24px; height: 24px; }
+    @media (max-width: 768px) { .ai-orb.docked { bottom: 80px; animation: comet-twinkle 3.6s ease-in-out infinite alternate !important; } }
+    .comet-dot {
+      position: fixed; left: 0; top: 0; border-radius: 50%; pointer-events: none; z-index: 9997; will-change: transform, opacity;
+      background: radial-gradient(circle, rgba(255,240,200,0.45) 0%, rgba(212,175,55,0.2) 45%, rgba(212,175,55,0) 75%); filter: blur(0.5px);
+    }
+    @media (max-width: 768px) { .comet-dot { display: none; } }
+    .orb-bubble {
+      position: absolute; right: 30px; top: 50%; transform: translateY(-50%) translateX(8px);
+      background: rgba(58,11,18,.95); color: #f7e5b5; font-size: 12.5px; line-height: 1.35; font-weight: 600;
+      padding: 10px 14px; border-radius: 14px 14px 4px 14px; border: 1px solid rgba(212,175,55,.42);
+      white-space: normal; width: max-content; max-width: 230px; text-align: left;
+      opacity: 0; pointer-events: none; transition: opacity .4s ease, transform .4s ease;
+      backdrop-filter: blur(6px); box-shadow: 0 10px 30px rgba(0,0,0,.3);
+    }
+    .ai-orb.speak .orb-bubble, .ai-orb:hover .orb-bubble { opacity: 1; transform: translateY(-50%) translateX(0); }
+    .ai-orb.pulse { animation: comet-twinkle 3.6s ease-in-out infinite alternate, comet-pulse 1.7s ease-in-out infinite; }
+    .ai-orb:hover { filter: brightness(1.2); }
+    @keyframes comet-twinkle {
+      from { box-shadow: 0 0 12px 3px rgba(230,192,74,0.15), 0 0 24px 8px rgba(212,175,55,0.06); opacity: 0.7; }
+      to   { box-shadow: 0 0 18px 5px rgba(230,192,74,0.25), 0 0 40px 12px rgba(212,175,55,0.12); opacity: 0.92; }
+    }
+    @keyframes comet-pulse { 0%,100% { box-shadow: 0 0 16px 4px rgba(230,192,74,0.2), 0 0 34px 10px rgba(212,175,55,0.1); } 50% { box-shadow: 0 0 24px 7px rgba(230,192,74,0.36), 0 0 52px 16px rgba(212,175,55,0.2); } }
+    @media (prefers-reduced-motion: reduce) { .ai-orb { animation: none; } .comet-dot { display: none; } }
+    .reveal { opacity: 0; transform: translateY(26px); transition: opacity 600ms var(--ease-smooth), transform 600ms var(--ease-smooth); }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .kicker {
+      text-transform: uppercase; letter-spacing: .22em; font-size: 11px; font-weight: 700; display: inline-block;
+      background: var(--gold-gradient);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+    }
+
+    /* Логотип с воздушной 3D-орбитой */
+    .logo-orbit {
+      position: relative; width: clamp(240px, 80vw, 340px); height: clamp(150px, 60vw, 250px); margin: 0 auto 22px;
+      filter: drop-shadow(0 0 46px rgba(212,175,55,0.18));
+    }
+    .logo-orbit .logo-img {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 160px; height: 160px; border-radius: 50%; z-index: 2;
+      animation: logo-breathe 4.5s ease-in-out infinite alternate;
+    }
+    .orbit-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(212,175,55,0.22); }
+    .orbit-ring-1 { width: 100%; height: 100%; top: 0; left: 0; transform: rotateX(68deg); animation: ring-spin 15s linear infinite; }
+    .orbit-ring-2 { width: 68%; height: 68%; top: 16%; left: 16%; border-color: rgba(212,175,55,0.13); transform: rotateX(68deg) rotateZ(60deg); animation: ring-spin 10s linear infinite reverse; }
+    .orbit-ring-1::after, .orbit-ring-2::after {
+      content: ''; position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+      width: 9px; height: 9px; border-radius: 50%;
+    }
+    .orbit-ring-1::after { background: radial-gradient(circle at 35% 30%, #fbeec2, #d4af37 55%, #7a5500); box-shadow: 0 0 18px rgba(212,175,55,0.95), 0 0 6px rgba(255,240,200,0.9); }
+    .orbit-ring-2::after { width: 6px; height: 6px; top: -3px; background: radial-gradient(circle at 35% 30%, #fff6df, #e6c04a 60%, #9a6e2a); box-shadow: 0 0 12px rgba(212,175,55,0.8); }
+    @keyframes ring-spin { to { transform: rotateX(68deg) rotateZ(360deg); } }
+    @keyframes logo-breathe {
+      0% { filter: drop-shadow(0 0 8px rgba(212,175,55,0.3)); }
+      100% { filter: drop-shadow(0 0 26px rgba(212,175,55,0.75)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .orbit-ring, .logo-orbit .logo-img { animation: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+    a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #D4AF37; outline-offset: 3px; }
+  .brand-logo{background:url(/logo.png) center/cover no-repeat;border-radius:50%;display:inline-block;}
+    .port-cat { margin-top: 42px; }
+    .port-cat h3 { font-family: 'Playfair Display', Georgia, serif; font-size: 1.4rem; color: #4A0E17; margin-bottom: 14px; }
+    .port-strip { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; position: relative; }
+    .port-strip::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 40px; background: linear-gradient(90deg, transparent 0%, rgba(74,14,23,.08) 70%, rgba(74,14,23,.15) 100%); pointer-events: none; }
+    .port-strip::-webkit-scrollbar { height: 6px; }
+    .port-strip::-webkit-scrollbar-thumb { background: rgba(212,175,55,.4); border-radius: 3px; }
+    .port-strip figure { flex: 0 0 auto; width: 228px; margin: 0; scroll-snap-align: start; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 34px rgba(74,14,23,.14); background: #fff; transition: transform .3s ease; }
+    @media (max-width: 640px) { .port-strip figure { width: 200px; } }
+    .port-strip img { width: 228px; height: 290px; object-fit: cover; display: block; transition: transform .35s ease; }
+    .port-strip figure:hover img { transform: scale(1.05); }
+    .port-strip figcaption { padding: 10px 12px; font-size: 13px; color: #4A0E17; opacity: .82; }
+    /* Плавающий значок с мягкой золотой подсветкой над услугами */
+    .product-card h3::before, #cifra article h3::before {
+      content: '✦'; display: block; font-size: 22px; line-height: 1; margin-bottom: 10px;
+      color: #e6c04a; filter: drop-shadow(0 0 8px rgba(212,175,55,.7)) drop-shadow(0 0 18px rgba(212,175,55,.35));
+      animation: spark-float 3.6s ease-in-out infinite;
+    }
+    #cifra article h3::before { color: #f3d271; }
+    @keyframes spark-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    /* Полупрозрачный принтер в разделе печати */
+    .print-visual {
+      position: absolute; top: 44px; right: 5%; width: 180px; height: auto; z-index: 0; pointer-events: none;
+      fill: none; stroke: #D4AF37; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      opacity: 0.16; filter: drop-shadow(0 0 12px rgba(212,175,55,.5));
+      animation: printer-float 6s ease-in-out infinite;
+    }
+    .print-visual .print-paper { animation: paper-print 3.6s ease-in-out infinite; transform-origin: center; }
+    @keyframes paper-print { 0%,100% { transform: translateY(6px); opacity: .55; } 50% { transform: translateY(-4px); opacity: 1; } }
+    @keyframes printer-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @media (max-width: 760px) { .print-visual { width: 108px; opacity: 0.11; right: -8px; top: 18px; } }
+    @media (prefers-reduced-motion: reduce) { .print-visual, .print-visual .print-paper { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .product-card h3::before, #cifra article h3::before { animation: none; } }
+    /* Мобильная оптимизация */
+    @media (max-width: 640px) {
+      .max-w-6xl { padding-left: 12px; padding-right: 12px; }
+      p { line-height: 1.6; }
+      p.text-white\/75 { opacity: 0.90; }
+      p.text-white\/70 { opacity: 0.85; }
+      p.opacity-80 { opacity: 0.85; }
+    }
+    /* Улучшение фокусов для доступности */
+    input:focus-visible, textarea:focus-visible { outline: 3px solid #D4AF37; outline-offset: 1px; }
+    label { cursor: pointer; }
+    /* Плавные переходы для интерактивных элементов */
+    .port-strip figure:active { transform: scale(0.98); }
+    a { transition: color 200ms ease; }
+    a:focus-visible { outline-offset: 2px; }
+  </style>
+
+  <!-- Yandex.Metrika counter — счётчик 110961373 «САЙТ ГРАНАТ» -->
+  <script type="text/javascript">
+    (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+    m[i].l=1*new Date();
+    for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+    k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+    (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+    ym(110961373, "init", {
+      clickmap: true,
+      trackLinks: true,
+      accurateTrackBounce: true,
+      webvisor: true
+    });
+
+    // Отправка цели в Метрику. Обёрнуто, чтобы блокировщик рекламы
+    // у посетителя не ронял остальные скрипты страницы.
+    function metrikaGoal(name) {
+      try { if (window.ym) ym(110961373, 'reachGoal', name); } catch (e) {}
+    }
+  </script>
+  <noscript><div><img src="https://mc.yandex.ru/watch/110961373" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+  <!-- /Yandex.Metrika counter -->
+  <style>
+    /* ===== Демо-бот, встроен в страницу ===== */
+    .gbot{max-width:460px;margin:0 auto;border-radius:26px;overflow:hidden;background:#3A0E1C;border:1px solid rgba(212,175,55,.28);box-shadow:0 30px 70px -25px rgba(74,14,23,.5);font-family:Montserrat,sans-serif}
+    .gbot-head{display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(90deg,#4D1527,#3A0E1C);border-bottom:1px solid rgba(212,175,55,.22)}
+    .gbot-ava{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#EBD79B,#C9A24B);color:#4A0E17;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:20px;display:flex;align-items:center;justify-content:center;flex:none}
+    .gbot-id{min-width:0}
+    .gbot-name{font-family:'Playfair Display',Georgia,serif;font-size:17px;color:#F6EDE3;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gbot-status{font-size:12px;color:#4ADE80}
+    .gbot-tag{margin-left:auto;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(212,175,55,.55)}
+    .gbot-feed{height:400px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:#671D34 transparent}
+    .gbot-feed::-webkit-scrollbar{width:6px}
+    .gbot-feed::-webkit-scrollbar-thumb{background:#671D34;border-radius:99px}
+    .gbot-row{display:flex;animation:gbotIn .3s ease both}
+    .gbot-row.me{justify-content:flex-end}
+    .gbot-msg{max-width:82%;padding:10px 14px;font-size:14px;line-height:1.55;border-radius:18px}
+    .gbot-row.bot .gbot-msg{background:rgba(255,255,255,.06);border:1px solid rgba(212,175,55,.18);color:#F6EDE3;border-top-left-radius:6px}
+    .gbot-row.me .gbot-msg{background:linear-gradient(135deg,#D4AF37,#A9832F);color:#4A0E17;font-weight:600;border-bottom-right-radius:6px}
+    .gbot-time{font-size:10px;margin-top:4px;text-align:right;opacity:.55}
+    .gbot-dots{display:flex;gap:6px;padding:14px 16px}
+    .gbot-dots i{width:6px;height:6px;border-radius:50%;background:#D4AF37;animation:gbotBlink 1.15s infinite}
+    .gbot-dots i:nth-child(2){animation-delay:.18s}
+    .gbot-dots i:nth-child(3){animation-delay:.36s}
+    .gbot-kb{padding:8px 12px 14px;display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(212,175,55,.16);background:rgba(0,0,0,.18)}
+    .gbot-btn{width:100%;text-align:left;padding:11px 16px;border-radius:14px;font-size:14px;font-family:inherit;cursor:pointer;transition:.2s;background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.35);color:#EBD79B}
+    .gbot-btn:hover{background:rgba(212,175,55,.14);border-color:rgba(212,175,55,.7)}
+    .gbot-btn.back{border-color:rgba(212,175,55,.18);color:rgba(235,215,155,.7);background:transparent}
+    .gbot-form{display:flex;gap:8px}
+    .gbot-input{flex:1;min-width:0;padding:11px 14px;border-radius:14px;font-size:14px;font-family:inherit;background:rgba(0,0,0,.35);border:1px solid rgba(212,175,55,.3);color:#F6EDE3}
+    .gbot-input::placeholder{color:rgba(212,175,55,.4)}
+    .gbot-send{padding:11px 18px;border-radius:14px;border:0;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#EBD79B,#D4AF37);color:#4A0E17}
+    .gbot-err{font-size:12px;color:#FCA5A5;padding:0 4px}
+    @keyframes gbotIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    @keyframes gbotBlink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+    @media (prefers-reduced-motion:reduce){.gbot-row,.gbot-dots i{animation:none}}
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50" style="background:#4A0E17;">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="#top" class="flex items-center gap-3">
+        <span class="brand-logo" role="img" aria-label="Логотип студии Гранат" style="width:40px;height:40px;"></span>
+        <span class="studio-logo-gold text-xl">Гранат</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-8 text-xs font-semibold tracking-widest uppercase text-white/80">
+        <a href="#pechat" class="nav-link hover:text-white">Печать, дизайн и полиграфия</a>
+        <a href="#cifra" class="nav-link hover:text-white">Сайты и боты</a>
+        <a href="#raboty" class="nav-link hover:text-white">Работы</a>
+        <a href="#kak" class="nav-link hover:text-white">Как работаем</a>
+        <a href="#zayavka" class="btn-gold" style="padding:11px 22px;">Оставить заявку</a>
+      </nav>
+      <a href="#zayavka" class="md:hidden btn-gold" style="padding:10px 18px;">Заявка</a>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- Hero -->
+    <section class="relative overflow-hidden" style="background:#4A0E17;">
+      <div class="max-w-6xl mx-auto px-6 pt-20 pb-24 text-center">
+        <div class="logo-orbit">
+          <div class="orbit-ring orbit-ring-1" aria-hidden="true"></div>
+          <div class="orbit-ring orbit-ring-2" aria-hidden="true"></div>
+          <span class="brand-logo logo-img" role="img" aria-label="Логотип студии Гранат"></span>
+        </div>
+        <p class="kicker mb-5">Дизайн-студия «Гранат» · Лермонтов · КМВ</p>
+        <h1 class="text-white font-bold leading-tight" style="font-size:clamp(2.4rem,6vw,4.6rem);">
+          Ваш бизнес запомнят<br /><span class="italic gold-grad">с первого взгляда</span>
+        </h1>
+        <p class="text-white/75 max-w-2xl mx-auto mt-7 text-lg leading-relaxed">
+          Или не запомнят вообще. Мы делаем премиальную полиграфию и сайты, которые заставляют
+          выбрать именно вас — от золотого тиснения до работающего Telegram-бота. Печать и код под одной крышей.
+        </p>
+        <div class="flex flex-wrap gap-4 justify-center mt-10">
+          <a href="#pechat" class="btn-gold">Полиграфия и дизайн</a>
+          <a href="#cifra" class="btn-gold">Сайты и боты</a>
+        </div>
+        <div class="flex flex-wrap gap-4 justify-center mt-4">
+          <a href="https://t.me/GranatJarvis_bot" class="btn-outline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3 18.7 19.6c-.2 1-.9 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.9 8.9-8c.4-.3-.1-.5-.6-.2L6.7 13.6l-4.7-1.5c-1-.3-1-1 .2-1.5l18.4-7.1c.9-.3 1.6.2 1.3 1.8Z"/></svg>
+            Оформить в Telegram-боте
+          </a>
+        </div>
+        <div class="flex flex-wrap gap-x-12 gap-y-4 justify-center mt-14 text-white/70">
+          <div><span class="serif text-3xl gold-grad">0,1</span><p class="text-xs tracking-widest uppercase mt-1">мм точность реза</p></div>
+          <div><span class="serif text-3xl gold-grad">350</span><p class="text-xs tracking-widest uppercase mt-1">г/м² бумага</p></div>
+          <div><span class="serif text-3xl gold-grad">6</span><p class="text-xs tracking-widest uppercase mt-1">ручных этапов</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Боль / страх -->
+    <section class="max-w-4xl mx-auto px-6 py-20 text-center reveal">
+      <p class="kicker mb-4" style="color:#4A0E17;">Почему клиенты уходят к другим</p>
+      <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Логотип «на коленке» и сайт из 2010-го<br />убивают доверие ещё до разговора</h2>
+      <p class="text-lg leading-relaxed mt-6 opacity-80">
+        Клиенту хватает пары секунд, чтобы решить: серьёзный вы бизнес — или «ещё один такой же».
+        Слабая упаковка — и он уходит к тому, кто <strong>выглядит дороже</strong>. Даже если ваш продукт лучше.
+        Обидно терять заказы не из-за качества, а из-за первого впечатления.
+      </p>
+      <hr class="gold-line max-w-xs mx-auto mt-10" />
+    </section>
+
+    <!-- Разрушение мифа -->
+    <section class="py-20" style="background:#fff;">
+      <div class="max-w-4xl mx-auto px-6 text-center reveal">
+        <p class="kicker mb-4" style="color:#4A0E17;">Разрушаем миф</p>
+        <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">«Премиум — это дорого и только для больших». Неправда.</h2>
+        <p class="text-lg leading-relaxed mt-6 opacity-80">
+          Премиальная подача — это не про огромный бюджет. Это про детали: плотную бумагу 350 г/м²,
+          золотое тиснение, чистый сайт, единый фирменный стиль. Именно они поднимают доверие и позволяют
+          <strong>продавать дороже</strong>. Малому бизнесу это нужнее всего — чтобы выделиться среди тех, кто «как все».
+        </p>
+      </div>
+    </section>
+
+    <!-- Выгода в цифрах -->
+    <section class="py-20" style="background:#F9F3EB;">
+      <div class="max-w-5xl mx-auto px-6">
+        <div class="text-center max-w-2xl mx-auto reveal">
+          <p class="kicker mb-3" style="color:#4A0E17;">Выгода в цифрах</p>
+          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Что вы получаете на деле</h2>
+        </div>
+        <div class="grid md:grid-cols-4 gap-8 mt-12 text-center">
+          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">2 сек.</div><p class="text-sm opacity-70 mt-2">столько нужно клиенту, чтобы решить — доверять вам или нет</p></div>
+          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">350 г/м²</div><p class="text-sm opacity-70 mt-2">плотная дизайнерская бумага — премиум чувствуется в руке</p></div>
+          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">5–7 дней</div><p class="text-sm opacity-70 mt-2">от идеи до готового изделия или запущенного сайта</p></div>
+          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">1 студия</div><p class="text-sm opacity-70 mt-2">вместо пяти подрядчиков — печать и код в одном месте</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Почему печать + код вместе -->
+    <section class="py-20" style="background:#fff;">
+      <div class="max-w-4xl mx-auto px-6 text-center reveal">
+        <p class="kicker mb-4" style="color:#4A0E17;">Печать + код = одно целое</p>
+        <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Полное воплощение вашей задачи — в одних руках</h2>
+        <p class="text-lg leading-relaxed mt-6 opacity-80">
+          Красивая визитка без сайта — половина дела. Сайт без узнаваемого стиля — вторая половина.
+          А <strong>вместе</strong> — это система, которая работает на вас и в городе, и в интернете. Одно усиливает другое.
+        </p>
+      </div>
+      <div class="max-w-5xl mx-auto px-6 grid md:grid-cols-3 gap-6 mt-12">
+        <article class="reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+          <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Единый образ</h3>
+          <p class="opacity-70 text-sm leading-relaxed">От логотипа до визитки, от сайта до бота — одна визуальная линия. Клиент видит вас цельно и запоминает.</p>
+        </article>
+        <article class="reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+          <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Офлайн + онлайн</h3>
+          <p class="opacity-70 text-sm leading-relaxed">Печать даёт доверие в руках и заметность в городе. Код ловит заявки в интернете. Клиент приходит с обеих сторон.</p>
+        </article>
+        <article class="reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+          <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Один подрядчик, не пять</h3>
+          <p class="opacity-70 text-sm leading-relaxed">Не нужно искать отдельно дизайнера, типографию и программиста. Всё под ключ, в одном стиле, без хаоса и потерь.</p>
+        </article>
+      </div>
+      <p class="text-center max-w-3xl mx-auto px-6 mt-10 text-lg reveal" style="color:#4A0E17;">
+        <strong>Итог: вас узнают, вам доверяют, вам пишут.</strong> Печать и код вместе превращают ваш бизнес в тот, который выбирают и рекомендуют.
+      </p>
+    </section>
+
+    <!-- Почему я -->
+    <section class="py-20" style="background:#4A0E17;">
+      <div class="max-w-3xl mx-auto px-6 text-center reveal">
+        <p class="kicker mb-4">Почему я</p>
+        <h2 class="text-3xl md:text-4xl font-bold text-white">Один человек — это не компромисс, а преимущество</h2>
+        <p class="text-white/75 text-lg leading-relaxed mt-6">
+          Когда сайт делает один человек, а не команда из дизайнера, менеджера и разработчика — это не компромисс, а преимущество.
+          Никакого «испорченного телефона»: идея, которую ты рассказываешь, доходит до результата без искажений.
+          Я сама веду проект от макета до кода — печать и digital под одной крышей, в Лермонтове и по всему КМВ.
+        </p>
+      </div>
+    </section>
+
+    <!-- Печать -->
+    <section id="pechat" class="py-20" style="background:#F9F3EB; position:relative; overflow:hidden;">
+      <svg class="print-visual" viewBox="0 0 100 96" aria-hidden="true">
+        <g class="print-paper">
+          <rect x="30" y="3" width="40" height="34" rx="2"/>
+          <line x1="37" y1="13" x2="63" y2="13"/>
+          <line x1="37" y1="20" x2="63" y2="20"/>
+          <line x1="37" y1="27" x2="55" y2="27"/>
+        </g>
+        <rect x="18" y="40" width="64" height="34" rx="6"/>
+        <line x1="30" y1="40" x2="70" y2="40"/>
+        <path d="M30 74 v10 a2 2 0 0 0 2 2 h36 a2 2 0 0 0 2 -2 v-10"/>
+        <circle cx="72" cy="52" r="2.4"/>
+      </svg>
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-2xl reveal">
+          <p class="kicker mb-3" style="color:#4A0E17;">Направление 1 · Печать, дизайн и полиграфия</p>
+          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Полиграфия, которую видно и приятно держать в руках</h2>
+          <p class="text-lg opacity-75 mt-4">Приглашения ручной сборки, сертификаты с золотым тиснением, высокоточная плоттерная резка — и повседневная печать для бизнеса.</p>
+        </div>
+        <div class="grid md:grid-cols-3 gap-6 mt-12">
+          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Приглашения</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Дизайнерская бумага, ажурная резка, конгревное тиснение золотой фольгой, сургучная печать, лента. От 200 ₽/шт.</p>
+          </article>
+          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Сертификаты</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Подарочный формат с акцентом на фактуру и тиснение. Выглядит дороже своего номинала. От 300 ₽.</p>
+          </article>
+          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Плоттерная резка</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Ажурные узоры, трафареты, кастомные конверты, наклейки Oracal. Точность 0,1 мм. От 300 ₽.</p>
+          </article>
+          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Визитки и логотипы</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Фирменный стиль и печать: логотип, визитки, меню для кафе — под характер вашего дела.</p>
+          </article>
+          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Копии, печать, ламинация</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Ксерокопия и печать документов, ламинирование, фотопечать — быстро и аккуратно.</p>
+          </article>
+          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Брендирование и отделка</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Нанесение логотипа на чашки и продукцию. Фольгирование, тиснение, вырубка по контуру.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Цифра -->
+    <section id="cifra" class="py-20" style="background:#4A0E17;">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-2xl reveal">
+          <p class="kicker mb-3">Направление 2 · Код</p>
+          <h2 class="text-3xl md:text-4xl font-bold text-white">Сайты, боты и автоматизация, которые приносят заявки</h2>
+          <p class="text-lg text-white/70 mt-4">Делаем не на конструкторе, а кодом — значит быстрее, гибче и без ограничений шаблона.</p>
+        </div>
+        <div class="grid md:grid-cols-2 gap-6 mt-12">
+          <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
+            <h3 class="text-xl font-bold mb-2 gold-grad">Сайты под заявки</h3>
+            <p class="text-white/70 text-sm leading-relaxed">Лендинги и сайты, которые продают, а не просто «висят» в интернете. Как этот — сделан кодом. От 15 000 ₽, срок от 7 дней.</p>
+          </article>
+          <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
+            <h3 class="text-xl font-bold mb-2 gold-grad">Telegram-боты</h3>
+            <p class="text-white/70 text-sm leading-relaxed">Приём заказов, ответы клиентам, уведомления о заявках. Наш бот-помощник Джарвис — пример. От 15 000 ₽, с интеграцией CRM/оплаты/записи — от 40 000 ₽.</p>
+          </article>
+          <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
+            <h3 class="text-xl font-bold mb-2 gold-grad">Мини-приложения</h3>
+            <p class="text-white/70 text-sm leading-relaxed">Простые цифровые инструменты под конкретную задачу: бронирование, оплата, личный кабинет. От 60 000 ₽, по брифу.</p>
+          </article>
+          <article class="reveal rounded-2xl p-7" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25);">
+            <h3 class="text-xl font-bold mb-2 gold-grad">Автоматизация</h3>
+            <p class="text-white/70 text-sm leading-relaxed">Формы, заявки, таблицы и уведомления — убираем рутину и связываем всё вместе. Стоимость — по задаче, обсчитываем на консультации.</p>
+          </article>
+        </div>
+        <p class="text-white/50 text-sm mt-6 reveal">Цены стартовые. Точную стоимость и срок называем после короткого обсуждения задачи — консультация бесплатная.</p>
+      </div>
+    </section>
+
+    <!-- Демо бота -->
+    <section id="bot-demo" class="py-20" style="background:#F9F3EB;">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-2xl reveal">
+          <p class="kicker mb-3" style="color:#4A0E17;">Попробуйте прямо здесь</p>
+          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Живое демо Telegram-бота</h2>
+          <p class="text-lg mt-4" style="color:rgba(74,14,23,.72);">Нажмите на кнопки — увидите, как бот встречает клиента, ведёт по вопросам и забирает контакт. Такого же соберём под вашу задачу.</p>
+        </div>
+        <div class="reveal" style="margin-top:44px;">
+          <div class="gbot" id="gbot">
+            <div class="gbot-head">
+              <div class="gbot-ava">Г</div>
+              <div class="gbot-id">
+                <div class="gbot-name">ГРАНАТ Завод Ботов</div>
+                <div class="gbot-status">online</div>
+              </div>
+              <div class="gbot-tag">demo</div>
+            </div>
+            <div class="gbot-feed" id="gbotFeed"></div>
+            <div class="gbot-kb" id="gbotKb"></div>
+          </div>
+        </div>
+        <p class="text-sm mt-6 reveal" style="color:rgba(74,14,23,.55); text-align:center;">Это демонстрация сценария. Рабочий бот отвечает мгновенно и присылает заявку вам в Telegram.</p>
+      </div>
+    </section>
+
+    <!-- Работы -->
+    <section id="raboty" class="py-20" style="background:#fff;">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-2xl reveal">
+          <p class="kicker mb-3" style="color:#4A0E17;">Портфолио</p>
+          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Наши работы по направлениям</h2>
+          <p class="text-lg opacity-75 mt-4">Листайте карточки вбок 👉 Каждый проект — под характер бренда и события.</p>
+        </div>
+        <div class="port-cat reveal">
+          <h3>Свадебные и праздничные приглашения</h3>
+          <div class="port-strip">
+            <figure>
+              <a href="/priglasitelnye-otkrytki-1.jpg" target="_blank" rel="noopener">
+                <img src="/priglasitelnye-otkrytki-1.jpg" alt="Свадебное приглашение — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Свадебное приглашение</figcaption>
+            </figure>
+            <figure>
+              <a href="/priglasitelnye-den-rozhdeniya-1.jpg" target="_blank" rel="noopener">
+                <img src="/priglasitelnye-den-rozhdeniya-1.jpg" alt="Приглашение на день рождения — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Приглашение на день рождения</figcaption>
+            </figure>
+            <figure>
+              <a href="/priglasitelnye-den-rozhdeniya-2.jpg" target="_blank" rel="noopener">
+                <img src="/priglasitelnye-den-rozhdeniya-2.jpg" alt="Приглашение на день рождения — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Приглашение на день рождения</figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="port-cat reveal">
+          <h3>Меню для кафе и ресторанов</h3>
+          <div class="port-strip">
+            <figure>
+              <a href="/kniga-menu-1.jpg" target="_blank" rel="noopener">
+                <img src="/kniga-menu-1.jpg" alt="Книга-меню — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Книга-меню</figcaption>
+            </figure>
+            <figure>
+              <a href="/menu-vostochnoy-kuhni-1.jpg" target="_blank" rel="noopener">
+                <img src="/menu-vostochnoy-kuhni-1.jpg" alt="Меню восточной кухни — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Меню восточной кухни</figcaption>
+            </figure>
+            <figure>
+              <a href="/menu-vostochnoy-kuhni-2.jpg" target="_blank" rel="noopener">
+                <img src="/menu-vostochnoy-kuhni-2.jpg" alt="Меню восточной кухни — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Меню восточной кухни</figcaption>
+            </figure>
+            <figure>
+              <a href="/detskoe-menu-1.jpg" target="_blank" rel="noopener">
+                <img src="/detskoe-menu-1.jpg" alt="Детское меню — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Детское меню</figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="port-cat reveal">
+          <h3>Реклама и флаеры</h3>
+          <div class="port-strip">
+            <figure>
+              <a href="/flaer-reklamnyy-1.jpg" target="_blank" rel="noopener">
+                <img src="/flaer-reklamnyy-1.jpg" alt="Рекламный флаер — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Рекламный флаер</figcaption>
+            </figure>
+            <figure>
+              <a href="/flaer-reklamnyy-2.jpg" target="_blank" rel="noopener">
+                <img src="/flaer-reklamnyy-2.jpg" alt="Рекламный флаер — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Рекламный флаер</figcaption>
+            </figure>
+            <figure>
+              <a href="/onlayn-kursy-angliyskogo-1.jpg" target="_blank" rel="noopener">
+                <img src="/onlayn-kursy-angliyskogo-1.jpg" alt="Флаер: онлайн-курсы — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Флаер: онлайн-курсы</figcaption>
+            </figure>
+            <figure>
+              <a href="/onlayn-kursy-angliyskogo-2.jpg" target="_blank" rel="noopener">
+                <img src="/onlayn-kursy-angliyskogo-2.jpg" alt="Флаер: онлайн-курсы — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Флаер: онлайн-курсы</figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="port-cat reveal">
+          <h3>Этикетки и брендирование</h3>
+          <div class="port-strip">
+            <figure>
+              <a href="/etiketki-shokolad-1.jpg" target="_blank" rel="noopener">
+                <img src="/etiketki-shokolad-1.jpg" alt="Этикетки для шоколада — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Этикетки для шоколада</figcaption>
+            </figure>
+            <figure>
+              <a href="/etiketki-shokolad-2.jpg" target="_blank" rel="noopener">
+                <img src="/etiketki-shokolad-2.jpg" alt="Этикетки для шоколада — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Этикетки для шоколада</figcaption>
+            </figure>
+            <figure>
+              <a href="/case-label-branding.jpg" target="_blank" rel="noopener">
+                <img src="/case-label-branding.jpg" alt="Брендирование продукции — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Брендирование продукции</figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="port-cat reveal">
+          <h3>Карточки товара и полиграфия</h3>
+          <div class="port-strip">
+            <figure>
+              <a href="/studio-photo-1.jpg" target="_blank" rel="noopener">
+                <img src="/studio-photo-1.jpg" alt="Оформление карточек товара — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Оформление карточек товара</figcaption>
+            </figure>
+            <figure>
+              <a href="/studio-photo-2.jpg" target="_blank" rel="noopener">
+                <img src="/studio-photo-2.jpg" alt="Оформление карточек товара — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Оформление карточек товара</figcaption>
+            </figure>
+            <figure>
+              <a href="/case-certificate.jpg" target="_blank" rel="noopener">
+                <img src="/case-certificate.jpg" alt="Подарочный сертификат — студия Гранат" loading="lazy" />
+              </a>
+              <figcaption>Подарочный сертификат</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Как работаем -->
+    <section id="kak" class="py-20" style="background:#F9F3EB;">
+      <div class="max-w-5xl mx-auto px-6">
+        <div class="text-center max-w-2xl mx-auto reveal">
+          <p class="kicker mb-3" style="color:#4A0E17;">Как мы работаем</p>
+          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">От идеи — к шедевру</h2>
+        </div>
+        <div class="grid md:grid-cols-3 gap-8 mt-12">
+          <div class="text-center reveal">
+            <div class="serif text-4xl mb-3 gold-grad">1</div>
+            <h3 class="text-lg font-bold mb-2" style="color:#4A0E17;">Заявка</h3>
+            <p class="opacity-70 text-sm">Пишете нам через форму или бот — отвечаете на короткие вопросы о задаче.</p>
+          </div>
+          <div class="text-center reveal">
+            <div class="serif text-4xl mb-3 gold-grad">2</div>
+            <h3 class="text-lg font-bold mb-2" style="color:#4A0E17;">ТЗ и согласование</h3>
+            <p class="opacity-70 text-sm">Собираем техзадание, обсуждаем формат, материалы и сроки. Предоплата 50%.</p>
+          </div>
+          <div class="text-center reveal">
+            <div class="serif text-4xl mb-3 gold-grad">3</div>
+            <h3 class="text-lg font-bold mb-2" style="color:#4A0E17;">Изготовление</h3>
+            <p class="opacity-70 text-sm">Делаем под ключ — от макета до готового изделия или запущенного сайта.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Заявка -->
+    <section id="zayavka" class="py-20" style="background:#4A0E17;">
+      <div class="max-w-3xl mx-auto px-6">
+        <div class="text-center reveal">
+          <p class="kicker mb-3">Заявка</p>
+          <h2 class="text-3xl md:text-4xl font-bold text-white">Пусть вас запомнят и рекомендуют</h2>
+          <p class="text-white/70 mt-4">Один раз сделайте премиально — и клиенты возвращаются и приводят друзей. Напишите нам: за один разговор обсудим задачу, покажем 2–3 похожих примера из портфолио и назовём точную стоимость — бесплатно, без предоплаты и без обязательств. Не подойдёт — просто скажете «не в этот раз», ничего не теряете.</p>
+          <a href="https://t.me/GranatJarvis_bot" class="btn-gold mt-6">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3 18.7 19.6c-.2 1-.9 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.9 8.9-8c.4-.3-.1-.5-.6-.2L6.7 13.6l-4.7-1.5c-1-.3-1-1 .2-1.5l18.4-7.1c.9-.3 1.6.2 1.3 1.8Z"/></svg>
+            Оформить в Telegram-боте
+          </a>
+        </div>
+
+        <form id="orderForm" class="mt-10 grid gap-4" style="background:rgba(255,255,255,.05); border:1px solid rgba(212,175,55,.25); border-radius:20px; padding:28px;">
+          <div class="grid md:grid-cols-2 gap-4">
+            <label class="block">
+              <span class="text-white/70 text-xs uppercase tracking-widest">Имя *</span>
+              <input name="name" required class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink" placeholder="Как к вам обращаться" />
+            </label>
+            <label class="block">
+              <span class="text-white/70 text-xs uppercase tracking-widest">Телефон или Telegram *</span>
+              <input name="phone" required class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink" placeholder="+7 928 ... или @username" />
+            </label>
+          </div>
+          <label class="block">
+            <span class="text-white/70 text-xs uppercase tracking-widest">Что нужно</span>
+            <input name="service" class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink" placeholder="Приглашения / сертификаты / сайт / бот ..." />
+          </label>
+          <label class="block">
+            <span class="text-white/70 text-xs uppercase tracking-widest">Пожелания</span>
+            <textarea name="notes" rows="3" class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink" placeholder="Коротко опишите задачу, тираж, сроки"></textarea>
+          </label>
+          <label class="flex items-start gap-3 text-white/70 text-sm">
+            <input type="checkbox" required class="mt-1" />
+            <span>Согласен(а) на обработку персональных данных согласно
+              <a href="/privacy.html" class="underline gold-grad">Политике конфиденциальности</a>.</span>
+          </label>
+          <button type="submit" class="btn-gold justify-center" style="width:100%; padding:16px;">Отправить заявку</button>
+          <p class="text-white/50 text-xs text-center -mt-1">Отвечаем в течение дня · Без предоплаты на этом шаге · Ни к чему не обязывает</p>
+          <p id="formMsg" class="text-center text-sm" style="min-height:20px;"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="py-12" style="background:#3a0b12; color:rgba(255,255,255,.7);">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="flex flex-wrap gap-8 justify-between">
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="brand-logo" role="img" aria-label="Логотип студии Гранат" style="width:44px;height:44px;"></span>
+            <span class="studio-logo-gold text-lg">Гранат</span>
+          </div>
+          <p class="text-sm mt-3 max-w-xs">Дизайнерская студия премиум-полиграфии и цифровых решений. Печать и код под одной крышей.</p>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <p class="text-white font-semibold mb-2 uppercase tracking-widest text-xs">Контакты</p>
+          <p>Россия, Ставропольский край,<br />г. Лермонтов, ул. Нагорная, д. 2/1</p>
+          <p>Пн–Вс, 10:00–18:00</p>
+          <p><a href="tel:+79992449999" class="gold-grad">+7 999 244-99-99</a></p>
+          <p><a href="mailto:gulnaravibecoder999@yandex.ru" class="gold-grad">gulnaravibecoder999@yandex.ru</a></p>
+          <p><a href="https://t.me/GranatJarvis_bot" class="gold-grad">@GranatJarvis_bot</a></p>
+        </div>
+      </div>
+      <hr class="gold-line my-8" />
+      <div class="flex flex-wrap gap-4 justify-between text-xs opacity-60">
+        <span>© 2026 ИП Мелконян Г.Р. · Студия ГРАНАТ · ИНН 490600091128</span>
+        <a href="/privacy.html" class="underline">Политика конфиденциальности</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Scroll reveal
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+    // Order form
+    const form = document.getElementById('orderForm');
+    const msg = document.getElementById('formMsg');
+
+    // Запасной путь: если заявка не ушла с сервера, клиента не теряем —
+    // даём открыть мессенджер с уже подставленным текстом заявки.
+    function rescueButtons(data) {
+      const text =
+        'Здравствуйте! Заявка с сайта granat-kmv.ru\n' +
+        'Имя: ' + (data.name || '') + '\n' +
+        'Контакт: ' + (data.phone || '') +
+        (data.service ? '\nЧто нужно: ' + data.service : '') +
+        (data.notes ? '\nПожелания: ' + data.notes : '');
+      const enc = encodeURIComponent(text);
+      const style = 'display:inline-block; margin:8px 6px; padding:12px 22px;';
+      // Первым — бот: он сам задаёт вопросы и приносит готовый бриф.
+      // WhatsApp — запасной выход для тех, кто не пользуется Telegram.
+      return '<span style="display:block; margin-top:10px;">' +
+        '<a class="btn-gold" style="' + style + '" target="_blank" rel="noopener" ' +
+        'href="https://t.me/GranatJarvis_bot">Продолжить в Telegram-боте</a>' +
+        '<a class="btn-gold" style="' + style + '; opacity:.85;" target="_blank" rel="noopener" ' +
+        'href="https://wa.me/79992449999?text=' + enc + '">Написать в WhatsApp</a></span>' +
+        '<span style="display:block; margin-top:6px; font-size:12px; opacity:.7;">' +
+        'В боте быстрее: задаст пару вопросов по вашей задаче и сразу передаст расчёт.</span>';
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      // Блокируем кнопку на время отправки, иначе двойное нажатие
+      // создаёт две одинаковые заявки.
+      if (submitBtn.disabled) return;
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '.6';
+      msg.style.color = '#F9F3EB';
+      msg.textContent = 'Отправляем...';
+      const data = Object.fromEntries(new FormData(form).entries());
+      try {
+        const res = await fetch('/api/order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const json = await res.json();
+        if (res.ok && json.ok) {
+          form.reset();
+          msg.style.color = '#D4AF37';
+          msg.textContent = '✅ Спасибо! Заявка отправлена — мы свяжемся с вами.';
+          metrikaGoal('zayavka');
+        } else if (json.error === 'Укажите имя') {
+          msg.style.color = '#ffb4b4';
+          msg.textContent = '❌ Укажите имя';
+        } else {
+          msg.style.color = '#F9F3EB';
+          msg.innerHTML = 'Мы получили вашу заявку, но чтобы ответить быстрее — ' +
+            'отправьте её одним нажатием, всё уже заполнено:' + rescueButtons(data);
+          metrikaGoal('zayavka_rezerv');
+        }
+      } catch (e) {
+        msg.style.color = '#F9F3EB';
+        msg.innerHTML = 'Не получилось отправить с сайта. Отправьте заявку ' +
+          'одним нажатием — данные уже подставлены:' + rescueButtons(data);
+        metrikaGoal('zayavka_rezerv');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '';
+      }
+    });
+
+    // Считаем уходы в мессенджеры: и кнопки в шапке/герое, и аварийные.
+    document.addEventListener('click', (ev) => {
+      const link = ev.target.closest('a[href*="t.me"], a[href*="wa.me"]');
+      if (!link) return;
+      metrikaGoal(link.href.indexOf('wa.me') !== -1 ? 'whatsapp' : 'tg_bot');
+    });
+  </script>
+  <!-- ИИ-проводник -->
+  <div class="ai-orb" id="aiOrb" role="button" tabindex="0" aria-label="Помощник студии — оформить заявку">
+    <span class="orb-bubble" id="orbBubble"></span>
+  </div>
+
+  <script>
+    (function () {
+      var orb = document.getElementById('aiOrb'), bubble = document.getElementById('orbBubble');
+      if (!orb) return;
+      var fine = window.matchMedia('(pointer:fine)').matches;
+      if (fine) {
+        var cx = innerWidth - 90, cy = innerHeight / 2, mx = cx, my = cy;
+        addEventListener('mousemove', function (e) { mx = e.clientX + 14; my = e.clientY + 16; });
+        // Полупрозрачный хвост кометы
+        var N = 14, dots = [];
+        for (var k = 0; k < N; k++) { var d = document.createElement('span'); d.className = 'comet-dot'; document.body.appendChild(d); dots.push({ el: d, x: cx, y: cy }); }
+        (function raf() {
+          cx += (mx - cx) * 0.16; cy += (my - cy) * 0.16;
+          orb.style.transform = 'translate(' + (cx - 10) + 'px,' + (cy - 10) + 'px)';
+          var px = cx, py = cy;
+          for (var i = 0; i < N; i++) {
+            var t = 1 - i / N, dt = dots[i];
+            dt.x += (px - dt.x) * 0.34; dt.y += (py - dt.y) * 0.34;
+            var s = 2 + 9 * t;
+            dt.el.style.width = s + 'px'; dt.el.style.height = s + 'px';
+            dt.el.style.opacity = (0.3 * t).toFixed(2);
+            dt.el.style.transform = 'translate(' + (dt.x - s / 2) + 'px,' + (dt.y - s / 2) + 'px)';
+            px = dt.x; py = dt.y;
+          }
+          requestAnimationFrame(raf);
+        })();
+      } else { orb.classList.add('docked'); }
+
+      // Реплики — ценность, а не пересказ: лайфхак, частая ошибка, инсайд, ответ на частый вопрос
+      var msgs = {
+        hero: 'Заметили — сайт живой? Это не магия, это код. Так мы и работаем 👋 Полистайте.',
+        pechat: 'Лайфхак: тиснение заметнее на матовой бумаге, чем на глянце. Мелочь, а «вау» сильнее.',
+        cifra: 'Между нами: живой сайт держит внимание в разы дольше статичного. Вы это сейчас и чувствуете 😉',
+        raboty: 'Частая ошибка — брать шаблон. Мы делаем под характер бренда, поэтому работы не похожи одна на другую.',
+        kak: 'Секрет спокойных проектов — чёткое ТЗ на старте. Мы соберём его за вас: вопросами, а не терминами.',
+        zayavka: 'Здесь обычно спрашивают про сроки. Печать — от 1–2 дней, сайт — от нескольких. Точнее посчитаем в заявке.'
+      };
+      var spoken = {}, autoCount = 0, AUTO_MAX = 3;
+      function speak(t) { if (t) bubble.textContent = t; orb.classList.add('speak'); clearTimeout(orb._t); orb._t = setTimeout(function () { orb.classList.remove('speak'); }, 6500); }
+
+      // Какой блок сейчас перед глазами
+      var ids = ['pechat', 'cifra', 'raboty', 'kak', 'zayavka'], current = null, dwell = null;
+      var io = new IntersectionObserver(function (es) {
+        es.forEach(function (en) {
+          if (en.isIntersecting && en.intersectionRatio >= 0.55) current = en.target.id;
+          if (en.target.id === 'zayavka') { if (en.isIntersecting) orb.classList.add('pulse'); else orb.classList.remove('pulse'); }
+        });
+        scheduleDwell();
+      }, { threshold: [0.55] });
+      ids.forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
+
+      // Говорит, только если клиент задержался на блоке ~6 сек и перестал скроллить
+      function scheduleDwell() {
+        clearTimeout(dwell);
+        dwell = setTimeout(function () {
+          if (current && !spoken[current] && msgs[current] && autoCount < AUTO_MAX) {
+            spoken[current] = true; autoCount++; speak(msgs[current]);
+          }
+        }, 6000);
+      }
+      addEventListener('scroll', function () { orb.classList.remove('speak'); scheduleDwell(); }, { passive: true });
+
+      // Приветствие — один раз
+      setTimeout(function () { speak(msgs.hero); }, 1500);
+
+      // Микро-подсказки при наведении на ключевые кнопки — «сайт читает мысли»
+      var tips = [
+        ['a[href*="t.me"]', 'В боте закажете за 2 минуты, по шагам. Он не кусается 🙂'],
+        ['#orderForm button[type="submit"]', 'Смелее — это ни к чему не обязывает. Посчитаем и покажем примеры.'],
+        ['a[href="#zayavka"]', 'Тут без «купи сейчас». Просто расскажете задачу — остальное на нас.']
+      ];
+      var hoverCount = 0;
+      tips.forEach(function (t) {
+        document.querySelectorAll(t[0]).forEach(function (el) {
+          var ht;
+          el.addEventListener('mouseenter', function () { ht = setTimeout(function () { if (hoverCount < 4) { hoverCount++; speak(t[1]); } }, 650); });
+          el.addEventListener('mouseleave', function () { clearTimeout(ht); });
+        });
+      });
+
+      function go() { var f = document.getElementById('zayavka'); if (f) f.scrollIntoView({ behavior: 'smooth' }); }
+      orb.addEventListener('click', go);
+      orb.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    })();
+  </script>
+  <script>
+  (function(){
+    var feed=document.getElementById('gbotFeed'),kb=document.getElementById('gbotKb');
+    if(!feed||!kb)return;
+    var path=[],busy=false,started=false;
+    var S={
+      start:{t:'Привет! Я демо-бот завода ГРАНАТ. Что проверим?',b:[{l:'\uD83D\uDCBB Заказать сайт/бота',g:'site'},{l:'\uD83D\uDDA8\uFE0F Полиграфия',g:'print'},{l:'\u26A1 Связаться',g:'final'}]},
+      site:{t:'Делаем кастомный код, а не шаблоны. Что именно нужно?',b:[{l:'Лендинг',g:'final'},{l:'Telegram-бот',g:'final'},{l:'Назад',g:'start',back:1}]},
+      print:{t:'Печатаем премиум: плотность 350г/м², золото, тиснение. Что интересует?',b:[{l:'Визитки/Меню',g:'final'},{l:'Приглашения',g:'final'},{l:'Назад',g:'start',back:1}]},
+      final:{t:'Принято! Передаю бриф Боту-Генералу. Оставьте свой Telegram или телефон, Гульнара свяжется с вами:',form:1}
+    };
+    function hhmm(){var d=new Date();return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)}
+    function say(side,html){
+      var r=document.createElement('div');r.className='gbot-row '+side;
+      r.innerHTML='<div class="gbot-msg">'+html+'<div class="gbot-time">'+hhmm()+'</div></div>';
+      feed.appendChild(r);feed.scrollTop=feed.scrollHeight;return r;
+    }
+    function dots(){
+      var r=document.createElement('div');r.className='gbot-row bot';
+      r.innerHTML='<div class="gbot-msg gbot-dots" style="padding:0"><i></i><i></i><i></i></div>';
+      feed.appendChild(r);feed.scrollTop=feed.scrollHeight;return r;
+    }
+    function buttons(list){
+      kb.innerHTML='';
+      list.forEach(function(b){
+        var e=document.createElement('button');
+        e.type='button';e.className='gbot-btn'+(b.back?' back':'');e.textContent=b.l;
+        e.onclick=function(){pick(b)};kb.appendChild(e);
+      });
+    }
+    function form(){
+      kb.innerHTML='';
+      var w=document.createElement('div');w.className='gbot-form';
+      w.innerHTML='<input class="gbot-input" id="gbotIn" type="text" placeholder="@username или +7 999 000-00-00"><button class="gbot-send" type="button" id="gbotGo">Отправить</button>';
+      kb.appendChild(w);
+      var e=document.createElement('div');e.className='gbot-err';e.id='gbotErr';e.style.display='none';kb.appendChild(e);
+      document.getElementById('gbotGo').onclick=send;
+      document.getElementById('gbotIn').onkeydown=function(ev){if(ev.key==='Enter')send()};
+    }
+    function go(k){
+      busy=true;kb.innerHTML='';
+      var n=S[k],d=dots();
+      setTimeout(function(){
+        d.parentNode&&d.parentNode.removeChild(d);
+        say('bot',n.t);
+        n.form?form():buttons(n.b);
+        busy=false;
+      },1500);
+    }
+    function pick(b){
+      if(busy)return;
+      say('me',b.l);
+      if(!b.back)path.push(b.l);
+      go(b.g);
+    }
+    function send(){
+      var i=document.getElementById('gbotIn'),er=document.getElementById('gbotErr'),v=(i.value||'').trim();
+      if(v.length<4){er.textContent='Нужен Telegram или номер телефона — так мы сможем ответить.';er.style.display='';i.focus();return}
+      er.style.display='none';
+      say('me',v.replace(/[<>]/g,''));
+      kb.innerHTML='';busy=true;
+      var data={source:'granat-kmv.ru',widget:'bot-demo',path:path,contact:v,ts:new Date().toISOString()};
+      try{fetch('/api/bot-lead',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(function(){})}catch(e){}
+      console.log('bot-lead payload:',JSON.stringify(data));
+      var d=dots();
+      setTimeout(function(){
+        d.parentNode&&d.parentNode.removeChild(d);
+        say('bot','Бриф ушёл Боту-Генералу \u2705<br>Маршрут: <span style="color:#EBD79B">'+path.join(' \u2192 ')+'</span><br>Гульнара напишет в течение рабочего дня.');
+        var again=document.createElement('button');
+        again.type='button';again.className='gbot-btn back';again.style.textAlign='center';
+        again.textContent='Пройти сценарий заново';
+        again.onclick=function(){feed.innerHTML='';path=[];go('start')};
+        kb.appendChild(again);busy=false;
+      },1500);
+    }
+    function boot(){if(started)return;started=true;go('start')}
+    if('IntersectionObserver' in window){
+      var io=new IntersectionObserver(function(es){
+        es.forEach(function(en){if(en.isIntersecting){boot();io.disconnect()}});
+      },{threshold:.25});
+      io.observe(document.getElementById('gbot'));
+    }else{boot()}
+  })();
+  </script>
+</body>
+</html>

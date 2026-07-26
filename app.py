@@ -7,6 +7,9 @@ from zoneinfo import ZoneInfo
 import requests
 from flask import Flask, send_from_directory, request, jsonify, redirect
 
+import bots
+import leads
+
 # Принудительно ходим по IPv4. На Amvera исходящие соединения по IPv6 не
 # проходят (Errno 101 "Network is unreachable"), а requests может выбрать
 # именно IPv6-адрес api.telegram.org и упасть, хотя IPv4 работает.
@@ -171,6 +174,8 @@ def health():
         telegram="ok" if ok else mask(reason),
         chat_id_set=bool(CHAT_ID),
         undelivered=count_undelivered(),
+        # Оба бота одним взглядом: кто из них жив и под каким именем.
+        bots=bots.health(),
     )
 
 
@@ -186,19 +191,68 @@ def order():
     notes = (data.get("notes") or "").strip()
     payload = {"name": name, "phone": phone, "service": service, "notes": notes}
 
-    lines = ["🔔 НОВАЯ ЗАЯВКА С САЙТА", "", f"👤 Имя: {name}"]
+    # Номер нужен, чтобы Джарвис узнал клиента, когда тот придёт в бота,
+    # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
+    lead_id = leads.next_id()
+    payload["lead"] = lead_id
+    leads.log(lead_id, "created", source="site_form", **payload)
+
+    lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
     if phone:
         lines.append(f"📞 Телефон/Telegram: {phone}")
     if service:
         lines.append(f"🛍 Услуга: {service}")
     if notes:
         lines.append(f"📝 Пожелания: {notes}")
+    lines.append("")
+    lines.append("Ждём клиента в боте для сбора ТЗ.")
 
+    # ── 1. ГЕНЕРАЛ докладывает Гульнаре ──────────────────────────────────
     ok, reason = send_to_telegram("\n".join(lines))
     save_order(payload, delivered=ok, reason=reason)
+    leads.log(lead_id, "notified", delivered=ok)
 
-    if ok:
-        return jsonify(ok=True)
+    # ── 2. ДЖАРВИС забирает клиента ──────────────────────────────────────
+    # Если человек уже когда-то писал боту, его chat_id у нас есть — тогда
+    # Джарвис пишет сам, сразу, и клиенту вообще ничего нажимать не надо.
+    # Незнакомому написать нельзя: Telegram запрещает боту начинать первым.
+    pushed = False
+    chat = leads.find_chat_by_phone(phone)
+    if chat:
+        hello = (
+            f"Здравствуйте, {name}! Вы только что оставили заявку "
+            f"на сайте granat-kmv.ru (№{lead_id})."
+        )
+        if service:
+            hello += f"\nЗадача: <b>{service}</b>"
+        hello += (
+            "\n\nЧтобы Гульнара сразу назвала точную сумму и срок, уточню "
+            "несколько деталей — это пара минут. Начнём?"
+        )
+        markup = {
+            "inline_keyboard": [[
+                {"text": "Да, уточним детали",
+                 "callback_data": f"lead:start:{lead_id}"},
+                {"text": "Позже", "callback_data": f"lead:later:{lead_id}"},
+            ]]
+        }
+        pushed, why = bots.send_client(chat, hello, markup)
+        leads.log(lead_id, "jarvis_pushed", ok=pushed, reason=why, chat_id=chat)
+        if pushed:
+            bots.send_admin(
+                f"🤖 Джарвис сам написал клиенту по заявке №{lead_id} — "
+                "он у нас уже был, кнопка не понадобилась."
+            )
+
+    if ok or pushed:
+        # tg — ссылка «Продолжить в Telegram» для новых клиентов. Номер
+        # заявки внутри, поэтому Джарвис узнаёт человека с первого сообщения.
+        return jsonify(
+            ok=True,
+            lead=lead_id,
+            tg=leads.deep_link(lead_id),
+            pushed=pushed,
+        )
 
     # Заявка на диске лежит, но до Telegram не дошла. Браузеру отдаём
     # нейтральный текст — он покажет клиенту кнопки WhatsApp/Telegram.
@@ -208,11 +262,11 @@ def order():
 
 @app.route("/api/bot-lead", methods=["POST"])
 def bot_lead():
-    """Заявка из демо-бота на странице: контакт + маршрут по кнопкам.
+    """Заявка из симулятора на странице: контакт + собранная конфигурация.
 
-    Отдельно от /api/order, потому что это другой источник и другой набор
-    полей — в отчёте видно, что человек пришёл именно через бота, а не через
-    форму. Хранение и доставка те же: сначала на диск, потом в Telegram.
+    Отдельно от /api/order, потому что здесь есть чек — сумма и выбранные
+    опции. Он ложится в журнал заявки: в ссылку ?start= его не втиснуть
+    (Telegram даёт 64 символа), а по номеру Джарвис поднимет всё целиком.
     """
     data = request.get_json(silent=True) or request.form or {}
 
@@ -225,25 +279,142 @@ def bot_lead():
         path = [path]
     route_text = " → ".join(str(p) for p in path if str(p).strip())
 
+    try:
+        total = int(data.get("total") or 0)
+    except (TypeError, ValueError):
+        total = 0
+
     payload = {
-        "source": "bot-demo",
+        "source": "site_simulator",
         "contact": contact,
+        "phone": contact,          # чтобы узнавание по телефону работало и здесь
         "service": route_text,
-        "widget": (data.get("widget") or "").strip(),
+        "total": total,
+        "options": [str(p) for p in path if str(p).strip()],
+        "scenario": (data.get("scenario") or "").strip(),
     }
 
-    lines = ["🤖 ЗАЯВКА ИЗ ДЕМО-БОТА НА САЙТЕ", "", f"📞 Контакт: {contact}"]
+    lead_id = leads.next_id()
+    payload["lead"] = lead_id
+    leads.log(lead_id, "created", **payload)
+
+    # ── ГЕНЕРАЛ докладывает ──────────────────────────────────────────────
+    lines = [f"🤖 ЗАЯВКА ИЗ СИМУЛЯТОРА №{lead_id}", "", f"📞 Контакт: {contact}"]
     if route_text:
-        lines.append(f"🧭 Что смотрел: {route_text}")
+        lines.append(f"🧭 Собрал: {route_text}")
+    if total:
+        lines.append("💰 На сумму: {:,} ₽".format(total).replace(",", " "))
+    lines.append("")
+    lines.append("Ждём клиента в боте для сбора ТЗ.")
 
     ok, reason = send_to_telegram("\n".join(lines))
     save_order(payload, delivered=ok, reason=reason)
+    leads.log(lead_id, "notified", delivered=ok)
 
-    if ok:
-        return jsonify(ok=True)
+    # ── ДЖАРВИС забирает клиента, если он у нас уже был ──────────────────
+    pushed = False
+    chat = leads.find_chat_by_phone(contact)
+    if chat:
+        hello = f"Здравствуйте! Вижу вашу конфигурацию с сайта (заявка №{lead_id})."
+        if route_text:
+            hello += f"\nВы собрали: <b>{route_text}</b>"
+        if total:
+            hello += "\nПредварительно: <b>{:,} ₽</b>".format(total).replace(",", " ")
+        hello += (
+            "\n\nУточню пару деталей — и Гульнара подтвердит точную сумму и срок. "
+            "Начнём?"
+        )
+        markup = {
+            "inline_keyboard": [[
+                {"text": "Да, уточним детали",
+                 "callback_data": f"lead:start:{lead_id}"},
+                {"text": "Позже", "callback_data": f"lead:later:{lead_id}"},
+            ]]
+        }
+        pushed, why = bots.send_client(chat, hello, markup)
+        leads.log(lead_id, "jarvis_pushed", ok=pushed, reason=why, chat_id=chat)
+
+    if ok or pushed:
+        return jsonify(
+            ok=True, lead=lead_id, tg=leads.deep_link(lead_id), pushed=pushed
+        )
 
     print(f"[bot-lead] заявка сохранена, но не доставлена: {reason}", flush=True)
-    return jsonify(ok=False, saved=True, error="not_delivered"), 200
+    return jsonify(
+        ok=False, saved=True, error="not_delivered",
+        lead=lead_id, tg=leads.deep_link(lead_id),
+    ), 200
+
+
+@app.route("/api/watch")
+def watch():
+    """Сторож тишины. Дёргается по расписанию — Amvera → Cron Jobs.
+
+    Находит заявки, где клиент оставил контакт, но до бота не дошёл, и шлёт
+    Гульнаре алерт с телефоном: перехватить вручную, пока человек тёплый.
+    Про каждую заявку говорит один раз — сторож, повторяющий одно и то же,
+    перестаёт читаться.
+
+    Расписание, каждые 5 минут:
+        curl -s "https://granat-kmv.ru/api/watch?token=ТОКЕН&minutes=15"
+    """
+    token = os.getenv("WATCH_TOKEN", "").strip()
+    if not token or request.args.get("token", "") != token:
+        return jsonify(ok=False, error="forbidden"), 403
+
+    try:
+        minutes = int(request.args.get("minutes", "15"))
+    except ValueError:
+        minutes = 15
+
+    items = leads.pending(minutes)
+    sent = 0
+    for it in items:
+        lines = [
+            f"⏳ ЗАЯВКА №{it['id']} — клиент не дошёл до бота",
+            "",
+            f"Прошло: {it.get('age_min', '?')} мин",
+        ]
+        if it.get("name"):
+            lines.append(f"👤 {it['name']}")
+        phone = it.get("phone") or it.get("contact") or ""
+        if phone:
+            lines.append(f"📞 {phone}")
+        if it.get("service"):
+            lines.append(f"🛍 {it['service']}")
+        chk = leads.cheque(it)
+        if chk:
+            lines.append(f"💰 Собрал: {chk}")
+        if it.get("notes"):
+            lines.append(f"📝 {it['notes']}")
+        lines.append("")
+        lines.append("Позвони сама — бот написать первым не может.")
+
+        ok_send, _ = bots.send_admin("\n".join(lines))
+        if ok_send:
+            leads.mark_alerted(it["id"])
+            sent += 1
+
+    return jsonify(ok=True, alerted=sent, found=len(items), minutes=minutes)
+
+
+@app.route("/api/pending")
+def pending_leads():
+    """Для Генерала: заявки, где клиент не дошёл до бота.
+
+    Защищено токеном — иначе список контактов клиентов открыт всему интернету.
+    Задай WATCH_TOKEN в переменных Amvera и дёргай так:
+        /api/pending?token=...&minutes=15
+    """
+    token = os.getenv("WATCH_TOKEN", "").strip()
+    if not token or request.args.get("token", "") != token:
+        return jsonify(ok=False, error="forbidden"), 403
+    try:
+        minutes = int(request.args.get("minutes", "15"))
+    except ValueError:
+        minutes = 15
+    items = leads.pending(minutes)
+    return jsonify(ok=True, count=len(items), minutes=minutes, leads=items)
 
 
 if __name__ == "__main__":

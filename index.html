@@ -940,7 +940,23 @@
         if (res.ok && json.ok) {
           form.reset();
           msg.style.color = '#D4AF37';
-          msg.textContent = '✅ Спасибо! Заявка отправлена — мы свяжемся с вами.';
+          // Заявка ушла — но пока это только имя и телефон. Точное ТЗ
+          // соберёт Джарвис, поэтому уводим клиента в бота сразу, пока он
+          // ещё здесь и настроен разговаривать. Ссылка несёт номер заявки.
+          if (json.tg) {
+            msg.innerHTML = '✅ Заявка №' + json.lead + ' принята.' +
+              '<span style="display:block; margin-top:10px; font-weight:600;">' +
+              'Осталось уточнить детали — это две минуты в боте:</span>' +
+              '<span style="display:block; margin-top:10px;">' +
+              '<a class="btn-gold" style="display:inline-block; padding:13px 24px;" ' +
+              'target="_blank" rel="noopener" href="' + json.tg + '">' +
+              'Продолжить в Telegram →</a></span>' +
+              '<span style="display:block; margin-top:8px; font-size:12px; opacity:.7;">' +
+              'Джарвис задаст пару вопросов по задаче, посчитает стоимость ' +
+              'и передаст готовое ТЗ Гульнаре. Если не сейчас — мы всё равно свяжемся.</span>';
+          } else {
+            msg.textContent = '✅ Спасибо! Заявка отправлена — мы свяжемся с вами.';
+          }
           metrikaGoal('zayavka');
         } else if (json.error === 'Укажите имя') {
           msg.style.color = '#ffb4b4';
@@ -1245,9 +1261,27 @@
         .then(function(r){return r.json()}).catch(function(){return{ok:false}})
         .then(function(res){
           think(function(){
-            if(res&&res.ok){row('bot','Готово, заявка у Гульнары ✅ Ответит в рабочее время, Пн–Вс с 10 до 18.')}
-            else{row('bot','Заявка сохранена ✅ Если хотите быстрее — напишите напрямую: <b>@gulnara_gold999</b> или +7 (999) 244-99-99.')}
-            buttons([{l:'Собрать заново',ghost:1,go:function(){start(mode)}}]);
+            var n=res&&res.lead?' №'+res.lead:'';
+            if(res&&res.pushed){
+              row('bot','Готово, заявка'+n+' принята ✅ Джарвис уже написал вам в Telegram — продолжим там.');
+            }else{
+              row('bot','Готово, заявка'+n+' принята ✅ Ваша конфигурация сохранена.');
+            }
+            // Уводим в бота, пока клиент здесь: номер заявки в ссылке, поэтому
+            // Джарвис сразу видит собранный чек и не спрашивает всё заново.
+            if(res&&res.tg&&!res.pushed){
+              row('bot','Нажмите — Джарвис уточнит детали и посчитает точную сумму:');
+              var a=document.createElement('a');
+              a.className='sim-btn';a.style.display='block';a.style.textDecoration='none';
+              a.href=res.tg;a.target='_blank';a.rel='noopener';
+              a.textContent='Продолжить в Telegram →';
+              kb.appendChild(a);
+            }
+            var again=document.createElement('button');
+            again.type='button';again.className='sim-btn ghost';
+            again.textContent='Собрать заново';
+            again.onclick=function(){start(mode)};
+            kb.appendChild(again);
           });
         });
     }

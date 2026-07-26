@@ -206,5 +206,45 @@ def order():
     return jsonify(ok=False, saved=True, error="not_delivered"), 200
 
 
+@app.route("/api/bot-lead", methods=["POST"])
+def bot_lead():
+    """Заявка из демо-бота на странице: контакт + маршрут по кнопкам.
+
+    Отдельно от /api/order, потому что это другой источник и другой набор
+    полей — в отчёте видно, что человек пришёл именно через бота, а не через
+    форму. Хранение и доставка те же: сначала на диск, потом в Telegram.
+    """
+    data = request.get_json(silent=True) or request.form or {}
+
+    contact = (data.get("contact") or "").strip()
+    if not contact:
+        return jsonify(ok=False, error="Укажите Telegram или телефон"), 400
+
+    path = data.get("path") or []
+    if isinstance(path, str):
+        path = [path]
+    route_text = " → ".join(str(p) for p in path if str(p).strip())
+
+    payload = {
+        "source": "bot-demo",
+        "contact": contact,
+        "service": route_text,
+        "widget": (data.get("widget") or "").strip(),
+    }
+
+    lines = ["🤖 ЗАЯВКА ИЗ ДЕМО-БОТА НА САЙТЕ", "", f"📞 Контакт: {contact}"]
+    if route_text:
+        lines.append(f"🧭 Что смотрел: {route_text}")
+
+    ok, reason = send_to_telegram("\n".join(lines))
+    save_order(payload, delivered=ok, reason=reason)
+
+    if ok:
+        return jsonify(ok=True)
+
+    print(f"[bot-lead] заявка сохранена, но не доставлена: {reason}", flush=True)
+    return jsonify(ok=False, saved=True, error="not_delivered"), 200
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80, threaded=True)

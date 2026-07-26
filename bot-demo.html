@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ГРАНАТ — Симулятор Telegram-бота</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+tailwind.config={theme:{extend:{colors:{wine:"#26080F",wine2:"#3A0E1C",wine3:"#4D1527",wine4:"#671D34",gold:"#C9A24B",gold2:"#EBD79B",ink:"#F6EDE3"},fontFamily:{display:['"Playfair Display"',"serif"],body:["Inter","sans-serif"]},boxShadow:{lux:"0 30px 80px -20px rgba(0,0,0,.75)"}}}}
+</script>
+<style>
+body{background:radial-gradient(120% 90% at 50% -10%,#4D1527 0%,#26080F 55%,#170509 100%)}
+#gb-feed{scrollbar-width:thin;scrollbar-color:#671D34 transparent}
+#gb-feed::-webkit-scrollbar{width:6px}
+#gb-feed::-webkit-scrollbar-thumb{background:#671D34;border-radius:99px}
+.gb-in{animation:gbIn .32s cubic-bezier(.22,.9,.3,1) both}
+@keyframes gbIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.gb-dot{width:6px;height:6px;border-radius:99px;background:#C9A24B;display:inline-block;animation:gbBlink 1.15s infinite ease-in-out}
+.gb-dot:nth-child(2){animation-delay:.18s}
+.gb-dot:nth-child(3){animation-delay:.36s}
+@keyframes gbBlink{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.gb-live{box-shadow:0 0 0 0 rgba(74,222,128,.55);animation:gbPulse 2.2s infinite}
+@keyframes gbPulse{70%{box-shadow:0 0 0 7px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+.gb-btn:focus-visible,input:focus-visible{outline:2px solid #EBD79B;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.gb-in,.gb-dot,.gb-live{animation:none!important}}
+</style>
+</head>
+<body class="font-body text-ink min-h-screen flex items-center justify-center p-4">
+<div class="w-full max-w-md">
+<div class="rounded-[26px] overflow-hidden shadow-lux border border-gold/25 bg-wine2/80 backdrop-blur">
+<div class="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-wine3 to-wine2 border-b border-gold/20">
+<div class="relative">
+<div class="w-11 h-11 rounded-full bg-gradient-to-br from-gold2 to-gold flex items-center justify-center font-display font-bold text-xl text-wine">Г</div>
+<span class="gb-live absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-wine2"></span>
+</div>
+<div class="min-w-0">
+<div class="font-display text-[17px] leading-tight tracking-wide truncate">ГРАНАТ Завод Ботов</div>
+<div class="text-[12px] text-green-400/90 leading-tight">online</div>
+</div>
+<div class="ml-auto text-gold/50 text-xs tracking-[.2em] uppercase">demo</div>
+</div>
+<div id="gb-feed" class="h-[420px] overflow-y-auto px-4 py-4 space-y-2.5"></div>
+<div id="gb-kb" class="px-3 pb-3 pt-1 space-y-2 border-t border-gold/15 bg-wine/40"></div>
+</div>
+<p class="text-center text-[11px] text-gold/40 mt-3 tracking-wide">Демо-сценарий. Реальный бот работает так же, только быстрее.</p>
+</div>
+<script>
+(function(){
+var feed=document.getElementById("gb-feed"),kb=document.getElementById("gb-kb"),path=[],busy=false;
+var SCRIPTS={
+start:{text:"Привет! Я демо-бот завода ГРАНАТ. Что проверим?",buttons:[{l:"💻 Заказать сайт/бота",g:"site"},{l:"🖨️ Полиграфия",g:"print"},{l:"⚡ Связаться",g:"final"}]},
+site:{text:"Делаем кастомный код, а не шаблоны. Что именно нужно?",buttons:[{l:"Лендинг",g:"final"},{l:"Telegram-бот",g:"final"},{l:"Назад",g:"start",back:true}]},
+print:{text:"Печатаем премиум: плотность 350г/м², золото, тиснение. Что интересует?",buttons:[{l:"Визитки/Меню",g:"final"},{l:"Приглашения",g:"final"},{l:"Назад",g:"start",back:true}]},
+final:{text:"Принято! Передаю бриф Боту-Генералу. Оставь свой Telegram или телефон, Гульнара свяжется с тобой:",form:true}
+};
+function scroll(){feed.scrollTop=feed.scrollHeight}
+function time(){var d=new Date();return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)}
+function bubble(side,html){
+var w=document.createElement("div");
+w.className="gb-in flex "+(side==="bot"?"justify-start":"justify-end");
+w.innerHTML='<div class="max-w-[82%] px-3.5 py-2.5 text-[14px] leading-relaxed '+(side==="bot"?"bg-wine3/90 border border-gold/15 rounded-2xl rounded-tl-md":"bg-gradient-to-br from-gold to-[#A9832F] text-wine font-medium rounded-2xl rounded-br-md")+'">'+html+'<div class="text-[10px] mt-1 '+(side==="bot"?"text-gold/45":"text-wine/55")+' text-right">'+time()+"</div></div>";
+feed.appendChild(w);scroll();return w;
+}
+function typing(){
+var w=document.createElement("div");
+w.className="gb-in flex justify-start";
+w.innerHTML='<div class="bg-wine3/90 border border-gold/15 rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-1.5"><span class="gb-dot"></span><span class="gb-dot"></span><span class="gb-dot"></span></div>';
+feed.appendChild(w);scroll();return w;
+}
+function clearKb(){kb.innerHTML=""}
+function renderButtons(list){
+clearKb();
+list.forEach(function(b){
+var el=document.createElement("button");
+el.type="button";
+el.className="gb-btn w-full text-left px-4 py-2.5 rounded-xl text-[14px] transition border "+(b.back?"border-gold/20 text-gold/70 bg-transparent hover:bg-wine3/60":"border-gold/35 text-gold2 bg-wine3/50 hover:bg-wine4/70 hover:border-gold/70");
+el.textContent=b.l;
+el.addEventListener("click",function(){choose(b)});
+kb.appendChild(el);
+});
+}
+function renderForm(){
+clearKb();
+var wrap=document.createElement("div");
+wrap.className="flex gap-2";
+wrap.innerHTML='<input id="gb-input" type="text" inputmode="text" autocomplete="tel" placeholder="@username или +7 999 000-00-00" class="flex-1 bg-wine/70 border border-gold/30 rounded-xl px-3.5 py-2.5 text-[14px] text-ink placeholder-gold/35 focus:border-gold/70"><button id="gb-send" type="button" class="gb-btn px-4 py-2.5 rounded-xl bg-gradient-to-br from-gold2 to-gold text-wine font-semibold text-[14px] hover:brightness-110 transition">Отправить</button>';
+kb.appendChild(wrap);
+var err=document.createElement("div");
+err.id="gb-err";err.className="text-[12px] text-red-300/90 px-1 hidden";
+kb.appendChild(err);
+var i=document.getElementById("gb-input");
+document.getElementById("gb-send").addEventListener("click",submit);
+i.addEventListener("keydown",function(e){if(e.key==="Enter")submit()});
+i.focus({preventScroll:true});
+}
+function go(key){
+busy=true;clearKb();
+var node=SCRIPTS[key],t=typing();
+setTimeout(function(){
+t.remove();
+bubble("bot",node.text);
+if(node.form)renderForm();else renderButtons(node.buttons);
+busy=false;
+},1500);
+}
+function choose(b){
+if(busy)return;
+bubble("user",b.l);
+if(!b.back)path.push(b.l);
+go(b.g);
+}
+function submit(){
+var i=document.getElementById("gb-input"),err=document.getElementById("gb-err"),v=(i.value||"").trim();
+if(v.length<4){err.textContent="Нужен Telegram или номер телефона — так мы сможем ответить.";err.classList.remove("hidden");i.focus();return}
+err.classList.add("hidden");
+bubble("user",v.replace(/[<>]/g,""));
+clearKb();
+var payload={source:"granat-kmv.ru",widget:"bot-simulator",path:path,contact:v,ts:new Date().toISOString()};
+fetch("/api/bot-lead",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(function(){});
+console.log("bot-lead payload:",JSON.stringify(payload));
+busy=true;
+var t=typing();
+setTimeout(function(){
+t.remove();
+bubble("bot","Бриф ушёл Боту-Генералу ✅<br>Маршрут: <span class='text-gold2'>"+path.join(" → ")+"</span><br>Гульнара напишет в течение рабочего дня.");
+clearKb();
+var again=document.createElement("button");
+again.type="button";
+again.className="gb-btn w-full px-4 py-2.5 rounded-xl text-[14px] border border-gold/25 text-gold/70 hover:bg-wine3/60 transition";
+again.textContent="Пройти сценарий заново";
+again.addEventListener("click",function(){feed.innerHTML="";path=[];go("start")});
+kb.appendChild(again);
+busy=false;
+},1500);
+}
+go("start");
+})();
+</script>
+</body>
+</html>

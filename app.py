@@ -196,7 +196,16 @@ def order():
     phone = (data.get("phone") or "").strip()
     service = (data.get("service") or "").strip()
     notes = (data.get("notes") or "").strip()
-    payload = {"name": name, "phone": phone, "service": service, "notes": notes}
+
+    # Канал связи клиент выбирает прямо в форме. Приводим к трём значениям
+    # из ТЗ — Telegram / WhatsApp / VK, — чтобы в заявке и в CRM было
+    # единообразно, что бы браузер ни прислал.
+    _CHANNELS = {"telegram": "Telegram", "whatsapp": "WhatsApp",
+                 "vk": "VK", "вконтакте": "VK"}
+    channel = _CHANNELS.get((data.get("preferred_channel") or "").strip().lower(), "")
+
+    payload = {"name": name, "phone": phone, "service": service, "notes": notes,
+               "preferred_channel": channel}
 
     # Номер нужен, чтобы Джарвис узнал клиента, когда тот придёт в бота,
     # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
@@ -207,6 +216,9 @@ def order():
     lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
     if phone:
         lines.append(f"📞 Телефон/Telegram: {phone}")
+    if channel:
+        icon = {"Telegram": "✈️", "WhatsApp": "🟢", "VK": "🔵"}.get(channel, "💬")
+        lines.append(f"{icon} Писать в: {channel}")
     if service:
         lines.append(f"🛍 Услуга: {service}")
     if notes:

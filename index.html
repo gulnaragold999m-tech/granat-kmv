@@ -862,6 +862,16 @@
             <span class="text-white/70 text-xs uppercase tracking-widest">Пожелания</span>
             <textarea name="notes" rows="3" class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink" placeholder="Коротко опишите задачу, тираж, сроки"></textarea>
           </label>
+          <div>
+            <span class="text-white/70 text-xs uppercase tracking-widest">Где вам удобнее общаться? *</span>
+            <div class="ch-pick mt-2">
+              <label><input type="radio" name="preferred_channel" value="Telegram" required /><span>Telegram</span></label>
+              <label><input type="radio" name="preferred_channel" value="WhatsApp" /><span>WhatsApp</span></label>
+              <label><input type="radio" name="preferred_channel" value="VK" /><span>ВКонтакте</span></label>
+            </div>
+            <p class="text-white/40 text-xs mt-2">Напишем именно туда — не придётся ждать звонка в неудобный момент.</p>
+          </div>
+
           <label class="flex items-start gap-3 text-white/70 text-sm">
             <input type="checkbox" name="consent" required class="mt-1" />
             <span>Даю <a href="/consent.html" class="underline gold-grad">согласие на обработку
@@ -1375,6 +1385,20 @@
        необходимые» — не запускает ничего.
   ═══════════════════════════════════════════════════ -->
   <style>
+    /* Выбор мессенджера в форме заявки: три кнопки-таблетки.
+       Сам radio скрыт, кликается подпись — так надёжнее на телефонах. */
+    .ch-pick{display:flex;gap:10px;flex-wrap:wrap}
+    .ch-pick label{flex:1 1 120px;cursor:pointer;margin:0}
+    .ch-pick input{position:absolute;opacity:0;width:0;height:0}
+    .ch-pick span{display:block;text-align:center;padding:13px 10px;border-radius:10px;
+      border:1px solid rgba(212,175,55,.35);background:rgba(255,255,255,.06);
+      color:rgba(255,255,255,.85);font-size:14px;transition:all .18s}
+    .ch-pick label:hover span{background:rgba(255,255,255,.12);border-color:rgba(212,175,55,.6)}
+    .ch-pick input:checked + span{
+      background:linear-gradient(135deg,#F9EFC0,#E8C96A 45%,#C9A24B 75%,#93702A);
+      color:#4A0E17;font-weight:600;border-color:#D4AF37}
+    .ch-pick input:focus-visible + span{outline:2px solid #D4AF37;outline-offset:2px}
+
     #cookie-bar{position:fixed;left:0;right:0;bottom:0;z-index:9999;display:none;
       background:#4A0E17;border-top:1px solid rgba(212,175,55,.45);
       padding:18px 20px;box-shadow:0 -8px 30px rgba(0,0,0,.28)}

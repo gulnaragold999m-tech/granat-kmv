@@ -111,6 +111,13 @@ def privacy():
     return send_from_directory(".", "privacy.html")
 
 
+@app.route("/consent.html")
+def consent():
+    """Согласие на обработку ПДн — отдельным документом, как требует
+    редакция 152-ФЗ, действующая с 01.09.2025."""
+    return send_from_directory(".", "consent.html")
+
+
 def count_undelivered(hours=24):
     """Заявки, зависшие ПОСЛЕ последней успешной отправки.
 

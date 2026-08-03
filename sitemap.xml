@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  sitemap.xml для granat-kmv.ru
+  Сохранять в UTF-8 БЕЗ BOM.
+
+  Здесь только те адреса, которые сайт реально отдаёт (см. маршруты в app.py).
+  Несуществующие URL дают ошибки в Яндекс.Вебмастере и портят доверие к карте,
+  поэтому «на вырост» сюда ничего не добавляем.
+
+  Даты правим при заметной правке страницы: робот смотрит на lastmod, решая,
+  стоит ли перечитывать. Со старой датой свежий текст может пролежать
+  непрочитанным неделями.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <url>
+    <loc>https://granat-kmv.ru/</loc>
+    <lastmod>2026-08-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <url>
+    <loc>https://granat-kmv.ru/privacy.html</loc>
+    <lastmod>2026-08-03</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.1</priority>
+  </url>
+
+  <url>
+    <loc>https://granat-kmv.ru/consent.html</loc>
+    <lastmod>2026-08-03</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.1</priority>
+  </url>
+
+</urlset>

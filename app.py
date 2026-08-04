@@ -67,6 +67,114 @@ def save_order(payload, delivered, reason=""):
         print(f"[order] заявку не удалось записать на диск: {e}", flush=True)
 
 
+# ── ВКонтакте: второй канал доставки заявок ──────────────────────────────
+# ЗАЧЕМ. Telegram — одна точка отказа: 03.08.2026 он перестал принимать
+# сообщения, и заявки уходили в пустоту. ВК живёт на отдельном токене и
+# отдельной инфраструктуре, поэтому одновременный отказ обоих почти
+# невероятен. Каналы независимы: отказ одного не отменяет второй.
+#
+# ПЕРЕМЕННЫЕ (Amvera → Переменные окружения):
+#   VK_TOKEN   — ключ сообщества с правом «Сообщения сообщества».
+#   VK_PEER_ID — куда слать: числовой id, короткое имя или ссылка на страницу.
+#
+# ВАЖНО: сообщество не может написать человеку первым, пока тот сам не
+# написал сообществу хотя бы раз — как кнопка «Старт» у ботов Telegram.
+# Иначе ВК ответит ошибкой 901.
+VK_TOKEN = os.getenv("VK_TOKEN", "").strip()
+VK_PEER_ID = os.getenv("VK_PEER_ID", "").strip()
+
+# Расшифровки частых кодов: без них «ошибка 901» в логах через месяц
+# ничего не скажет тому, кто их откроет.
+VK_ERRORS = {
+    5: "ключ недействителен или отозван — получите новый в настройках сообщества",
+    901: "получатель ни разу не писал сообществу — напишите сообществу любое "
+         "сообщение со своей страницы",
+    902: "настройки приватности получателя запрещают сообществу писать ему",
+    914: "сообщение длиннее допустимого",
+    100: "неверный параметр запроса (чаще всего peer_id)",
+}
+
+# id получателя спрашиваем у ВК один раз за жизнь процесса и запоминаем:
+# короткое имя меняется редко, а лишний запрос на каждую заявку ни к чему.
+_vk_peer_cache = None
+
+
+def vk_peer():
+    """Числовой id получателя. Принимает id, короткое имя или ссылку."""
+    global _vk_peer_cache
+    if _vk_peer_cache:
+        return _vk_peer_cache
+
+    raw = VK_PEER_ID.rstrip("/").split("/")[-1]
+    if raw.lstrip("-").isdigit():
+        _vk_peer_cache = raw
+        return raw
+    if raw.startswith("id") and raw[2:].isdigit():
+        _vk_peer_cache = raw[2:]
+        return _vk_peer_cache
+
+    try:
+        r = requests.post(
+            "https://api.vk.com/method/utils.resolveScreenName",
+            data={"access_token": VK_TOKEN, "v": "5.199", "screen_name": raw},
+            timeout=15,
+        ).json()
+        object_id = str(r.get("response", {}).get("object_id") or "")
+        if object_id:
+            _vk_peer_cache = object_id
+            return object_id
+        print(f"[vk] не удалось определить id по «{raw}»: {r}", flush=True)
+    except Exception as e:
+        print(f"[vk] resolveScreenName: {type(e).__name__}: {e}", flush=True)
+    return ""
+
+
+def send_to_vk(text):
+    """Дубль заявки в личку ВК. Возвращает (ok, причина).
+
+    Наружу не падает никогда: это второй канал, и его отказ не должен
+    ронять обработку заявки.
+    """
+    if not VK_TOKEN or not VK_PEER_ID:
+        return False, "не настроен"
+
+    peer = vk_peer()
+    if not peer:
+        return False, "не удалось определить id получателя"
+
+    try:
+        r = requests.post(
+            "https://api.vk.com/method/messages.send",
+            data={
+                "access_token": VK_TOKEN,
+                "v": "5.199",
+                "peer_id": peer,
+                # random_id обязателен: по нему ВК отбрасывает дубли, если
+                # сеть моргнула и запрос ушёл дважды. Должен влезать в int32.
+                "random_id": (int(datetime.now().timestamp() * 1000) % 2_000_000_000),
+                # 4096 — предел ВК на длину. Режем сами: обрезанная заявка
+                # полезнее ошибки 914 и полностью потерянной заявки.
+                "message": text[:4000],
+            },
+            timeout=15,
+        ).json()
+
+        if "response" in r:
+            return True, ""
+
+        # ВК отвечает HTTP 200 даже на ошибку — причина лежит в теле.
+        err = r.get("error", {})
+        code = err.get("error_code")
+        hint = f" — {VK_ERRORS[code]}" if code in VK_ERRORS else ""
+        reason = f"{code} {err.get('error_msg', '')}{hint}"
+        print(f"[vk] отказ: {reason}", flush=True)
+        return False, reason
+    except Exception as e:
+        reason = f"сеть: {type(e).__name__}: {e}"
+        print(f"[vk] {reason}", flush=True)
+        return False, reason
+
+
 def send_to_telegram(text):
     """Возвращает (ok, причина). Причину пишем в лог, наружу не отдаём."""
     if not TOKEN:
@@ -227,9 +335,15 @@ def order():
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
     # ── 1. ГЕНЕРАЛ докладывает Гульнаре ──────────────────────────────────
-    ok, reason = send_to_telegram("\n".join(lines))
-    save_order(payload, delivered=ok, reason=reason)
-    leads.log(lead_id, "notified", delivered=ok)
+    # Два канала, независимо друг от друга. Заявка считается доставленной,
+    # если её принял хотя бы один: отказ Telegram больше не теряет клиента.
+    text = "\n".join(lines)
+    ok, reason = send_to_telegram(text)
+    vk_ok, vk_reason = send_to_vk(text)
+    delivered = ok or vk_ok
+    save_order(payload, delivered=delivered,
+               reason="" if delivered else f"telegram: {reason}; вк: {vk_reason}")
+    leads.log(lead_id, "notified", delivered=delivered, telegram=ok, vk=vk_ok)
 
     # ── 2. ДЖАРВИС забирает клиента ──────────────────────────────────────
     # Если человек уже когда-то писал боту, его chat_id у нас есть — тогда
@@ -326,9 +440,14 @@ def bot_lead():
     lines.append("")
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
-    ok, reason = send_to_telegram("\n".join(lines))
-    save_order(payload, delivered=ok, reason=reason)
-    leads.log(lead_id, "notified", delivered=ok)
+    # Оба канала сразу — как и в заявке с формы выше.
+    text = "\n".join(lines)
+    ok, reason = send_to_telegram(text)
+    vk_ok, vk_reason = send_to_vk(text)
+    delivered = ok or vk_ok
+    save_order(payload, delivered=delivered,
+               reason="" if delivered else f"telegram: {reason}; вк: {vk_reason}")
+    leads.log(lead_id, "notified", delivered=delivered, telegram=ok, vk=vk_ok)
 
     # ── ДЖАРВИС забирает клиента, если он у нас уже был ──────────────────
     pushed = False

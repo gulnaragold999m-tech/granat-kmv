@@ -339,17 +339,26 @@
 
   <!-- Yandex.Metrika counter — счётчик 110961373 «САЙТ ГРАНАТ» -->
   <script type="text/javascript">
-    // Метрика ставит cookie и собирает данные, по которым посетителя можно
-    // косвенно опознать. По 152-ФЗ это обработка персональных данных, поэтому
-    // счётчик запускается ТОЛЬКО после согласия — его даёт баннер внизу
-    // страницы (см. блок #cookie-bar). До согласия ни один запрос к Яндексу
-    // не уходит.
+    // Раньше счётчик ждал нажатия «Принять все» и поэтому не запускался почти
+    // никогда: баннер большинство просто прокручивает. В Метрике было 0 визитов,
+    // а Яндекс Бизнес и Директ не могли учиться на целях — обучать было не на чем.
+    //
+    // Теперь посещения считаются всегда: это обезличенная статистика (сколько
+    // человек, откуда, с какого устройства), опознать по ней посетителя нельзя.
+    // А то, что действительно снимает поведение конкретного человека — запись
+    // экрана Вебвизором и карта кликов — включается только с согласия.
     var GRANAT_METRIKA_ID = 110961373;
     var granatMetrikaStarted = false;
 
     function granatStartMetrika() {
       if (granatMetrikaStarted) return;
       granatMetrikaStarted = true;
+
+      // localStorage падает в приватном режиме Safari — тогда считаем,
+      // что согласия нет, и остаёмся на щадящем режиме.
+      var consent = null;
+      try { consent = localStorage.getItem('granat_cookie_consent'); } catch (e) {}
+      var full = consent === 'all';
 
       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
       m[i].l=1*new Date();
@@ -358,10 +367,10 @@
       (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
 
       ym(GRANAT_METRIKA_ID, "init", {
-        clickmap: true,
         trackLinks: true,
         accurateTrackBounce: true,
-        webvisor: true
+        clickmap: full,
+        webvisor: full
       });
     }
 
@@ -373,13 +382,11 @@
     }
 
     // Решение посетителя храним в localStorage: cookie для этого заводить
-    // не нужно, а значит и согласия на него не требуется.
-    try {
-      if (localStorage.getItem('granat_cookie_consent') === 'all') {
-        granatStartMetrika();
-      }
-    } catch (e) {}
+    // не нужно, а значит и согласия на него не требуется. Сам счётчик
+    // запускаем сразу — режим он выберет сам, заглянув в это решение.
+    granatStartMetrika();
   </script>
+  <noscript><div><img src="https://mc.yandex.ru/watch/110961373" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
   <!-- /Yandex.Metrika counter -->
   <style>
 
@@ -1661,8 +1668,8 @@
     <div class="cb-wrap">
       <div class="cb-text">
         Мы используем файлы cookie. Необходимые нужны, чтобы сайт работал.
-        Аналитические — чтобы понимать, какие страницы полезны посетителям;
-        их мы включим только с вашего согласия. Подробности — в
+        Яндекс.Метрика считает посещения обезличенно. Запись экрана и карта
+        кликов включаются только с вашего согласия. Подробности — в
         <a href="/privacy.html">Политике обработки персональных данных</a>.
       </div>
       <div class="cb-btns">
@@ -1687,12 +1694,13 @@
       setTimeout(function(){ bar.classList.add('show'); }, 1200);
     }
 
+    // Счётчик к этому моменту уже работает в щадящем режиме, поэтому здесь
+    // не «включаем Метрику», а запоминаем выбор. Вебвизор и карта кликов
+    // подхватят его при следующей загрузке страницы: переинициализировать
+    // уже запущенный счётчик Метрика не даёт.
     window.granatCookieChoice = function(choice){
       try { localStorage.setItem(KEY, choice); } catch(e){}
       bar.classList.remove('show');
-      if (choice === 'all' && typeof granatStartMetrika === 'function') {
-        granatStartMetrika();
-      }
     };
   })();
   </script>

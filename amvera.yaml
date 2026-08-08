@@ -9,6 +9,14 @@ build:
   useCache: true
 run:
   scriptName: app.py
-  command: null
+  # Раньше сайт поднимался встроенным сервером Flask (app.run). Он отладочный
+  # и сам об этом пишет в лог: «development server, do not use in production».
+  # Картинки он отдаёт по одной и медленно — логотип открывался секундами.
+  # gunicorn уже стоит в requirements.txt, просто не был задействован.
+  #
+  # Один рабочий процесс и восемь потоков: заявки пишутся в файл, и два
+  # процесса писали бы в него одновременно, путая записи. Восьми потоков
+  # хватает, чтобы картинки грузились параллельно, а не в очередь.
+  command: gunicorn -w 1 -k gthread --threads 8 -b 0.0.0.0:80 app:app
   persistenceMount: /data
   containerPort: 80

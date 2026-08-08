@@ -499,7 +499,7 @@
       <nav class="hidden md:flex items-center gap-8 text-xs font-semibold tracking-widest uppercase text-white/80">
         <a href="/pechat" class="nav-link hover:text-white">Печать, дизайн и полиграфия</a>
         <a href="/cifra" class="nav-link hover:text-white">Сайты и боты</a>
-        <a href="/raboty" class="nav-link hover:text-white">Работы</a>
+        <a href="/raboty" class="nav-link hover:text-white" data-goal="portfolio_view">Работы</a>
         <a href="/kak-rabotaem" class="nav-link hover:text-white">Как работаем</a>
         <a href="#zayavka" class="btn-gold" style="padding:11px 22px;">Оставить заявку</a>
       </nav>
@@ -563,13 +563,7 @@
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
     }, { threshold: 0.12 });
-
-    // Считаем уходы в мессенджеры: и кнопки в шапке/герое, и аварийные.
-    document.addEventListener('click', (ev) => {
-      const link = ev.target.closest('a[href*="t.me"], a[href*="wa.me"]');
-      if (!link) return;
-      metrikaGoal(link.href.indexOf('wa.me') !== -1 ? 'whatsapp' : 'tg_bot');
-    });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
   </script>
   <!-- ИИ-проводник -->
   <div class="ai-orb" id="aiOrb" role="button" tabindex="0" aria-label="Помощник студии — оформить заявку">
@@ -747,7 +741,7 @@
       </div>
       <div class="cb-btns">
         <button class="cb-btn cb-min" type="button" onclick="granatCookieChoice('necessary')">Только необходимые</button>
-        <button class="cb-btn cb-accept" type="button" onclick="granatCookieChoice('all')">Принять все</button>
+        <button class="cb-btn cb-accept" type="button" data-goal="cookie_accept" onclick="granatCookieChoice('all')">Принять все</button>
       </div>
     </div>
   </div>
@@ -777,5 +771,10 @@
     };
   })();
   </script>
+
+  <!-- Цели Яндекс.Метрики. Счётчик стоит выше, в <head>, — здесь только цели.
+       Прямой путь, а не url_for: static_folder приложения равен корню проекта,
+       и url_for('static', ...) дал бы /js/..., а файл лежит в /static/js/. -->
+  <script src="/static/js/metrika-goals.js" defer></script>
 </body>
 </html>

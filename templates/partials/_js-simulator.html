@@ -118,7 +118,7 @@
     function formStep(){
       kb.innerHTML='';
       var w=document.createElement('div');w.className='sim-form';
-      w.innerHTML='<input class="sim-in" id="simIn" type="text" placeholder="@username или +7 999 000-00-00"><button class="sim-go" type="button" id="simGo">Отправить</button>';
+      w.innerHTML='<input class="sim-in ym-disable-keys" id="simIn" type="text" placeholder="@username или +7 999 000-00-00"><button class="sim-go" type="button" id="simGo">Отправить</button>';
       kb.appendChild(w);
       var e=document.createElement('div');e.className='sim-err';e.id='simErr';e.style.display='none';kb.appendChild(e);
       document.getElementById('simGo').onclick=send;
@@ -176,7 +176,11 @@
     });
 
     var booted=false;
-    function boot(){if(booted)return;booted=true;start('cafe')}
+    function boot(){if(booted)return;booted=true;
+      // Демо запускается само, когда блок доскроллили. Считаем это
+      // запуском демо: до сюда доходят те, кому бот реально интересен.
+      if(window.granatGoal)window.granatGoal('bot_demo_start');
+      start('cafe')}
     if('IntersectionObserver' in window){
       var io2=new IntersectionObserver(function(es){
         es.forEach(function(en){if(en.isIntersecting){boot();io2.disconnect()}});

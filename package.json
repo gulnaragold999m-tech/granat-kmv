@@ -1,0 +1,12 @@
+{
+  "name": "granat-kmv-styles",
+  "private": true,
+  "description": "Сборка стилей сайта. Сам сайт на Python — Node нужен только здесь, на сервере он не запускается.",
+  "scripts": {
+    "css": "tailwindcss -i static/css/input.css -o static/css/tailwind.css --minify",
+    "css:watch": "tailwindcss -i static/css/input.css -o static/css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

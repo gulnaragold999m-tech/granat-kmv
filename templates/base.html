@@ -20,6 +20,12 @@
   <link rel="canonical" href="https://granat-kmv.ru{{ self.path() }}" />
   <meta name="twitter:card" content="summary" />
 
+  <!-- Значок вкладки. Без него браузер всё равно просит /favicon.ico и получает
+       404 на каждый заход, а в закладках и в истории сайт выглядит безымянным
+       листом бумаги. Сделан из logo.png, чтобы вкладка и логотип совпадали. -->
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
   <!-- Микроразметка Schema.org. Описывает роботу то, что человек и так
        видит на странице: кто мы, где находимся, как связаться.
        Яндекс по ней собирает карточку организации в выдаче — с адресом,
@@ -155,6 +161,23 @@
     "publisher": { "@id": "https://granat-kmv.ru/#organization" }
   }
   </script>
+  {% block crumb %}{% endblock %}
+  {%- if self.crumb()|trim %}
+  <!-- Хлебные крошки. Яндекс показывает их в выдаче вместо голого адреса,
+       а человеку на внутренней странице видно, где он и как вернуться.
+       Разметка совпадает с видимой строкой под шапкой — иначе робот считает
+       это обманом. Имя раздела задаёт сама страница блоком crumb. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Главная", "item": "https://granat-kmv.ru/" },
+      { "@type": "ListItem", "position": 2, "name": "{{ self.crumb()|trim }}", "item": "https://granat-kmv.ru{{ self.path() }}" }
+    ]
+  }
+  </script>
+  {%- endif %}
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -508,6 +531,15 @@
   </header>
 
   <main id="top">
+    {%- if self.crumb()|trim %}
+    <nav aria-label="Хлебные крошки" class="py-3" style="background:#F9F3EB; border-bottom:1px solid rgba(74,14,23,.08);">
+      <div class="max-w-6xl mx-auto px-6 text-xs" style="color:rgba(74,14,23,.65);">
+        <a href="/" class="hover:underline">Главная</a>
+        <span aria-hidden="true"> · </span>
+        <span>{{ self.crumb()|trim }}</span>
+      </div>
+    </nav>
+    {%- endif %}
 {% block content %}{% endblock %}
   </main>
 

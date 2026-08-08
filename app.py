@@ -274,6 +274,28 @@ def templates_are_not_public(_ignored):
     return ("Not Found", 404)
 
 
+# sitemap.xml и robots.txt отдаём явными маршрутами, а не как обычную статику.
+# Внешний загрузчик при проверке 08.08.2026 получил вместо XML нечитаемые
+# байты: раздача статики отдаёт файл как есть и полагается на угаданный тип.
+# Здесь тип и кодировка заданы прямо, поэтому гадать больше нечего.
+@app.route("/sitemap.xml")
+def sitemap():
+    return send_from_directory(".", "sitemap.xml", mimetype="application/xml")
+
+
+@app.route("/robots.txt")
+def robots():
+    return send_from_directory(".", "robots.txt", mimetype="text/plain")
+
+
+# Свой экран вместо служебной страницы Flask: с меню, ссылками на разделы и
+# телефоном. Человек, попавший на битую ссылку, остаётся на сайте, а не
+# закрывает вкладку с надписью «Not Found» на английском.
+@app.errorhandler(404)
+def page_not_found(_e):
+    return render_template("404.html"), 404
+
+
 @app.route("/privacy.html")
 def privacy():
     return send_from_directory(".", "privacy.html")

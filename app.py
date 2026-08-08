@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
-from flask import Flask, send_from_directory, request, jsonify, redirect
+from flask import (Flask, send_from_directory, request, jsonify, redirect,
+                   render_template)
 
 import bots
 import leads
@@ -209,9 +210,62 @@ def redirect_old_domain():
         return redirect(NEW_DOMAIN + request.full_path.rstrip("?"), code=301)
 
 
+# ── Страницы сайта ──────────────────────────────────────────────────────
+# Раньше сайт был одностраничным: все разделы жили в index.html и
+# открывались якорями (#pechat, #cifra). Для поиска это одна страница с
+# одним заголовком — по запросу «печать приглашений Пятигорск» и по
+# запросу «телеграм-бот под ключ» Яндекс видел один и тот же title.
+# Теперь у каждого направления свой адрес, свой title и свой description,
+# и каждое можно продвигать отдельно.
+#
+# Разметка не переписана, а разложена по кусочкам: templates/base.html
+# держит общую обвязку (шапка, подвал, стили, счётчик, бот-проводник),
+# templates/partials/* — те же секции, что были в index.html, слово в слово.
+
+
 @app.route("/")
 def index():
-    return send_from_directory(".", "index.html")
+    return render_template("index.html")
+
+
+@app.route("/pechat")
+def pechat():
+    return render_template("pechat.html")
+
+
+@app.route("/cifra")
+def cifra():
+    return render_template("cifra.html")
+
+
+@app.route("/raboty")
+def raboty():
+    return render_template("raboty.html")
+
+
+@app.route("/kak-rabotaem")
+def kak_rabotaem():
+    return render_template("kak-rabotaem.html")
+
+
+@app.route("/kontakty")
+def kontakty():
+    return render_template("kontakty.html")
+
+
+# Старые ссылки с якорями остаются рабочими: их присылали в переписке,
+# они разошлись по сторис и по чатам. Якорь браузер на сервер не шлёт,
+# поэтому ловим только те адреса, что писали руками.
+@app.route("/index.html")
+def index_html():
+    return redirect("/", code=301)
+
+
+# Статика раздаётся из корня проекта, и без этой заглушки заготовки страниц
+# отдавались бы как обычные файлы — со служебной разметкой наружу.
+@app.route("/templates/<path:_ignored>")
+def templates_are_not_public(_ignored):
+    return ("Not Found", 404)
 
 
 @app.route("/privacy.html")

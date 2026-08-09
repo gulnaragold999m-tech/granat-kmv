@@ -29,6 +29,7 @@ SERVICES = {
     "photo_docs":  "Фото на документы",
     "flyers":      "Листовки и флаеры",
     "invites":     "Приглашения и открытки",
+    "booklets":    "Буклеты",
     "design":      "Макет, правка, дизайн",
 }
 
@@ -43,6 +44,7 @@ REQUIRED = {
     # её тому, у кого макета нет, значит пообещать вчетверо дешевле.
     "invites":     ("kind", "format", "qty", "layout"),
     "design":      ("kind",),
+    "booklets":    ("format", "qty"),
 }
 
 # ── Цены ────────────────────────────────────────────────────────────────
@@ -154,6 +156,25 @@ PRICES = [
     ("invites", {"layout": "custom", "kind": "invite"},   1, 10**6, 200, "per_piece"),
     ("invites", {"layout": "custom", "kind": "postcard"}, 1, 10**6, 200, "per_piece"),
 
+    # Евробуклет А4: лист 210×297, полноцвет 4+4, две биговки и фальцовка
+    # в три панели по 99×210. В цену включены печать, резка и фальцовка —
+    # клиенту нельзя показывать «биговка 7 ₽ × 2 линии» отдельными строками,
+    # он не поймёт, за что платит дважды.
+    #
+    # Отдельно от флаеров сознательно: в таблице флаеров А4 стоит 40 ₽, и
+    # без разделения клиент не поймёт, откуда взялось 80 ₽ за тот же лист.
+    # Он покупает не листовку, а шесть рекламных полос.
+    #
+    # База — мелованная 115–130 г/м², на ней фальцовка идёт без биговки.
+    # Плотнее — коэффициенты бумаги; от 250 г/м² это уже открытка.
+    ("booklets", {"format": "a4_trifold"},  10,  20, 80, "per_piece"),
+    ("booklets", {"format": "a4_trifold"},  21,  50, 60, "per_piece"),
+    ("booklets", {"format": "a4_trifold"},  51, 100, 45, "per_piece"),
+    ("booklets", {"format": "a4_trifold"}, 101, 200, 35, "per_piece"),
+    ("booklets", {"format": "a4_trifold"}, 201, 500, 25, "per_piece"),
+    # Свыше 500 строки нет намеренно: такой тираж выгоднее в офсет, и его
+    # считает менеджер, а не бот.
+
     # Работа с макетом — вилки, поэтому храним нижнюю границу.
     ("design", {"kind": "prepress"},   1, 10**6, 150, "per_order"),
     ("design", {"kind": "adapt"},      1, 10**6, 300, "per_order"),
@@ -171,6 +192,7 @@ ADDON_SCOPE = {
     "invites":     ("glitter", "glitter_dense", "photo_paper_300",
                     "corner_round", "fold", "packing"),
     "flyers":      ("corner_round", "packing"),
+    "booklets":    ("packing",),
 }
 
 ADDONS = {
@@ -210,6 +232,7 @@ COEFFICIENTS = {
 MIN_ORDER = {
     "print_docs": 50,
     "flyers": 300,
+    "booklets": 800,
     "invites": 700,
     # Штучная открытка А4 с отделкой: ниже этой суммы работа не окупает
     # приёмку, резку и ручную доработку.
@@ -230,7 +253,9 @@ SYNONYMS = {
                    "3х4", "3×4", "на права"),
     "photo_paper": ("фотограф", "фотобумаг", "напечатать фото", "печать фото",
                     "снимк"),
-    "flyers": ("листовк", "флаер", "буклет"),
+    "flyers": ("листовк", "флаер"),
+    "booklets": ("буклет", "евробуклет", "трифолд", "в три части",
+                 "два фальца", "складыва", "фальц"),
     "invites": ("приглас", "открытк", "поздравительн"),
     "design": ("макет", "дизайн", "верстк", "правк"),
 }
@@ -243,8 +268,8 @@ def detect(text: str) -> str:
     а не в обычную фотопечать, поэтому photo_docs стоит раньше photo_paper.
     """
     low = (text or "").lower()
-    for cat in ("photo_docs", "print_docs", "photo_paper", "flyers",
-                "invites", "design"):
+    for cat in ("photo_docs", "booklets", "print_docs", "photo_paper",
+                "flyers", "invites", "design"):
         if any(w in low for w in SYNONYMS[cat]):
             return cat
     return ""

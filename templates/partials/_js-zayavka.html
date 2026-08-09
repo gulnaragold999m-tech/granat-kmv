@@ -69,7 +69,14 @@
               'target="_blank" rel="noopener" href="' + next.url + '">' +
               next.label + '</a></span>' +
               '<span style="display:block; margin-top:8px; font-size:12px; opacity:.7;">' +
-              next.note + '</span>';
+              next.note + '</span>' +
+              // Запасной выход показываем тихо, мелким шрифтом: он нужен
+              // только тем, у кого основной мессенджер не открывается.
+              (next.fallback
+                ? '<span style="display:block; margin-top:8px; font-size:12px;">' +
+                  '<a style="color:#D4AF37;" target="_blank" rel="noopener" href="' +
+                  next.fallback.url + '">' + next.fallback.label + '</a></span>'
+                : '');
           } else {
             msg.textContent = '✅ Спасибо! Заявка отправлена — мы свяжемся с вами.';
           }

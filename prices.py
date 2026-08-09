@@ -162,14 +162,19 @@ ADDONS = {
 # Срочность одна на весь прайс: раньше было +20% у фото и +20–30% у флаеров,
 # и клиент не понимал, какая ставка к нему применится.
 COEFFICIENTS = {
-    "urgent":         ("Срочно, день в день", 1.30),
-    "paper_150":      ("Бумага 150 г/м²", 1.10),
-    "paper_170":      ("Бумага 170 г/м²", 1.15),
-    "paper_200":      ("Бумага 200 г/м²", 1.25),
-    "carton_250":     ("Картон 250 г/м²", 0.90),
-    "carton_350":     ("Картон 350 г/м²", 1.10),
-    "paper_designer": ("Фактурная дизайнерская бумага", 1.30),
-    "photo_premium":  ("Премиальная фотобумага", 1.20),
+    # applies_to говорит, К ЧЕМУ множитель. Плотность бумаги и картон —
+    # свойство самой печати, поэтому они множат ТОЛЬКО базу: иначе наценка
+    # за бумагу поднимала бы и ретушь, и упаковку, и клиент платил бы за
+    # плотный картон дважды. Срочность — свойство всего заказа, она множит
+    # итог: срочно делается вся работа, включая ручную.
+    "urgent":         ("Срочно, день в день", 1.30, "total"),
+    "paper_150":      ("Бумага 150 г/м²", 1.10, "base"),
+    "paper_170":      ("Бумага 170 г/м²", 1.15, "base"),
+    "paper_200":      ("Бумага 200 г/м²", 1.25, "base"),
+    "carton_250":     ("Картон 250 г/м²", 0.90, "base"),
+    "carton_350":     ("Картон 350 г/м²", 1.10, "base"),
+    "paper_designer": ("Фактурная дизайнерская бумага", 1.30, "base"),
+    "photo_premium":  ("Премиальная фотобумага", 1.20, "base"),
 }
 
 # Минимальная стоимость заказа. Ниже неё работа не окупает время.
@@ -225,9 +230,33 @@ def find(category: str, params: dict, qty: int = 1):
     return None
 
 
+def addons_sum(codes, qty: int):
+    """Допуслуги отдельно от поиска цены: сама ничего не ищет и категорию
+    не меняет, только складывает надбавки по правилам.
+
+    Возвращает (фиксированные, поштучные, расшифровка).
+    """
+    fixed = per_unit = 0
+    lines = []
+    for code in codes:
+        title, kind, value = ADDONS[code]
+        if kind == "per_piece":
+            amount = value * qty
+            per_unit += amount
+        else:
+            amount = value
+            fixed += amount
+        lines.append((title, amount))
+    return fixed, per_unit, lines
+
+
 def quote(category: str, params: dict, qty: int = 1,
           addons=(), coefficients=()):
-    """Посчитать заказ. Возвращает словарь с итогом и расшифровкой.
+    """Посчитать заказ. Возвращает итог и расшифровку по шагам.
+
+    Порядок расчёта: база → коэффициенты базы → допуслуги → коэффициенты
+    итога → минимальный заказ. По шагам, а не одной формулой: так видно,
+    из чего сложилась сумма, и клиенту можно показать расшифровку.
 
     Никогда не гадает: нет параметра или нет строки — так и говорит, а
     решение «спросить или отдать менеджеру» принимает вызывающий код.
@@ -238,23 +267,27 @@ def quote(category: str, params: dict, qty: int = 1,
 
     row = find(category, params, qty)
     if not row:
-        return {"ok": False, "reason": "no_row"}
+        return {"ok": False, "reason": "no_row", "manager_required": True}
 
     base = row["price"] * (qty if row["type"] != "per_order" else 1)
-    lines = [(SERVICES.get(category, category), base)]
-
-    for code in addons:
-        title, kind, value = ADDONS[code]
-        amount = value * qty if kind == "per_piece" else value
-        lines.append((title, amount))
-
-    total = sum(a for _t, a in lines)
 
     applied = []
+    base_adjusted = base
     for code in coefficients:
-        title, k = COEFFICIENTS[code]
-        total *= k
-        applied.append((title, k))
+        title, k, scope = COEFFICIENTS[code]
+        if scope == "base":
+            base_adjusted *= k
+            applied.append((title, k, "к печати"))
+
+    fixed, per_unit, addon_lines = addons_sum(addons, qty)
+    subtotal = base_adjusted + fixed + per_unit
+
+    total = subtotal
+    for code in coefficients:
+        title, k, scope = COEFFICIENTS[code]
+        if scope == "total":
+            total *= k
+            applied.append((title, k, "ко всему заказу"))
 
     total = round(total)
     floor = MIN_ORDER.get(category, 0)
@@ -265,11 +298,29 @@ def quote(category: str, params: dict, qty: int = 1,
     return {
         "ok": True,
         "total": total,
-        "lines": lines,
+        "base": round(base),
+        "base_adjusted": round(base_adjusted),
+        "addons": addon_lines,
+        "subtotal": round(subtotal),
         "coefficients": applied,
         "min_order_applied": raised,
         "unit": row["type"],
     }
+
+
+def breakdown(result: dict) -> str:
+    """Расшифровка для клиента: из чего сложилась сумма."""
+    if not result.get("ok"):
+        return ""
+    out = [f"Печать: {result['base_adjusted']} ₽"]
+    for title, amount in result["addons"]:
+        out.append(f"{title}: {amount} ₽")
+    for title, k, scope in result["coefficients"]:
+        out.append(f"{title} — ×{k} {scope}")
+    if result["min_order_applied"]:
+        out.append("Поднято до минимального заказа")
+    out.append(f"Итого: {result['total']} ₽")
+    return "\n".join(out)
 
 
 def block(category: str) -> str:

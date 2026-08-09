@@ -68,6 +68,10 @@ TIMEOUT = WAIT + 10
 # полезнее ошибки и потерянной заявки.
 MAX_LEN = 4000
 
+# Ограничения клавиатуры ВК: не больше десяти рядов и пяти кнопок в ряду.
+MAX_ROWS = 10
+MAX_IN_ROW = 5
+
 GREETING = (
     "Здравствуйте! Я Джарвис — цифровой ассистент студии «Гранат» "
     "(г. Лермонтов, работаем по всему КМВ).\n\n"
@@ -112,15 +116,29 @@ def keyboard(rows):
     ВК не разрешает подписи длиннее 40 символов, а варианты от LLM бывают
     длиннее — режем, иначе сообщение не уйдёт вовсе.
     """
+    labels = [str(label)[:40] for row in rows if row for label in row]
+
+    # ВК не принимает больше десяти рядов: сообщение просто не уходит с
+    # ошибкой 911. Категорий в типографии двенадцать, поэтому при переполнении
+    # раскладываем по двое в ряд, а не режем список — иначе часть услуг
+    # молча исчезнет из меню, и клиент их никогда не увидит.
+    per_row = 1
+    while len(labels) > per_row * MAX_ROWS and per_row < MAX_IN_ROW:
+        per_row += 1
+    packed = [labels[i:i + per_row] for i in range(0, len(labels), per_row)]
+    if len(packed) > MAX_ROWS:
+        logger.warning("кнопок больше, чем влезает: %s", len(labels))
+        packed = packed[:MAX_ROWS]
+
     buttons = [
         [
             {
-                "action": {"type": "text", "label": str(label)[:40]},
+                "action": {"type": "text", "label": label},
                 "color": "primary",
             }
             for label in row
         ]
-        for row in rows if row
+        for row in packed
     ]
     return json.dumps({"one_time": False, "inline": False, "buttons": buttons},
                       ensure_ascii=False)

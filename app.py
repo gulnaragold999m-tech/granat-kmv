@@ -3,7 +3,7 @@ import json
 import smtplib
 import socket
 import ssl
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from urllib.parse import quote
@@ -331,6 +331,22 @@ def send_to_telegram(text):
     return False, mask(last)
 
 
+# Рассылка живёт в фоне, поэтому пул общий и создаётся один раз. Заводить
+# его на каждую заявку — значит платить за создание потоков ровно в тот
+# момент, когда клиент ждёт ответа.
+NOTIFY_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="notify")
+
+# Сколько секунд держим клиента, пока каналы отвечают. Уложились — скажем
+# правду: дошло или не дошло. Не уложились — отпускаем с «заявка принята»,
+# она к этому моменту уже лежит на диске, а рассылка доедет без него.
+NOTIFY_WAIT = 6
+
+# Последний известный ответ Telegram — для экрана «заявка принята». Если в
+# прошлый раз он нас не принял, звать туда клиента незачем. До первой
+# заявки считаем, что жив: молчать о боте без повода тоже плохо.
+_tg_last_ok = True
+
+
 def deliver(subject, text):
     """Разослать заявку по всем каналам сразу. Возвращает три пары (ok, причина).
 
@@ -652,27 +668,44 @@ def order():
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
     # ── 1. ГЕНЕРАЛ докладывает Гульнаре ──────────────────────────────────
-    # Три канала, независимо друг от друга и одновременно. Заявка считается
-    # доставленной, если её принял хотя бы один: отказ Telegram больше не
-    # теряет клиента.
+    # Три канала одновременно. Заявка считается доставленной, если её принял
+    # хотя бы один: отказ Telegram больше не теряет клиента.
+    #
+    # Рассылка идёт в фоне, и это главное. Раньше браузер ждал, пока все три
+    # мессенджера ответят, — а если один тормозил, кнопка «Отправляем...»
+    # висела до минуты, и клиент уходил, не увидев ни номера заявки, ни
+    # ссылки в бота. При этом заявка уже лежала на диске: leads.log выше
+    # записывает её до всякой отправки, так что потерять её нельзя.
     text = "\n".join(lines)
-    (ok, reason), (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-        f"Заявка с сайта №{lead_id} — {name}", text
-    )
-    delivered = ok or vk_ok or mail_ok
-    save_order(payload, delivered=delivered,
-               reason="" if delivered else
-                      f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}")
-    leads.log(lead_id, "notified", delivered=delivered,
-              telegram=ok, vk=vk_ok, mail=mail_ok)
+
+    def notify():
+        """Разослать заявку по каналам и записать результат. Возвращает,
+        дошла ли она хоть куда-нибудь."""
+        global _tg_last_ok
+        (ok, reason), (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
+            f"Заявка с сайта №{lead_id} — {name}", text
+        )
+        _tg_last_ok = ok
+        delivered = ok or vk_ok or mail_ok
+        save_order(payload, delivered=delivered,
+                   reason="" if delivered else
+                          f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}")
+        leads.log(lead_id, "notified", delivered=delivered,
+                  telegram=ok, vk=vk_ok, mail=mail_ok)
+        if not delivered:
+            print(f"[order] заявка №{lead_id} сохранена, но не доставлена: "
+                  f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}",
+                  flush=True)
+        return delivered
 
     # ── 2. ДЖАРВИС забирает клиента ──────────────────────────────────────
     # Если человек уже когда-то писал боту, его chat_id у нас есть — тогда
     # Джарвис пишет сам, сразу, и клиенту вообще ничего нажимать не надо.
     # Незнакомому написать нельзя: Telegram запрещает боту начинать первым.
-    pushed = False
-    chat = leads.find_chat_by_phone(phone)
-    if chat:
+    def jarvis_push():
+        chat = leads.find_chat_by_phone(phone)
+        if not chat:
+            return
         hello = (
             f"Здравствуйте, {name}! Вы только что оставили заявку "
             f"на сайте granat-kmv.ru (№{lead_id})."
@@ -698,25 +731,34 @@ def order():
                 "он у нас уже был, кнопка не понадобилась."
             )
 
-    # pushed отдельно от delivered: бывает, что все три канала до Гульнары
-    # молчат, а Джарвис клиенту написать успел — заявка при этом живая.
-    if delivered or pushed:
-        # Заявка у нас — дальше зовём клиента в его же мессенджер. Ссылка
-        # в Telegram несёт номер заявки, поэтому Джарвис узнаёт человека с
-        # первого сообщения.
-        answer = {"ok": True, "lead": lead_id, "pushed": pushed}
-        nxt = follow_up(channel, lead_id, name, tg_ready=(ok or pushed))
-        if nxt:
-            answer["next"] = nxt
-            # Старое поле оставляем ради страниц, которые ещё читают tg.
-            if channel != "VK" and channel != "WhatsApp":
-                answer["tg"] = nxt["url"]
-        return jsonify(**answer)
+    job = NOTIFY_POOL.submit(notify)
+    # Джарвис отдельной задачей: ответ клиенту от него не зависит, а ждать
+    # его вместе с рассылкой — снова растить время ожидания.
+    NOTIFY_POOL.submit(jarvis_push)
 
-    # Заявка на диске лежит, но не дошла ни одним каналом. Браузеру отдаём
-    # нейтральный текст — он покажет клиенту кнопки WhatsApp/Telegram.
-    print(f"[order] заявка сохранена, но не доставлена: {reason}", flush=True)
-    return jsonify(ok=False, saved=True, error="not_delivered"), 200
+    try:
+        delivered = job.result(timeout=NOTIFY_WAIT)
+    except FuturesTimeout:
+        # Каналы ещё думают. Не держим клиента: заявка у нас, а результат
+        # рассылки допишется в журнал, когда придёт.
+        delivered = None
+
+    if delivered is False:
+        # Все три канала молчат — делать вид, что всё хорошо, нельзя.
+        # Браузер покажет кнопки, чтобы клиент отправил заявку сам.
+        return jsonify(ok=False, saved=True, error="not_delivered"), 200
+
+    # Заявка у нас — дальше зовём клиента в его же мессенджер. Ссылка в
+    # Telegram несёт номер заявки, поэтому Джарвис узнаёт человека с
+    # первого сообщения.
+    answer = {"ok": True, "lead": lead_id}
+    nxt = follow_up(channel, lead_id, name, tg_ready=_tg_last_ok)
+    if nxt:
+        answer["next"] = nxt
+        # Старое поле оставляем ради страниц, которые ещё читают tg.
+        if channel not in ("VK", "WhatsApp"):
+            answer["tg"] = nxt["url"]
+    return jsonify(**answer)
 
 
 @app.route("/api/bot-lead", methods=["POST"])

@@ -33,6 +33,15 @@ import requests
 import config
 import knowledge_base as kb
 
+# Прайс отдельным модулем: цифры берём из таблицы, а не из прозы промпта.
+# Импорт защищённый — если файл не загрузили в приложение, бот должен
+# продолжать работать по старым тарифам, а не падать при первом вопросе.
+try:
+    import prices
+except Exception as _e:  # noqa: BLE001
+    prices = None
+    logging.getLogger(__name__).warning("prices.py не подключён: %s", _e)
+
 logger = logging.getLogger(__name__)
 
 _ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
@@ -40,6 +49,16 @@ _MAX_HISTORY_ITEMS = 50  # Ограничение на размер истори
 
 
 # ── Системный промпт ──────────────────────────────────────────────────────────
+
+def _price_block(cat) -> str:
+    """Строки прайса по категории. Таблица важнее текстовых тарифов:
+    по ней же считает калькулятор, поэтому расхождению взяться неоткуда."""
+    if prices:
+        block = prices.block(cat or "")
+        if block:
+            return block
+    return config.tariff_line(cat)
+
 
 def build_system_prompt(sess: dict) -> str:
     flow = sess.get("flow")
@@ -104,7 +123,7 @@ def build_system_prompt(sess: dict) -> str:
   ли макет, и разговор не встаёт из-за почты.
 
 РАСЧЁТ ЦЕНЫ (Auto-Quoting) — СНАЧАЛА РАЗВЕДКА, ПОТОМ ЦИФРА:
-{config.tariff_line(cat)}
+{_price_block(cat)}
 - НЕ называй цену, пока не выяснил всё, от чего она зависит: что именно
   делаем, готов ли материал или его надо готовить, объём/тираж, срочность.
   Названная рано цена — обещание, которое придётся забирать назад. Клиент

@@ -3,6 +3,7 @@ import json
 import smtplib
 import socket
 import ssl
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
@@ -305,6 +306,26 @@ def send_to_telegram(text):
     return False, mask(last)
 
 
+def deliver(subject, text):
+    """Разослать заявку по всем каналам сразу. Возвращает три пары (ok, причина).
+
+    Каналы независимы, поэтому ждать их по очереди незачем — а именно так
+    и было до 09.08.2026. Худший случай складывался: Telegram три попытки
+    по 15 секунд, ВКонтакте 15, почта 15 — больше минуты, и всё это время
+    у клиента на кнопке крутится «Отправляем». Форма выглядела зависшей, и
+    человек уходил, хотя заявка уже лежала на диске.
+
+    Одновременно ждём самый медленный канал, а не сумму всех трёх. Ответы
+    забираем полностью: заявка должна попасть в журнал с честными отметками
+    по каждому каналу, иначе счётчик недоставленных снова начнёт врать.
+    """
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        tg = pool.submit(send_to_telegram, text)
+        vk = pool.submit(send_to_vk, text)
+        mail = pool.submit(send_to_mail, subject, text)
+        return tg.result(), vk.result(), mail.result()
+
+
 @app.before_request
 def redirect_old_domain():
     if request.host.lower() == OLD_HOST:
@@ -470,26 +491,32 @@ def health():
     Именно этой проверки не хватало 25.07.2026, когда форма молча падала
     с 401 Unauthorized и об этом никто не знал.
     """
-    ok, reason = False, "TELEGRAM_BOT_TOKEN не задан"
-    if TOKEN:
-        # Запас по времени тот же, что у настоящей отправки заявки: три
-        # попытки по 15 секунд. Раньше здесь стояло 8 секунд и две попытки,
-        # и 09.08.2026 это дало ложную тревогу: проверка кричала «Telegram
-        # недоступен», а заявка в это же время спокойно доходила. Проверка,
-        # которая строже боевого пути, врёт — и её перестают читать.
-        for _ in range(3):
-            try:
-                r = requests.get(
-                    f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=15
-                )
-                ok = r.status_code == 200 and r.json().get("ok") is True
-                if ok:
-                    break
-                reason = f"HTTP {r.status_code}: {r.text[:200]}"
-                if 400 <= r.status_code < 500:
-                    break  # чужой токен — повторять бессмысленно
-            except Exception as e:
-                reason = f"{type(e).__name__}: {e}"
+    # Проверки каналов не зависят друг от друга, поэтому идут одновременно —
+    # иначе на медленной почте вся страница проверки ждала бы её одну.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        vk_state = pool.submit(vk_health)
+        mail_state = pool.submit(mail_health)
+
+        ok, reason = False, "TELEGRAM_BOT_TOKEN не задан"
+        if TOKEN:
+            # Запас по времени тот же, что у настоящей отправки заявки: три
+            # попытки по 15 секунд. Раньше здесь стояло 8 секунд и две попытки,
+            # и 09.08.2026 это дало ложную тревогу: проверка кричала «Telegram
+            # недоступен», а заявка в это же время спокойно доходила. Проверка,
+            # которая строже боевого пути, врёт — и её перестают читать.
+            for _ in range(3):
+                try:
+                    r = requests.get(
+                        f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=15
+                    )
+                    ok = r.status_code == 200 and r.json().get("ok") is True
+                    if ok:
+                        break
+                    reason = f"HTTP {r.status_code}: {r.text[:200]}"
+                    if 400 <= r.status_code < 500:
+                        break  # чужой токен — повторять бессмысленно
+                except Exception as e:
+                    reason = f"{type(e).__name__}: {e}"
 
     return jsonify(
         ok=ok,
@@ -498,8 +525,8 @@ def health():
         undelivered=count_undelivered(),
         # Резервный канал раньше в проверке не участвовал, и недействительный
         # ключ ВК всплыл только из логов, когда его пошли искать руками.
-        vk=vk_health(),
-        mail=mail_health(),
+        vk=vk_state.result(),
+        mail=mail_state.result(),
         # Оба бота одним взглядом: кто из них жив и под каким именем.
         bots=bots.health(),
     )
@@ -546,12 +573,13 @@ def order():
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
     # ── 1. ГЕНЕРАЛ докладывает Гульнаре ──────────────────────────────────
-    # Два канала, независимо друг от друга. Заявка считается доставленной,
-    # если её принял хотя бы один: отказ Telegram больше не теряет клиента.
+    # Три канала, независимо друг от друга и одновременно. Заявка считается
+    # доставленной, если её принял хотя бы один: отказ Telegram больше не
+    # теряет клиента.
     text = "\n".join(lines)
-    ok, reason = send_to_telegram(text)
-    vk_ok, vk_reason = send_to_vk(text)
-    mail_ok, mail_reason = send_to_mail(f"Заявка с сайта №{lead_id} — {name}", text)
+    (ok, reason), (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
+        f"Заявка с сайта №{lead_id} — {name}", text
+    )
     delivered = ok or vk_ok or mail_ok
     save_order(payload, delivered=delivered,
                reason="" if delivered else
@@ -661,11 +689,11 @@ def bot_lead():
     lines.append("")
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
-    # Оба канала сразу — как и в заявке с формы выше.
+    # Все каналы сразу — как и в заявке с формы выше.
     text = "\n".join(lines)
-    ok, reason = send_to_telegram(text)
-    vk_ok, vk_reason = send_to_vk(text)
-    mail_ok, mail_reason = send_to_mail(f"Заявка из симулятора №{lead_id}", text)
+    (ok, reason), (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
+        f"Заявка из симулятора №{lead_id}", text
+    )
     delivered = ok or vk_ok or mail_ok
     save_order(payload, delivered=delivered,
                reason="" if delivered else

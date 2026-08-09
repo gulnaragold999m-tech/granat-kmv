@@ -122,7 +122,7 @@ def keyboard(rows):
                       ensure_ascii=False)
 
 
-def send(peer_id, text: str, rows=None):
+def send(peer_id, text: str, rows=None, attachment=None):
     """Сообщение клиенту. random_id обязателен: по нему ВК отбрасывает дубли."""
     params = {
         "peer_id": peer_id,
@@ -131,6 +131,8 @@ def send(peer_id, text: str, rows=None):
     }
     if rows is not None:
         params["keyboard"] = keyboard(rows)
+    if attachment:
+        params["attachment"] = ",".join(attachment)
     return api("messages.send", **params)
 
 
@@ -151,6 +153,27 @@ def user_card(from_id) -> str:
 
 
 # ── Разговор ────────────────────────────────────────────────────────────
+
+def attachment_ids(msg: dict) -> list:
+    """Вложения сообщения в виде «photo-123_456» — так их принимает ВК обратно.
+
+    Нужны, чтобы переслать образец Гульнаре как вложение, а не описанием.
+    access_key появляется у файлов из закрытых источников; без него ВК
+    вложение не отдаст.
+    """
+    out = []
+    for att in msg.get("attachments") or []:
+        kind = att.get("type")
+        obj = att.get(kind) or {}
+        owner, oid = obj.get("owner_id"), obj.get("id")
+        if not kind or owner is None or oid is None:
+            continue
+        item = f"{kind}{owner}_{oid}"
+        if obj.get("access_key"):
+            item += f"_{obj['access_key']}"
+        out.append(item)
+    return out
+
 
 def skey(peer_id) -> str:
     """Ключ сессии. С префиксом, чтобы id страницы ВК не столкнулся с
@@ -277,14 +300,38 @@ def hand_over(peer_id, sess, from_id):
     ss.reset_session(skey(peer_id))
 
 
-def handle(peer_id, from_id, text: str):
+def handle(peer_id, from_id, text: str, attachments=None):
     """Одно входящее сообщение клиента."""
     text = (text or "").strip()
-    if not text:
+    attachments = attachments or []
+    if not text and not attachments:
         return
 
     sess = ss.get_session(skey(peer_id))
     stage = sess.get("stage")
+
+    # Образец или готовый макет. Джарвис сам просит прислать фото — значит
+    # обязан на него отреагировать: молчание в ответ на присланный файл
+    # выглядит как поломка. Пересылаем Гульнаре сразу, не дожидаясь конца
+    # разговора: по образцу она часто отвечает быстрее, чем по ТЗ.
+    if attachments:
+        sess.setdefault("attachments", []).extend(attachments)
+        if VK_ADMIN_PEER:
+            send(VK_ADMIN_PEER,
+                 f"📎 Файл от клиента {user_card(from_id)}"
+                 + (f"\n💬 {text}" if text else ""),
+                 attachment=attachments)
+        note = "[Клиент прислал фото/файл — вероятно образец/макет.]"
+        if text:
+            note += f" Подпись клиента: {text}"
+        if sess.get("consent") and stage in (ss.STAGE_DIALOG, ss.STAGE_CONFIRM):
+            sess["stage"] = ss.STAGE_DIALOG
+            ss.push_history(sess, "user", note)
+            sess["last_options"] = []
+            run_dialog_step(peer_id, sess)
+        else:
+            send(peer_id, "Файл получил, передал Гульнаре 👍")
+        return
 
     # «Начать заново» работает на любом шаге: клиент не должен искать выход.
     if text.lower() == RESTART_BUTTON.lower():
@@ -417,7 +464,7 @@ def poll_once(state):
         if not peer_id or not from_id or from_id < 0:
             continue
         try:
-            handle(peer_id, from_id, msg.get("text", ""))
+            handle(peer_id, from_id, msg.get("text", ""), attachment_ids(msg))
         except Exception as e:  # noqa: BLE001
             logger.exception("разговор с %s оборвался: %s", peer_id, e)
             send(peer_id,

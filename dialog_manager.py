@@ -27,6 +27,7 @@ Dialog Manager — LLM-контроллер «думающего» диалог�
 import json
 import logging
 import re
+import time
 import requests
 
 import config
@@ -35,6 +36,7 @@ import knowledge_base as kb
 logger = logging.getLogger(__name__)
 
 _ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
+_MAX_HISTORY_ITEMS = 50  # Ограничение на размер истории диалога
 
 
 # ── Системный промпт ──────────────────────────────────────────────────────────
@@ -68,6 +70,11 @@ def build_system_prompt(sess: dict) -> str:
 - Если клиент уже дал ответ — не переспрашивай, фиксируй параметр и иди дальше.
 - Когда ключевых параметров достаточно для заявки — переходи к статусу ready.
 
+ЧЕГО СТУДИЯ НЕ ДЕЛАЕТ — отвечай честно и сразу, не обещай «уточнить»:
+{config.NOT_OFFERED}
+Отказ — это нормально. Клиент, которому честно сказали «нет» и предложили
+альтернативу, возвращается. Клиент, которому пообещали и не сделали, — нет.
+
 БРИФ ТЕКУЩЕЙ КАТЕГОРИИ (логика обдумывания — соблюдай строго):
 {kb.category_brief(cat)}
 {payer_line}
@@ -87,19 +94,58 @@ def build_system_prompt(sess: dict) -> str:
   collected (например "образец": "прислан в чат") и НЕ проси повторно.
 - Если клиент не может прислать сразу — не блокируй заявку: зафиксируй
   "образец": "клиент пришлёт позже" и продолжай диалог дальше.
+- ФАЙЛ В ПЕЧАТЬ — отдельно от образца. Мессенджеры сжимают картинки, и в
+  печать такой файл не годится: будут пятна и рваные края. Поэтому, когда
+  речь о печати ПО ГОТОВОМУ макету (фото на документы, открытка,
+  приглашение, визитка, меню), скажи прямо: в чат — для просмотра, а сам
+  файл пришлите оригиналом на почту gulnaravibecoder999@yandex.ru, в теме
+  укажите своё имя.
+  Просмотровую копию в чате всё равно попроси: по ней уже видно, подойдёт
+  ли макет, и разговор не встаёт из-за почты.
 
-РАСЧЁТ ЦЕНЫ (Auto-Quoting):
+РАСЧЁТ ЦЕНЫ (Auto-Quoting) — СНАЧАЛА РАЗВЕДКА, ПОТОМ ЦИФРА:
 {config.tariff_line(cat)}
-- Если тариф известен — дай ориентировочную вилку «От/До» и срок.
-- Если тариф НЕ задан — НЕ выдумывай числа. Скажи, что точную сумму назовёт
+- НЕ называй цену, пока не выяснил всё, от чего она зависит: что именно
+  делаем, готов ли материал или его надо готовить, объём/тираж, срочность.
+  Названная рано цена — обещание, которое придётся забирать назад. Клиент
+  запоминает первую цифру, а не уточнение после неё.
+- Пример, как НЕ надо: клиент сказал «фото на паспорт» — и сразу «150 ₽».
+  Сначала выясни, есть ли готовый снимок и годится ли он по требованиям:
+  от этого зависит, входит ли в работу съёмка и обработка.
+- Когда параметры собраны: тариф известен — дай вилку «От/До» и срок;
+  тарифа нет — НЕ выдумывай числа, скажи, что точную сумму назовёт
   менеджер, а вилку/срок оставь пустыми (null).
+- Назвав цену, сразу скажи, что в неё входит, а что считается отдельно.
+
+ФОРМА ОПЛАТЫ — спроси одним вопросом перед завершением:
+«Как удобнее рассчитаться?», options: ["Перевод на карту", "Наличными",
+"Счёт на организацию"]. Ответ положи в collected["форма оплаты"].
+Если плательщик — юрлицо/ИП, вариант один: счёт с закрывающими
+документами. Тогда не спрашивай, просто зафиксируй.
 
 УСЛОВИЯ ОПЛАТЫ (обязательно предупреди клиента в итоговой сводке при ready):
 {config.PAYMENT_TERMS}
 
+КАНАЛ СВЯЗИ — ОБЯЗАТЕЛЬНЫЙ ШАГ ПЕРЕД ready:
+- Пока в collected нет поля "preferred_channel", ты НЕ ИМЕЕШЬ ПРАВА ставить
+  status=ready. Сначала задай отдельным сообщением вопрос:
+  «Отлично, я собрал все данные для заявки! Перед тем как отправлю её в работу,
+  подскажи, где тебе будет удобнее продолжить общение с Гульнарой?»
+  options ОБЯЗАТЕЛЬНО: ["Telegram", "WhatsApp", "ВКонтакте"]
+- Запиши ответ в collected["preferred_channel"] СТРОГО одним из трёх значений:
+  "Telegram", "WhatsApp", "VK". Никаких других формулировок.
+- Размытый ответ («без разницы», «позвоните», «всё равно») — мягко верни к
+  выбору: «Мы отправляем текстовые уведомления по проекту. Подскажи, что ближе:
+  Telegram, WhatsApp или ВК?» и снова дай те же три кнопки.
+- Клиент назвал контакт вместо канала — распознай сам и не переспрашивай:
+  «@ник» или «телега» → Telegram; «ватсап», «вотсап», номер с пометкой WhatsApp
+  → WhatsApp; «вк», «vk.com/...» → VK. Зафиксируй канал и заодно сохрани сам
+  контакт в collected["контакт для связи"].
+
 КОГДА ПЕРЕХОДИТЬ В status=ready:
 - Собраны ключевые параметры (что печатаем/делаем, материал/технология,
   размер/формат, тираж/объём, для веба — суть задачи и функционал).
+- И ОБЯЗАТЕЛЬНО собран preferred_channel (см. блок выше).
 - В message дай короткую человеческую сводку заказа + вилку/срок (если есть) и
   спроси, всё ли верно.
 - В поле brief сформируй аккуратное финальное ТЗ (см. формат ниже).
@@ -111,6 +157,7 @@ def build_system_prompt(sess: dict) -> str:
   Тираж/объём: <...>
   Ориентировочно: <вилка + срок или «рассчитает менеджер»>
   Оплата: предоплата 50%
+  Канал связи: <Telegram | WhatsApp | VK>
   Комментарий клиента: <если был>
 
 КНОПКИ-ВАРИАНТЫ (поле options) — ЖЁСТКОЕ ПРАВИЛО:
@@ -138,7 +185,11 @@ def _call_llm(system_prompt: str, history: list[dict]) -> str:
         "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
     }
-    messages = [{"role": "system", "content": system_prompt}] + history
+
+    # Ограничиваем историю, чтобы не превышать token limit (Fix #6)
+    limited_history = history[-_MAX_HISTORY_ITEMS:] if len(history) > _MAX_HISTORY_ITEMS else history
+    messages = [{"role": "system", "content": system_prompt}] + limited_history
+
     data = {
         "model": config.OPENROUTER_MODEL,
         "messages": messages,
@@ -147,24 +198,42 @@ def _call_llm(system_prompt: str, history: list[dict]) -> str:
         # просим JSON, если провайдер модели поддерживает:
         "response_format": {"type": "json_object"},
     }
-    r = requests.post(_ENDPOINT, headers=headers, json=data, timeout=config.LLM_TIMEOUT)
 
-    # Некоторые модели/провайдеры не принимают response_format —
-    # при ошибке пробуем ещё раз без него (JSON просим промптом).
-    if r.status_code != 200:
-        logger.warning("LLM call failed (%s): %s — retry without response_format",
-                       r.status_code, r.text[:300])
-        data.pop("response_format", None)
-        r = requests.post(_ENDPOINT, headers=headers, json=data,
-                          timeout=config.LLM_TIMEOUT)
+    # Первая попытка с response_format (Fix #3: добавляем exponential backoff)
+    attempts = 0
+    last_error = None
+    while attempts < 2:
+        try:
+            r = requests.post(_ENDPOINT, headers=headers, json=data, timeout=config.LLM_TIMEOUT)
+            if r.status_code == 200:
+                body = r.json()
+                if "choices" in body and body["choices"]:
+                    return body["choices"][0]["message"]["content"]
+                else:
+                    raise RuntimeError(f"API вернул неожиданный ответ: {str(body)[:300]}")
 
-    if r.status_code != 200:
-        raise RuntimeError(f"API {r.status_code}: {r.text[:300]}")
+            # Если первая попытка не прошла, пробуем без response_format
+            if attempts == 0:
+                logger.warning("LLM call failed (%s): %s — retry without response_format",
+                             r.status_code, r.text[:300])
+                data.pop("response_format", None)
+                time.sleep(1)  # exponential backoff
+            else:
+                raise RuntimeError(f"API {r.status_code}: {r.text[:300]}")
+        except requests.exceptions.Timeout as e:
+            last_error = e
+            if attempts < 1:
+                logger.warning("LLM timeout, retrying... (%s)", e)
+                time.sleep(1)
+            else:
+                raise RuntimeError(f"LLM timeout after retries: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error("LLM request failed: %s", e)
+            raise RuntimeError(f"API request failed: {e}")
 
-    body = r.json()
-    if "choices" not in body or not body["choices"]:
-        raise RuntimeError(f"API вернул неожиданный ответ: {str(body)[:300]}")
-    return body["choices"][0]["message"]["content"]
+        attempts += 1
+
+    raise RuntimeError(f"LLM call failed after retries: {last_error}")
 
 
 def _extract_json(raw: str) -> dict:
@@ -192,8 +261,86 @@ def _normalize(result: dict) -> dict:
     opts = result.get("options") or []
     if not isinstance(opts, list):
         opts = []
-    # только строки, не длиннее 60 символов, максимум 4 кнопки
-    result["options"] = [str(o)[:60] for o in opts if str(o).strip()][:4]
+    # только строки, не длиннее 60 символов, максимум 4 кнопки (Fix #14: проверяем типы)
+    result["options"] = [
+        str(o).strip()[:60]
+        for o in opts
+        if isinstance(o, (str, int, float)) and str(o).strip()
+    ][:4]
+    return result
+
+
+# ── Канал связи: нормализация и страховка ────────────────────────────────────
+# ТЗ требует, чтобы в заявку всегда уходило preferred_channel одним из трёх
+# значений. Полагаться только на промпт нельзя: модель иногда «проскакивает»
+# шаг и сразу ставит ready. Поэтому дублируем правило кодом.
+
+CHANNEL_FIELD = "preferred_channel"
+CHANNEL_OPTIONS = ["Telegram", "WhatsApp", "ВКонтакте"]
+
+# что клиент мог написать -> каноническое значение для CRM
+_CHANNEL_ALIASES = {
+    "telegram": "Telegram", "телеграм": "Telegram", "телеграмм": "Telegram",
+    "телега": "Telegram", "тг": "Telegram", "tg": "Telegram",
+    "whatsapp": "WhatsApp", "вотсап": "WhatsApp", "ватсап": "WhatsApp",
+    "вацап": "WhatsApp", "вассап": "WhatsApp", "wa": "WhatsApp",
+    "вконтакте": "VK", "вк": "VK", "vk": "VK", "vkontakte": "VK",
+}
+
+_CHANNEL_QUESTION = (
+    "Отлично, я собрал все данные для заявки! Перед тем как отправлю её "
+    "в работу — подскажи, где тебе удобнее продолжить общение с Гульнарой?"
+)
+
+
+def normalize_channel(value) -> str:
+    """Любую формулировку клиента привести к 'Telegram' / 'WhatsApp' / 'VK'.
+
+    Пустая строка означает «не распознали» — значит шаг не пройден и спрашиваем
+    заново. Лучше переспросить, чем записать в заявку мусор.
+    """
+    if not value:
+        return ""
+    text = str(value).strip().lower()
+
+    # клиент дал контакт вместо названия канала (п.4 ТЗ)
+    if "vk.com" in text or "vk.me" in text:
+        return "VK"
+    if text.startswith("@") or "t.me" in text:
+        return "Telegram"
+    if "wa.me" in text or "whatsapp" in text:
+        return "WhatsApp"
+
+    for alias, canon in _CHANNEL_ALIASES.items():
+        if alias in text:
+            return canon
+    return ""
+
+
+def _enforce_channel(sess: dict, result: dict) -> dict:
+    """Не пускать заявку в ready, пока канал связи не выбран."""
+    collected = result.get("collected") or {}
+
+    # уже собранное в этом шаге или раньше
+    raw = collected.get(CHANNEL_FIELD) or sess.get("order_spec", {}).get(CHANNEL_FIELD)
+    canon = normalize_channel(raw)
+
+    if canon:
+        collected[CHANNEL_FIELD] = canon      # чистим значение под схему CRM
+        result["collected"] = collected
+        return result
+
+    if result.get("status") != "ready":
+        return result                          # диалог идёт, спросит сам
+
+    # Модель попыталась закрыть заявку без канала — разворачиваем на вопрос.
+    logger.info("ready без preferred_channel — возвращаю шаг выбора канала")
+    collected.pop(CHANNEL_FIELD, None)
+    result["collected"] = collected
+    result["status"] = "asking"
+    result["message"] = _CHANNEL_QUESTION
+    result["options"] = list(CHANNEL_OPTIONS)
+    result["brief"] = None
     return result
 
 
@@ -202,16 +349,17 @@ def _parse_or_fallback(raw: str) -> dict:
         return _normalize(_extract_json(raw))
     except Exception as e:  # noqa: BLE001
         logger.error("JSON parse failed: %s | raw=%s", e, raw[:300])
-        # Мягкий фолбэк: показываем сырой текст как вопрос, не роняем диалог.
+        # Мягкий фолбэк: показываем сырой текст как вопрос, не роняем диалог (Fix #1)
+        message = raw[:1500] if raw else "Уточни, пожалуйста, детали заказа ещё раз."
         return _normalize({
             "status": "asking",
-            "message": raw[:1500] if raw else
-                       "Уточни, пожалуйста, детали заказа ещё раз.",
+            "message": message,
         })
 
 
 # Вопрос со словом «или» почти всегда содержит выбор — ему нужны кнопки.
-_CHOICE_HINT = re.compile(r"\bили\b", re.IGNORECASE)
+# (Fix #7: более точная проверка, чтобы избежать ложных срабатываний)
+_CHOICE_HINT = re.compile(r"(?:выбери|какой|который|какую|какого).*\bили\b", re.IGNORECASE)
 
 _FIX_OPTIONS_PROMPT = (
     "СИСТЕМНАЯ ПРОВЕРКА (клиент этого не видит): в твоём вопросе есть выбор "
@@ -247,5 +395,8 @@ def process(sess: dict) -> dict:
                 result = result2
         except Exception as e:  # noqa: BLE001
             logger.warning("Доработка не удалась (%s), отдаю первый вариант", e)
+
+    # Последний рубеж: заявка не уходит без выбранного канала связи.
+    result = _enforce_channel(sess, result)
 
     return result

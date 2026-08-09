@@ -140,6 +140,13 @@ PRICES = [
     ("invites", {"layout": "ready", "kind": "invite", "format": "A5"},      51, 100, 58, "per_piece"),
     ("invites", {"layout": "ready", "kind": "invite", "format": "A5"},     101, 10**6, 48, "per_piece"),
 
+    # Открытка А4 на плотном материале 300 г/м², 4+4, готовый макет.
+    # Отдельно от А6/Евро/А5: площадь вчетверо больше, тираж штучный, и
+    # 09.08.2026 такой заказ считали на глаз — в прайсе его просто не было.
+    # 200 ₽ за штуку при 6–9 — нижняя нормальная цена; от десятка 180 ₽.
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A4"},  1,   9, 200, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A4"}, 10, 10**6, 180, "per_piece"),
+
     # Индивидуальное приглашение: клиент покупает не лист картона, а
     # готовый персональный продукт — согласование, внесение имён, пробный
     # вариант, подготовка к печати. 200 ₽ — стартовая цена за штуку, точную
@@ -156,6 +163,16 @@ PRICES = [
 
 # ── Допуслуги ───────────────────────────────────────────────────────────
 # fixed — за весь заказ, per_piece — за штуку.
+# Какие допуслуги уместны в какой категории — чтобы бот предлагал ретушь
+# фотографу, а глиттер тому, кто заказывает открытки, и не наоборот.
+ADDON_SCOPE = {
+    "photo_paper": ("color_fix", "basic_retouch"),
+    "photo_docs":  ("digital_file", "hard_retouch", "urgent_docphoto"),
+    "invites":     ("glitter", "glitter_dense", "photo_paper_300",
+                    "corner_round", "fold", "packing"),
+    "flyers":      ("corner_round", "packing"),
+}
+
 ADDONS = {
     "color_fix":      ("Коррекция яркости и цвета", "per_piece", 30),
     "basic_retouch":  ("Базовая ретушь", "per_piece", 100),
@@ -165,6 +182,9 @@ ADDONS = {
     "corner_round":   ("Скругление углов", "per_piece", 5),
     "fold":           ("Биговка и сгиб", "per_piece", 7),
     "packing":        ("Индивидуальная упаковка", "per_piece", 10),
+    "glitter":        ("Отделка глиттером", "per_piece", 50),
+    "glitter_dense":  ("Глиттер, плотное покрытие", "per_piece", 100),
+    "photo_paper_300": ("Плотная фотобумага 300 г/м²", "per_piece", 60),
 }
 
 # ── Коэффициенты ────────────────────────────────────────────────────────
@@ -191,7 +211,16 @@ MIN_ORDER = {
     "print_docs": 50,
     "flyers": 300,
     "invites": 700,
+    # Штучная открытка А4 с отделкой: ниже этой суммы работа не окупает
+    # приёмку, резку и ручную доработку.
+    ("invites", "A4"): 1200,
 }
+
+
+def min_order(category: str, params: dict) -> int:
+    """Порог для этой позиции. Уточнение по формату важнее общего по категории."""
+    return MIN_ORDER.get((category, params.get("format")),
+                         MIN_ORDER.get(category, 0))
 
 # ── Как клиент называет услугу ──────────────────────────────────────────
 SYNONYMS = {
@@ -299,7 +328,7 @@ def quote(category: str, params: dict, qty: int = 1,
             applied.append((title, k, "ко всему заказу"))
 
     total = round(total)
-    floor = MIN_ORDER.get(category, 0)
+    floor = min_order(category, params)
     raised = total < floor
     if raised:
         total = floor
@@ -348,6 +377,18 @@ def block(category: str) -> str:
         unit = {"per_sheet": "за лист", "per_piece": "за штуку",
                 "per_order": "за услугу"}[kind]
         out.append(f"  • {what}{span} — {price} ₽ {unit}")
-    if category in MIN_ORDER:
-        out.append(f"  Минимальный заказ — {MIN_ORDER[category]} ₽.")
+    extras = ADDON_SCOPE.get(category, ())
+    if extras:
+        out.append("  Допуслуги (в базовую цену НЕ входят, спроси про них):")
+        for code in extras:
+            title, kind, value = ADDONS[code]
+            unit = "за штуку" if kind == "per_piece" else "за заказ"
+            out.append(f"    • {title} — {value} ₽ {unit}")
+    floor = MIN_ORDER.get(category)
+    if floor:
+        out.append(f"  Минимальный заказ — {floor} ₽.")
+    special = [(k[1], v) for k, v in MIN_ORDER.items()
+               if isinstance(k, tuple) and k[0] == category]
+    for fmt, amount in special:
+        out.append(f"  Минимальный заказ по формату {fmt} — {amount} ₽.")
     return "\n".join(out)

@@ -1,7 +1,10 @@
 import os
 import json
+import smtplib
 import socket
+import ssl
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
 import requests
@@ -20,6 +23,23 @@ try:
     urllib3_cn.allowed_gai_family = lambda: socket.AF_INET
 except Exception as e:
     print(f"[init] IPv4-режим не включился: {e}", flush=True)
+
+# То же самое, но для всего остального, что ходит наружу мимо requests —
+# в первую очередь для почты: smtplib открывает сокет сам и про настройку
+# выше не знает. Без этого письмо с заявкой упало бы на первом же адресе
+# IPv6, который вернёт DNS.
+_real_getaddrinfo = socket.getaddrinfo
+
+
+def _getaddrinfo_ipv4_only(*args, **kwargs):
+    res = _real_getaddrinfo(*args, **kwargs)
+    ipv4 = [r for r in res if r[0] == socket.AF_INET]
+    # Если IPv4-адресов нет вовсе, отдаём что есть: пусть лучше попробует
+    # и честно упадёт с понятной ошибкой, чем молча вернёт пустой список.
+    return ipv4 or res
+
+
+socket.getaddrinfo = _getaddrinfo_ipv4_only
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
@@ -89,6 +109,23 @@ def save_order(payload, delivered, reason=""):
 # Иначе ВК ответит ошибкой 901.
 VK_TOKEN = os.getenv("VK_TOKEN", "").strip()
 VK_PEER_ID = os.getenv("VK_PEER_ID", "").strip()
+
+# ── Почта: третий канал доставки заявки ─────────────────────────────────
+# 09.08.2026 Telegram отвечал с третьей попытки за пятнадцать секунд, а ключ
+# ВКонтакте оказался отозван. Заявка при этом лежала на диске, но узнать о
+# ней было неоткуда. Почта на Яндексе живёт внутри страны и не зависит ни от
+# того, ни от другого — поэтому она здесь третьей, а не вместо.
+#
+# ПЕРЕМЕННЫЕ (Amvera → Переменные окружения):
+#   MAIL_LOGIN    — полный адрес ящика, например gulnaravibecoder999@yandex.ru
+#   MAIL_PASSWORD — ПАРОЛЬ ПРИЛОЖЕНИЯ из Яндекс ID, не пароль от почты.
+#                   Обычный пароль Яндекс для программ не принимает.
+#   MAIL_TO       — куда слать заявку. Не задан — шлём на сам ящик.
+MAIL_HOST = os.getenv("MAIL_HOST", "smtp.yandex.ru").strip()
+MAIL_PORT = int(os.getenv("MAIL_PORT", "465"))
+MAIL_LOGIN = os.getenv("MAIL_LOGIN", "").strip()
+MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "").strip()
+MAIL_TO = os.getenv("MAIL_TO", "").strip() or MAIL_LOGIN
 
 # Расшифровки частых кодов: без них «ошибка 901» в логах через месяц
 # ничего не скажет тому, кто их откроет.
@@ -180,6 +217,64 @@ def send_to_vk(text):
         reason = f"сеть: {type(e).__name__}: {e}"
         print(f"[vk] {reason}", flush=True)
         return False, reason
+
+
+def send_to_mail(subject, text):
+    """Дубль заявки письмом. Возвращает (ok, причина).
+
+    Наружу не падает никогда: это ещё один параллельный канал, и его отказ
+    не должен ронять обработку заявки. Пароль в причину не попадает —
+    smtplib его в текст ошибки не кладёт, но на всякий случай прогоняем
+    результат через mask(), как и телеграмный.
+    """
+    if not MAIL_LOGIN or not MAIL_PASSWORD:
+        return False, "не настроена"
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = MAIL_LOGIN
+    msg["To"] = MAIL_TO
+    msg.set_content(text)
+
+    try:
+        with smtplib.SMTP_SSL(MAIL_HOST, MAIL_PORT,
+                              context=ssl.create_default_context(),
+                              timeout=15) as s:
+            s.login(MAIL_LOGIN, MAIL_PASSWORD)
+            s.send_message(msg)
+        return True, ""
+    except smtplib.SMTPAuthenticationError:
+        # Самая частая причина: в переменную положили пароль от почты
+        # вместо пароля приложения. Пишем прямым текстом, чтобы через месяц
+        # не гадать над «535 5.7.8».
+        reason = "вход отклонён — нужен пароль приложения из Яндекс ID, а не пароль от почты"
+        print(f"[mail] {reason}", flush=True)
+        return False, reason
+    except Exception as e:
+        reason = f"{type(e).__name__}: {e}"
+        print(f"[mail] {mask(reason)}", flush=True)
+        return False, mask(reason)
+
+
+def mail_health():
+    """Принимает ли ящик наш пароль. Письмо не отправляет — только вход.
+
+    Проверяем по-настоящему, а не «переменная задана»: ровно так мы
+    09.08.2026 проглядели отозванный ключ ВКонтакте — он был задан и
+    считался рабочим, пока не полезли в логи руками.
+    """
+    if not MAIL_LOGIN or not MAIL_PASSWORD:
+        return "не настроена"
+    try:
+        with smtplib.SMTP_SSL(MAIL_HOST, MAIL_PORT,
+                              context=ssl.create_default_context(),
+                              timeout=10) as s:
+            s.login(MAIL_LOGIN, MAIL_PASSWORD)
+        return "ok"
+    except smtplib.SMTPAuthenticationError:
+        return "вход отклонён — нужен пароль приложения из Яндекс ID"
+    except Exception as e:
+        return mask(f"{type(e).__name__}: {e}")
 
 
 def send_to_telegram(text):
@@ -404,6 +499,7 @@ def health():
         # Резервный канал раньше в проверке не участвовал, и недействительный
         # ключ ВК всплыл только из логов, когда его пошли искать руками.
         vk=vk_health(),
+        mail=mail_health(),
         # Оба бота одним взглядом: кто из них жив и под каким именем.
         bots=bots.health(),
     )
@@ -455,10 +551,13 @@ def order():
     text = "\n".join(lines)
     ok, reason = send_to_telegram(text)
     vk_ok, vk_reason = send_to_vk(text)
-    delivered = ok or vk_ok
+    mail_ok, mail_reason = send_to_mail(f"Заявка с сайта №{lead_id} — {name}", text)
+    delivered = ok or vk_ok or mail_ok
     save_order(payload, delivered=delivered,
-               reason="" if delivered else f"telegram: {reason}; вк: {vk_reason}")
-    leads.log(lead_id, "notified", delivered=delivered, telegram=ok, vk=vk_ok)
+               reason="" if delivered else
+                      f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}")
+    leads.log(lead_id, "notified", delivered=delivered,
+              telegram=ok, vk=vk_ok, mail=mail_ok)
 
     # ── 2. ДЖАРВИС забирает клиента ──────────────────────────────────────
     # Если человек уже когда-то писал боту, его chat_id у нас есть — тогда
@@ -502,7 +601,14 @@ def order():
             pushed=pushed,
         )
 
-    # Заявка на диске лежит, но до Telegram не дошла. Браузеру отдаём
+    if delivered:
+        # Telegram молчит, но заявка ушла письмом или во ВКонтакте — значит
+        # она у нас, и пугать клиента запасными кнопками незачем. Ссылку в
+        # бота не даём: раз Telegram недоступен нам, клиенту он, скорее
+        # всего, тоже не откроется.
+        return jsonify(ok=True, lead=lead_id)
+
+    # Заявка на диске лежит, но не дошла ни одним каналом. Браузеру отдаём
     # нейтральный текст — он покажет клиенту кнопки WhatsApp/Telegram.
     print(f"[order] заявка сохранена, но не доставлена: {reason}", flush=True)
     return jsonify(ok=False, saved=True, error="not_delivered"), 200
@@ -559,10 +665,13 @@ def bot_lead():
     text = "\n".join(lines)
     ok, reason = send_to_telegram(text)
     vk_ok, vk_reason = send_to_vk(text)
-    delivered = ok or vk_ok
+    mail_ok, mail_reason = send_to_mail(f"Заявка из симулятора №{lead_id}", text)
+    delivered = ok or vk_ok or mail_ok
     save_order(payload, delivered=delivered,
-               reason="" if delivered else f"telegram: {reason}; вк: {vk_reason}")
-    leads.log(lead_id, "notified", delivered=delivered, telegram=ok, vk=vk_ok)
+               reason="" if delivered else
+                      f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}")
+    leads.log(lead_id, "notified", delivered=delivered,
+              telegram=ok, vk=vk_ok, mail=mail_ok)
 
     # ── ДЖАРВИС забирает клиента, если он у нас уже был ──────────────────
     pushed = False

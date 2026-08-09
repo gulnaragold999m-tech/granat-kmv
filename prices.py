@@ -336,6 +336,30 @@ SYNONYMS = {
 }
 
 
+# Коды категорий у бота свои, исторические (photo, copy, cards), а в этой
+# таблице — говорящие (photo_paper, print_docs, invites). Совпадал ровно
+# один из десяти, и таблица цен молча не подхватывалась: бот читал старые
+# тарифы из config, а цены здесь лежали мёртвым грузом. Сшиваем имена.
+ALIASES = {
+    "photo": "photo_paper",
+    "docphoto": "photo_docs",
+    "copy": "print_docs",
+    "cards": "invites",
+    "invitations": "invites",
+    "booklet": "booklets",
+    "lamin": "lamination",
+    "plotter": "plotter_drawings",
+    "posters": "plotter_posters",
+    "prepress": "design",
+}
+
+
+def canon(category: str) -> str:
+    """Привести код категории к тому, что понимает таблица."""
+    cat = (category or "").strip()
+    return ALIASES.get(cat, cat)
+
+
 def detect(text: str) -> str:
     """Категория по словам клиента. Пусто — не угадали, надо спросить.
 
@@ -353,12 +377,14 @@ def detect(text: str) -> str:
 
 def missing(category: str, params: dict) -> tuple:
     """Каких обязательных параметров ещё не хватает."""
+    category = canon(category)
     return tuple(f for f in REQUIRED.get(category, ())
                  if not params.get(f))
 
 
 def find(category: str, params: dict, qty: int = 1):
     """Строка прайса под эти параметры. None — такой комбинации нет."""
+    category = canon(category)
     for cat, cond, lo, hi, price, kind in PRICES:
         if cat != category:
             continue
@@ -400,6 +426,7 @@ def quote(category: str, params: dict, qty: int = 1,
     Никогда не гадает: нет параметра или нет строки — так и говорит, а
     решение «спросить или отдать менеджеру» принимает вызывающий код.
     """
+    category = canon(category)
     lack = missing(category, {**params, "qty": qty})
     if lack:
         return {"ok": False, "reason": "not_enough", "missing": lack}
@@ -467,6 +494,7 @@ def block(category: str) -> str:
 
     Модель видит те же цифры, что и калькулятор, и не выдумывает своих.
     """
+    category = canon(category)
     rows = [r for r in PRICES if r[0] == category]
     if not rows:
         return ""

@@ -961,5 +961,68 @@ def pending_leads():
     return jsonify(ok=True, count=len(items), minutes=minutes, leads=items)
 
 
+# ── Мостик к Джарвису ───────────────────────────────────────────────────
+# Джарвис — отдельное приложение Amvera со своим диском. Журнал заявок
+# лежит на диске сайта, и заглянуть в него бот не может: у каждого
+# приложения своё /data. Поэтому заявка ходит между ними по сети.
+#
+# Без этого ссылка «Продолжить в Telegram» несла номер заявки, который
+# боту было негде посмотреть, — и он спрашивал всё заново у человека,
+# только что заполнившего форму.
+#
+# Защищено тем же WATCH_TOKEN, что и /api/pending: в заявке лежат имя и
+# телефон клиента, отдавать их кому попало нельзя.
+# В переменных Джарвиса задай SITE_URL и SITE_TOKEN.
+
+def _token_ok():
+    token = os.getenv("WATCH_TOKEN", "").strip()
+    return bool(token) and request.args.get("token", "") == token
+
+
+@app.route("/api/lead/<int:lead_id>")
+def lead_read(lead_id):
+    """Отдать Джарвису заявку по номеру."""
+    if not _token_ok():
+        return jsonify(ok=False, error="forbidden"), 403
+    lead = leads.find(lead_id)
+    if not lead:
+        return jsonify(ok=False, error="not_found"), 404
+    return jsonify(ok=True, lead=lead)
+
+
+@app.route("/api/lead/<int:lead_id>/event", methods=["POST"])
+def lead_event(lead_id):
+    """Принять от Джарвиса отметку о ходе заявки.
+
+    entered_bot — клиент дошёл до бота, запоминаем его chat_id: со
+    следующего раза Джарвис напишет ему первым.
+    postponed   — нажал «Позже».
+    brief_ready — ТЗ собрано, сторож тишины может о заявке забыть.
+    """
+    if not _token_ok():
+        return jsonify(ok=False, error="forbidden"), 403
+
+    data = request.get_json(silent=True) or {}
+    event = (data.get("event") or "").strip()
+
+    if event == "entered_bot":
+        leads.link_client(
+            lead_id,
+            data.get("chat_id"),
+            phone=(data.get("phone") or ""),
+            username=(data.get("username") or ""),
+        )
+    elif event == "postponed":
+        leads.log(lead_id, "postponed")
+    elif event == "brief_ready":
+        leads.log(lead_id, "brief_ready", brief=(data.get("brief") or "")[:2000])
+    else:
+        # Чужие события в журнал не пускаем: он читается сторожем и
+        # счётчиками, и мусор в нём стоит дороже отказа.
+        return jsonify(ok=False, error="unknown_event"), 400
+
+    return jsonify(ok=True)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80, threaded=True)

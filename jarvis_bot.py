@@ -44,6 +44,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+# httpx печатает полный адрес каждого запроса к Telegram, а токен бота —
+# часть этого адреса. Без этой строки токен попадает в логи Amvera.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("jarvis")
 
 
@@ -134,6 +137,12 @@ GIFT_SERVICE_LABELS = {
     "coloring_book": "🎨 Книга-раскраска",
 }
 
+# (Fix #13: вынесли константы для переиспользования)
+PAYER_LABELS = {
+    "ur": "🏢 ЮРЛИЦО / ИП",
+    "fiz": "👤 ФИЗЛИЦО",
+}
+
 
 async def _send_gift_step(target, sess: dict) -> None:
     """Следующий вопрос гифт-опроса, либо кнопки стиля, если поля закончились.
@@ -164,18 +173,13 @@ async def _send_gift_step(target, sess: dict) -> None:
 async def _deliver_gift_result(thinking_msg, msg_obj, text: str, markdown: bool = True) -> None:
     """markdown=False — для служебных сообщений (например, текста об ошибке
     с @username студии): звёздочки/подчёркивания там не нужны, а юзернейм с
-    "_" ломает Telegram-разметку (пример: 'Can't parse entities')."""
+    "_" ломает Telegram-разметку (пример: 'Can't parse entities').
+    (Fix #12: используем _edit_or_reply для избежания повторения кода)"""
     markup = kbd.kb_dialog_controls()
     parse_mode = ParseMode.MARKDOWN if markdown else None
-    if thinking_msg is not None:
-        try:
-            await thinking_msg.edit_text(text, reply_markup=markup, parse_mode=parse_mode)
-            return
-        except (TimedOut, NetworkError, Exception) as e:  # noqa: BLE001
-            logger.warning("edit failed для подарка (%s), пробую новым сообщением", e)
     try:
-        await msg_obj.reply_text(text, reply_markup=markup, parse_mode=parse_mode)
-    except Exception as e:  # noqa: BLE001
+        await _edit_or_reply(thinking_msg, msg_obj, text, reply_markup=markup, parse_mode=parse_mode)
+    except RuntimeError as e:
         # LLM мог вернуть текст, ломающий Markdown-разметку Telegram — не
         # роняем доставку подарка клиенту из-за этого, шлём как есть.
         logger.warning("Markdown-парсинг подарка не прошёл (%s), отправляю без форматирования", e)
@@ -232,16 +236,38 @@ THINKING_PHRASES = [
 ]
 
 
-async def _send_plain(msg_obj, text: str, markup=None):
-    """Отправка с повторами: сеть до Telegram иногда «моргает» (TimedOut)."""
+async def _send_plain(msg_obj, text: str, markup=None, parse_mode=None):
+    """Отправка с повторами: сеть до Telegram иногда «моргает» (TimedOut).
+    (Fix #11: добавлено логирование успеха)
+
+    parse_mode нужен приветствию по заявке с сайта — там жирным выделена
+    задача клиента. Остальные вызовы шлют обычный текст, как и раньше.
+    """
     for attempt in range(3):
         try:
-            return await msg_obj.reply_text(text, reply_markup=markup)
+            result = await msg_obj.reply_text(
+                text, reply_markup=markup, parse_mode=parse_mode)
+            if attempt > 0:
+                logger.info("Message sent after retry %d", attempt)
+            return result
         except (TimedOut, NetworkError) as e:
-            logger.warning("send retry %s/3 after %s", attempt + 1, e)
+            if attempt == 2:
+                logger.error("Failed to send message after 3 attempts: %s", e)
+            else:
+                logger.warning("send retry %s/3 after %s", attempt + 1, e)
             await asyncio.sleep(2 * (attempt + 1))
-    logger.error("Не удалось отправить сообщение после 3 попыток")
     return None
+
+
+async def _edit_or_reply(thinking_msg, msg_obj, text: str, **kwargs):
+    """Вспомогательная функция для редактирования или отправки нового сообщения.
+    (Fix #12: избегаем повторения кода в _deliver и _deliver_gift_result)"""
+    if thinking_msg is not None:
+        try:
+            return await thinking_msg.edit_text(text, **kwargs)
+        except (TimedOut, NetworkError, RuntimeError) as e:
+            logger.warning("edit failed (%s), отправляю новым сообщением", e)
+    return await msg_obj.reply_text(text, **kwargs)
 
 
 async def _deliver(thinking_msg, msg_obj, text: str, confirm: bool = False,
@@ -251,18 +277,13 @@ async def _deliver(thinking_msg, msg_obj, text: str, confirm: bool = False,
     Если ранее отправляли «думаю…» — превращаем его в ответ (edit),
     чтобы не плодить сообщения. Если редактирование не удалось — шлём новым.
     options — кнопки-варианты ответа под вопросом.
+    (Fix #12: используем _edit_or_reply для избежания повторения кода)
     """
     if confirm:
         markup = kbd.kb_confirm()
     else:
         markup = kbd.kb_dialog(options or [])
-    if thinking_msg is not None:
-        try:
-            await thinking_msg.edit_text(text, reply_markup=markup)
-            return
-        except (TimedOut, NetworkError, Exception) as e:  # noqa: BLE001
-            logger.warning("edit failed (%s), отправляю новым сообщением", e)
-    await _send_plain(msg_obj, text, markup)
+    await _edit_or_reply(thinking_msg, msg_obj, text, reply_markup=markup)
 
 
 # ── Напоминание о незавершённом заказе ─────────────────────────────────────
@@ -365,7 +386,11 @@ async def _run_dialog_step(ctx: ContextTypes.DEFAULT_TYPE, uid: int, sess: dict,
     _apply_llm_result(sess, result)
     ss.push_history(sess, "assistant", result["message"])
     is_confirm = sess["stage"] == ss.STAGE_CONFIRM
-    sess["last_options"] = [] if is_confirm else (result.get("options") or [])
+    # Fix #10: ограничиваем last_options чтобы избежать накопления данных
+    if is_confirm:
+        sess["last_options"] = []
+    else:
+        sess["last_options"] = (result.get("options") or [])[-10:]  # максимум 10 вариантов
     await _deliver(
         thinking_msg, msg_obj, result["message"],
         confirm=is_confirm,
@@ -374,8 +399,9 @@ async def _run_dialog_step(ctx: ContextTypes.DEFAULT_TYPE, uid: int, sess: dict,
     _schedule_reminder(ctx, uid, sess)
 
 
-def _payer_label(payer) -> str:
-    return {"ur": "🏢 ЮРЛИЦО / ИП", "fiz": "👤 ФИЗЛИЦО"}.get(payer, "не указан")
+def _payer_label(payer: str) -> str:
+    """Возвращает человеческое описание типа плательщика (Fix #13: используем константу)."""
+    return PAYER_LABELS.get(payer, "не указан")
 
 
 async def _notify_admin(ctx: ContextTypes.DEFAULT_TYPE, user, sess: dict) -> bool:
@@ -390,27 +416,38 @@ async def _notify_admin(ctx: ContextTypes.DEFAULT_TYPE, user, sess: dict) -> boo
     username = f"@{user.username}" if user.username else "нет username"
     phone = html.escape(sess.get("phone") or "не подтверждён")
     brief = html.escape(sess.get("final_brief") or "— (см. параметры ниже)")
+
+    # Канал связи показываем отдельной строкой вверху: это первое, что нужно
+    # знать перед ответом клиенту, а не строчка в общем списке параметров.
+    spec = dict(sess.get("order_spec", {}))
+    channel = spec.pop(dialog_manager.CHANNEL_FIELD, "") or "не указан"
+    channel_icons = {"Telegram": "✈️", "WhatsApp": "🟢", "VK": "🔵"}
+    channel_line = f"{channel_icons.get(channel, '❔')} {html.escape(str(channel))}"
+
     spec_lines = "\n".join(
         f"  • {html.escape(str(k))}: {html.escape(str(v))}"
-        for k, v in sess.get("order_spec", {}).items()
+        for k, v in spec.items()
     ) or "  —"
     att_line = ""
     n_att = len(sess.get("attachments") or [])
     if n_att:
         att_line = f"\n📎 Вложений от клиента: {n_att} (см. выше в чате)\n"
 
+    # Fix #5: явно преобразуем user.id в int для безопасности
+    user_id = int(user.id)
     text = (
         "🔥 <b>ГОРЯЧАЯ ЗАЯВКА</b>\n\n"
-        f"👤 Клиент: <a href=\"tg://user?id={user.id}\">{name}</a> ({username})\n"
+        f"👤 Клиент: <a href=\"tg://user?id={user_id}\">{name}</a> ({username})\n"
         f"📞 Телефон (подтверждён Telegram): {phone}\n"
-        f"🆔 ID: <code>{user.id}</code>\n"
+        f"💬 Писать клиенту в: <b>{channel_line}</b>\n"
+        f"🆔 ID: <code>{user_id}</code>\n"
         f"💼 Плательщик: {_payer_label(sess.get('payer'))}\n"
         f"📂 Направление: {flow_title}\n"
         f"📌 Категория: {cat_title}\n"
         f"{att_line}\n"
         f"<b>ТЗ:</b>\n<pre>{brief}</pre>\n"
         f"<b>Параметры:</b>\n{spec_lines}\n\n"
-        f"➡️ Написать клиенту: <a href=\"tg://user?id={user.id}\">открыть диалог</a>"
+        f"➡️ Написать клиенту: <a href=\"tg://user?id={user_id}\">открыть диалог</a>"
     )
     try:
         await ctx.bot.send_message(
@@ -427,6 +464,15 @@ async def _notify_admin(ctx: ContextTypes.DEFAULT_TYPE, user, sess: dict) -> boo
 # Хендлеры
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def _start_from_site_lead(ctx: ContextTypes.DEFAULT_TYPE, uid: int,
+                                sess: dict, msg_obj, lead: dict) -> None:
+    """Начать разговор с уже известной заявкой вместо расспросов с нуля."""
+    await _send_plain(msg_obj, lead_handoff.greeting(lead),
+                      parse_mode=ParseMode.HTML)
+    ss.push_history(sess, "user", lead_handoff.first_message(lead))
+    await _run_dialog_step(ctx, uid, sess, msg_obj)
+
+
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     _cancel_reminder(ctx, uid)
@@ -435,14 +481,13 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Клиент пришёл по ссылке с сайта: /start lead_47. Имя, телефон и задача
     # у нас уже есть — он всё это заполнил в форме, а согласие дал там же.
-    # Раньше этот номер молча выбрасывался, и человек, только что заполнивший
-    # форму, отвечал на те же вопросы заново. Половина уходила на втором.
-    picked = lead_handoff.apply(update, sess)
+    # Заявку забираем у сайта по сети: журнал лежит на его диске, у нас
+    # своего доступа к нему нет. Запрос блокирующий, поэтому в отдельном
+    # потоке — иначе на время ожидания встал бы весь бот.
+    picked = await asyncio.to_thread(lead_handoff.apply, update, sess)
     if picked:
-        await msg.reply_text(lead_handoff.greeting(picked),
-                             parse_mode=ParseMode.HTML)
-        ss.push_history(sess, "user", lead_handoff.first_message(picked))
-        return await _run_dialog_step(ctx, uid, sess, msg)
+        await _start_from_site_lead(ctx, uid, sess, msg, picked)
+        return
 
     # Проверки проходятся один раз: согласие → номер → меню
     if not sess["consent"]:
@@ -478,9 +523,9 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ns, a, b = kbd.parse_cb(q.data)
 
     # ── Заявка с сайта ──────────────────────────────────────────────────────
-    # Эти кнопки Джарвис отправляет сам тем, кто у нас уже был: сайт знает их
-    # chat_id и не заставляет ничего нажимать на странице. Кнопки приходили,
-    # но обработчика для них не было — нажатие не делало ничего.
+    # Эти кнопки сайт присылает тем, чей chat_id он уже знает: человеку не
+    # нужно ничего нажимать на странице, Джарвис пишет ему сам. Кнопки
+    # приходили, но обработчика для них не было — нажатие не делало ничего.
     if ns == "lead":
         lead_id = int(b) if b.isdigit() else 0
 
@@ -488,28 +533,29 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             lead_handoff.postponed(lead_id)
             await q.edit_message_text(
                 "Хорошо, не тороплю. Напишите, когда будет удобно, — "
-                "я помню вашу заявку и начну с того же места."
+                "я помню вашу заявку и продолжу с того же места."
             )
             return
 
         if a == "start":
-            picked = lead_handoff.apply_by_id(
-                lead_id, uid, sess,
-                username=getattr(q.from_user, "username", "") or "",
+            picked = await asyncio.to_thread(
+                lead_handoff.apply_by_id, lead_id, uid, sess,
+                getattr(q.from_user, "username", "") or "",
             )
             if not picked:
-                # Заявки нет в журнале — вести диалог вслепую хуже, чем
-                # честно начать сначала.
+                # Заявку не отдали — вести диалог вслепую хуже, чем честно
+                # начать сначала.
                 await q.edit_message_text(
-                    "Не нашёл эту заявку в журнале. Давайте соберём заново — "
-                    "это быстро."
+                    "Не нашёл эту заявку. Давайте соберём заново — это быстро."
                 )
                 await q.message.reply_text(WELCOME, reply_markup=kbd.kb_flows())
                 return
-            await q.edit_message_text(lead_handoff.greeting(picked),
-                                      parse_mode=ParseMode.HTML)
-            ss.push_history(sess, "user", lead_handoff.first_message(picked))
-            return await _run_dialog_step(ctx, uid, sess, q.message)
+            try:
+                await q.edit_message_reply_markup(reply_markup=None)
+            except Exception:  # noqa: BLE001
+                pass
+            await _start_from_site_lead(ctx, uid, sess, q.message, picked)
+            return
 
     # ── Системные кнопки ────────────────────────────────────────────────────
     if ns == "sys":
@@ -568,11 +614,10 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             sent = await _notify_admin(ctx, q.from_user, sess)
 
             # Заявка с сайта дошла до конца конвейера: сторож тишины должен
-            # перестать про неё напоминать, а в журнале — остаться готовое ТЗ.
+            # перестать про неё напоминать, а в журнале — остаться ТЗ.
             site_lead = sess.get("order_spec", {}).get("lead_id")
             if site_lead:
-                lead_handoff.brief_ready(
-                    site_lead, sess.get("final_brief") or "")
+                lead_handoff.brief_ready(site_lead, sess.get("final_brief") or "")
 
             s = config.STUDIO
             if sent:
@@ -651,7 +696,9 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             try:
                 choice = opts[int(b)]
             except (ValueError, IndexError):
-                return  # кнопка от старого вопроса — молча игнорируем
+                # Fix #8: сообщаем клиенту, что кнопка неактивна, вместо молчаливого игнора
+                await q.answer("Эта кнопка уже неактивна, выбери из текущих вариантов ⬇️", show_alert=False)
+                return
             sess["last_options"] = []
             # фиксируем выбор прямо в сообщении с вопросом, кнопки убираем
             try:
@@ -752,7 +799,8 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             fields = _gift_fields_for(sess)
             step = sess.get("gift_step", 0)
             if step < len(fields) and fields[step][0] == "age":
-                sess["gift_data"]["age"] = "не указан"
+                # Fix #9: используем пустую строку вместо "не указан" для правильного типа
+                sess["gift_data"]["age"] = ""
                 sess["gift_step"] += 1
                 await _send_gift_step(q.message, sess)
             return
@@ -846,7 +894,8 @@ async def on_attachment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not sess["consent"]:
         await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
         return
-    if not sess["phone"]:
+    # Fix #2: проверяем не только наличие, но и непустоту номера
+    if not sess.get("phone") or not sess["phone"].strip():
         await msg.reply_text(
             "Сначала подтверди номер — нажми кнопку «📱 Отправить мой номер» "
             "внизу экрана 🙌",
@@ -929,7 +978,8 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not sess["consent"]:
         await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
         return
-    if not sess["phone"]:
+    # Fix #2: проверяем не только наличие, но и непустоту номера
+    if not sess.get("phone") or not sess["phone"].strip():
         await msg.reply_text(
             "Сначала подтверди номер — нажми кнопку «📱 Отправить мой номер» "
             "внизу экрана 🙌",

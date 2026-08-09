@@ -148,6 +148,26 @@ def greeting(lead: dict) -> str:
     return "\n".join(out)
 
 
+def first_message(lead: dict) -> str:
+    """Реплика клиента для истории диалога — его же словами из формы.
+
+    Джарвису нужна хотя бы одна реплика собеседника: с пустой историей LLM
+    задаёт первый вопрос вслепую и переспрашивает то, что человек уже
+    написал на сайте. Здесь мы отдаём ей ровно то, что он написал.
+    """
+    parts = []
+    if lead.get("service"):
+        parts.append(f"Мне нужно: {lead['service']}")
+    if lead.get("notes"):
+        parts.append(lead["notes"])
+    chk = leads.cheque(lead)
+    if chk:
+        parts.append(f"На сайте я собрал конфигурацию: {chk}")
+    if not parts:
+        parts.append("Я оставил заявку на сайте, подробности пока не написал.")
+    return ". ".join(parts)
+
+
 def postponed(lead_id: int) -> None:
     """Клиент нажал «Позже». Фиксируем — Генерал не будет считать это тишиной,
     но и из виду не потеряет."""

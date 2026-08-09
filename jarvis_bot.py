@@ -37,6 +37,7 @@ import dialog_manager
 import gift_manager
 import keyboards as kbd
 import knowledge_base as kb
+import lead_handoff
 import session as ss
 
 logging.basicConfig(
@@ -431,6 +432,18 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     _cancel_reminder(ctx, uid)
     sess = ss.reset_session(uid)
     msg = update.effective_message
+
+    # Клиент пришёл по ссылке с сайта: /start lead_47. Имя, телефон и задача
+    # у нас уже есть — он всё это заполнил в форме, а согласие дал там же.
+    # Раньше этот номер молча выбрасывался, и человек, только что заполнивший
+    # форму, отвечал на те же вопросы заново. Половина уходила на втором.
+    picked = lead_handoff.apply(update, sess)
+    if picked:
+        await msg.reply_text(lead_handoff.greeting(picked),
+                             parse_mode=ParseMode.HTML)
+        ss.push_history(sess, "user", lead_handoff.first_message(picked))
+        return await _run_dialog_step(ctx, uid, sess, msg)
+
     # Проверки проходятся один раз: согласие → номер → меню
     if not sess["consent"]:
         await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
@@ -463,6 +476,40 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     sess = ss.get_session(uid)
     sess["business_connection_id"] = getattr(q.message, "business_connection_id", None)
     ns, a, b = kbd.parse_cb(q.data)
+
+    # ── Заявка с сайта ──────────────────────────────────────────────────────
+    # Эти кнопки Джарвис отправляет сам тем, кто у нас уже был: сайт знает их
+    # chat_id и не заставляет ничего нажимать на странице. Кнопки приходили,
+    # но обработчика для них не было — нажатие не делало ничего.
+    if ns == "lead":
+        lead_id = int(b) if b.isdigit() else 0
+
+        if a == "later":
+            lead_handoff.postponed(lead_id)
+            await q.edit_message_text(
+                "Хорошо, не тороплю. Напишите, когда будет удобно, — "
+                "я помню вашу заявку и начну с того же места."
+            )
+            return
+
+        if a == "start":
+            picked = lead_handoff.apply_by_id(
+                lead_id, uid, sess,
+                username=getattr(q.from_user, "username", "") or "",
+            )
+            if not picked:
+                # Заявки нет в журнале — вести диалог вслепую хуже, чем
+                # честно начать сначала.
+                await q.edit_message_text(
+                    "Не нашёл эту заявку в журнале. Давайте соберём заново — "
+                    "это быстро."
+                )
+                await q.message.reply_text(WELCOME, reply_markup=kbd.kb_flows())
+                return
+            await q.edit_message_text(lead_handoff.greeting(picked),
+                                      parse_mode=ParseMode.HTML)
+            ss.push_history(sess, "user", lead_handoff.first_message(picked))
+            return await _run_dialog_step(ctx, uid, sess, q.message)
 
     # ── Системные кнопки ────────────────────────────────────────────────────
     if ns == "sys":
@@ -519,6 +566,14 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await q.edit_message_text(WELCOME, reply_markup=kbd.kb_flows())
                 return
             sent = await _notify_admin(ctx, q.from_user, sess)
+
+            # Заявка с сайта дошла до конца конвейера: сторож тишины должен
+            # перестать про неё напоминать, а в журнале — остаться готовое ТЗ.
+            site_lead = sess.get("order_spec", {}).get("lead_id")
+            if site_lead:
+                lead_handoff.brief_ready(
+                    site_lead, sess.get("final_brief") or "")
+
             s = config.STUDIO
             if sent:
                 msg = (

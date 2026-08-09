@@ -44,6 +44,10 @@ import requests
 import config
 import dialog_manager
 try:
+    import fraud_check
+except Exception:  # noqa: BLE001
+    fraud_check = None
+try:
     import prices
 except Exception:  # noqa: BLE001
     prices = None
@@ -322,6 +326,66 @@ def hand_over(peer_id, sess, from_id):
     ss.reset_session(skey(peer_id))
 
 
+# ── Проверка на мошенников ──────────────────────────────────────────────
+
+FRAUD_ROWS = [["Меня обманули, что делать"], ["Меню"]]
+
+FRAUD_NO_FILES = (
+    "Я читаю только текст — картинку разобрать не могу.\n\n"
+    "Перешлите сообщение текстом или перескажите своими словами: что "
+    "пишут, чего просят, есть ли ссылка."
+)
+
+
+def fraud_guard(peer_id, sess, text: str, has_files: bool) -> bool:
+    """Разбор мошеннических сообщений. True — ответили, дальше не идём.
+
+    Стоит ПЕРЕД согласием и меню сознательно: человек, которому прямо
+    сейчас звонит «служба безопасности», не должен сначала соглашаться на
+    обработку данных и выбирать направление печати. Персональные данные
+    здесь и не собираются — текст разбирается на месте и никуда не уходит.
+    """
+    if fraud_check is None:
+        return False
+
+    if sess.get("fraud_mode"):
+        if has_files and not text:
+            send(peer_id, FRAUD_NO_FILES, FRAUD_ROWS)
+            return True
+        if fraud_check.wants_exit(text):
+            sess["fraud_mode"] = False
+            send(peer_id, fraud_check.EXIT_MESSAGE,
+                 flows_rows() if sess.get("consent") else [[CONSENT_BUTTON]])
+            return True
+        send(peer_id, fraud_check.answer(text), FRAUD_ROWS)
+        return True
+
+    action = fraud_check.triage(text)
+
+    if action == "stolen":
+        sess["fraud_mode"] = True
+        send(peer_id, fraud_check.STOLEN, FRAUD_ROWS)
+    elif action == "enter":
+        sess["fraud_mode"] = True
+        send(peer_id, fraud_check.ENTER_MESSAGE, FRAUD_ROWS)
+    elif action == "report":
+        sess["fraud_mode"] = True
+        send(peer_id, fraud_check.answer(text), FRAUD_ROWS)
+    elif action == "alarm":
+        # Человек переслал сообщение, ни о чём не прося, — а в нём набор
+        # классических приёмов. Молчать нельзя. Режим при этом НЕ включаем:
+        # настоящий клиент должен продолжить оформлять заказ, а не застрять
+        # в проверке из-за неудачной формулировки.
+        send(peer_id,
+             "⚠️ Стоп. Это не похоже на заказ — это похоже на обман.\n\n"
+             + fraud_check.report(text)
+             + "\n\nЕсли вы всё-таки по заказу — напишите «меню».",
+             FRAUD_ROWS)
+    else:
+        return False
+    return True
+
+
 def handle(peer_id, from_id, text: str, attachments=None):
     """Одно входящее сообщение клиента."""
     text = (text or "").strip()
@@ -331,6 +395,9 @@ def handle(peer_id, from_id, text: str, attachments=None):
 
     sess = ss.get_session(skey(peer_id))
     stage = sess.get("stage")
+
+    if fraud_guard(peer_id, sess, text, bool(attachments)):
+        return
 
     # Образец или готовый макет. Джарвис сам просит прислать фото — значит
     # обязан на него отреагировать: молчание в ответ на присланный файл

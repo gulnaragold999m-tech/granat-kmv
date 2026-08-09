@@ -34,6 +34,7 @@ from telegram.ext import (
 
 import config
 import dialog_manager
+import fraud_check
 import gift_manager
 import keyboards as kbd
 import knowledge_base as kb
@@ -465,6 +466,68 @@ async def _notify_admin(ctx: ContextTypes.DEFAULT_TYPE, user, sess: dict) -> boo
 # Хендлеры
 # ─────────────────────────────────────────────────────────────────────────────
 
+FRAUD_NO_FILES = (
+    "Я читаю только текст — картинку разобрать не могу.\n\n"
+    "Перешлите сообщение текстом или перескажите своими словами: что "
+    "пишут, чего просят, есть ли ссылка."
+)
+
+
+async def _fraud_guard(msg_obj, sess: dict, text: str,
+                       has_files: bool = False) -> bool:
+    """Разбор мошеннических сообщений. True — ответили, дальше не идём.
+
+    Стоит ПЕРЕД проверками согласия и номера сознательно: человеку, которому
+    прямо сейчас звонит «служба безопасности», нельзя предлагать сначала
+    подтвердить телефон. Персональные данные здесь и не собираются — текст
+    разбирается на месте, никуда не отправляется и не попадает в заявку.
+    """
+    if sess.get("fraud_mode"):
+        if has_files and not text:
+            await _send_plain(msg_obj, FRAUD_NO_FILES)
+            return True
+        if fraud_check.wants_exit(text):
+            sess["fraud_mode"] = False
+            await msg_obj.reply_text(fraud_check.EXIT_MESSAGE,
+                                     reply_markup=kbd.kb_flows())
+            return True
+        await _send_plain(msg_obj, fraud_check.answer(text))
+        return True
+
+    action = fraud_check.triage(text)
+
+    if action == "stolen":
+        sess["fraud_mode"] = True
+        await _send_plain(msg_obj, fraud_check.STOLEN)
+    elif action == "enter":
+        sess["fraud_mode"] = True
+        await _send_plain(msg_obj, fraud_check.ENTER_MESSAGE)
+    elif action == "report":
+        sess["fraud_mode"] = True
+        await _send_plain(msg_obj, fraud_check.answer(text))
+    elif action == "alarm":
+        # Человек переслал сообщение, ни о чём не прося, — а в нём набор
+        # классических приёмов. Молчать нельзя. Режим при этом НЕ включаем:
+        # настоящий клиент должен продолжить оформлять заказ, а не застрять
+        # в проверке из-за неудачной формулировки.
+        await _send_plain(
+            msg_obj,
+            "⚠️ Стоп. Это не похоже на заказ — это похоже на обман.\n\n"
+            + fraud_check.report(text)
+            + "\n\nЕсли вы всё-таки по заказу — напишите «меню».",
+        )
+    else:
+        return False
+    return True
+
+
+async def cmd_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """/check — включить проверку на мошенников."""
+    sess = ss.get_session(update.effective_user.id)
+    sess["fraud_mode"] = True
+    await _send_plain(update.effective_message, fraud_check.ENTER_MESSAGE)
+
+
 async def _start_from_site_lead(ctx: ContextTypes.DEFAULT_TYPE, uid: int,
                                 sess: dict, msg_obj, lead: dict) -> None:
     """Начать разговор с уже известной заявкой вместо расспросов с нуля."""
@@ -892,6 +955,12 @@ async def on_attachment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.effective_message
     sess["business_connection_id"] = getattr(msg, "business_connection_id", None)
 
+    # Скриншот подозрительного сообщения — самый естественный способ его
+    # переслать. Текста в нём для нас нет, но и молчать нельзя.
+    if await _fraud_guard(msg, sess, (msg.caption or "").strip(),
+                          has_files=True):
+        return
+
     if not sess["consent"]:
         await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
         return
@@ -975,6 +1044,10 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     sess["business_connection_id"] = getattr(msg, "business_connection_id", None)
     text = msg.text.strip()
 
+    # Проверка на мошенников идёт до всех остальных проверок — см. _fraud_guard.
+    if await _fraud_guard(msg, sess, text):
+        return
+
     # Пока не пройдены согласие и подтверждение номера — в диалог не пускаем
     if not sess["consent"]:
         await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
@@ -1054,6 +1127,7 @@ def main():
     )
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
+    app.add_handler(CommandHandler("check", cmd_check))
     app.add_handler(BusinessConnectionHandler(on_business_connection))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.CONTACT, on_contact))

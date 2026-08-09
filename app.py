@@ -220,6 +220,27 @@ def send_to_vk(text):
         return False, reason
 
 
+def auth_reason(err):
+    """Человеческая причина отказа на входе в почту + дословный ответ сервера.
+
+    Раньше здесь стояла одна фраза «нужен пароль приложения». Она верна для
+    самого частого случая, но 09.08.2026 пароль приложения уже был заведён,
+    а вход всё равно отклонялся — и по нашей же фразе понять это было
+    нельзя. Ответ Яндекса различает причины, поэтому кладём его целиком.
+    """
+    detail = getattr(err, "smtp_error", b"") or b""
+    if isinstance(detail, bytes):
+        detail = detail.decode("utf-8", "replace")
+    detail = " ".join(str(detail).split())[:200]
+
+    return mask(
+        "вход отклонён. Проверьте: 1) в MAIL_PASSWORD лежит пароль приложения "
+        "из Яндекс ID, а не пароль от почты; 2) в MAIL_LOGIN — полный адрес "
+        "ящика; 3) в настройках почты разрешён доступ почтовым программам. "
+        f"Ответ сервера: {detail}"
+    )
+
+
 def send_to_mail(subject, text):
     """Дубль заявки письмом. Возвращает (ok, причина).
 
@@ -244,11 +265,8 @@ def send_to_mail(subject, text):
             s.login(MAIL_LOGIN, MAIL_PASSWORD)
             s.send_message(msg)
         return True, ""
-    except smtplib.SMTPAuthenticationError:
-        # Самая частая причина: в переменную положили пароль от почты
-        # вместо пароля приложения. Пишем прямым текстом, чтобы через месяц
-        # не гадать над «535 5.7.8».
-        reason = "вход отклонён — нужен пароль приложения из Яндекс ID, а не пароль от почты"
+    except smtplib.SMTPAuthenticationError as e:
+        reason = auth_reason(e)
         print(f"[mail] {reason}", flush=True)
         return False, reason
     except Exception as e:
@@ -272,8 +290,8 @@ def mail_health():
                               timeout=10) as s:
             s.login(MAIL_LOGIN, MAIL_PASSWORD)
         return "ok"
-    except smtplib.SMTPAuthenticationError:
-        return "вход отклонён — нужен пароль приложения из Яндекс ID"
+    except smtplib.SMTPAuthenticationError as e:
+        return auth_reason(e)
     except Exception as e:
         return mask(f"{type(e).__name__}: {e}")
 
@@ -528,6 +546,10 @@ def health():
         # ключ ВК всплыл только из логов, когда его пошли искать руками.
         vk=vk_state.result(),
         mail=mail_state.result(),
+        # Под каким адресом ходим на почту. Не секрет — он и так на странице
+        # контактов, зато опечатка в переменной видна сразу, без похода в
+        # панель хостинга.
+        mail_login=MAIL_LOGIN or "не задан",
         # Оба бота одним взглядом: кто из них жив и под каким именем.
         bots=bots_state.result(),
     )

@@ -6,6 +6,7 @@ import ssl
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from email.message import EmailMessage
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import requests
@@ -110,6 +111,12 @@ def save_order(payload, delivered, reason=""):
 # Иначе ВК ответит ошибкой 901.
 VK_TOKEN = os.getenv("VK_TOKEN", "").strip()
 VK_PEER_ID = os.getenv("VK_PEER_ID", "").strip()
+
+# Куда уводить клиента после заявки, если он выбрал не Telegram. Ссылки
+# ведут в переписку с нами, а не на страницу сообщества: цель — чтобы
+# человек написал, а не полистал ленту.
+VK_WRITE_LINK = os.getenv("VK_WRITE_LINK", "https://vk.me/club238836731").strip()
+WHATSAPP_LINK = os.getenv("WHATSAPP_LINK", "https://wa.me/79992449999").strip()
 
 # ── Почта: третий канал доставки заявки ─────────────────────────────────
 # 09.08.2026 Telegram отвечал с третьей попытки за пятнадцать секунд, а ключ
@@ -555,6 +562,55 @@ def health():
     )
 
 
+def follow_up(channel, lead_id, name, tg_ready):
+    """Куда позвать клиента дальше — в тот мессенджер, который он выбрал сам.
+
+    Раньше экран «заявка принята» звал всех в Telegram, даже тех, кто в
+    форме отметил ВКонтакте. 09.08.2026 Telegram в России перестал
+    открываться, и эта кнопка стала тупиком: человек оставил заявку и
+    упёрся в неработающую ссылку.
+
+    tg_ready говорит, дошла ли заявка через Telegram. Если не дошла нам,
+    клиенту он, скорее всего, тоже не откроется — тогда кнопку в бота не
+    показываем вовсе. ВК и WhatsApp от нашего Telegram не зависят, поэтому
+    для них ссылка есть всегда.
+
+    Возвращает словарь для браузера или None, если вести некуда.
+    """
+    if channel == "VK":
+        return {
+            "url": VK_WRITE_LINK,
+            "label": "Написать во ВКонтакте →",
+            # Джарвис пока живёт только в Telegram, поэтому во ВКонтакте
+            # не обещаем бота — там ответит человек. Обещать то, чего нет,
+            # хуже, чем не обещать ничего.
+            "note": "Напишите нам в сообщения сообщества — ответим там же, "
+                    f"по заявке №{lead_id}.",
+        }
+
+    if channel == "WhatsApp":
+        text = (f"Здравствуйте! Я оставил заявку №{lead_id} на сайте "
+                f"granat-kmv.ru")
+        if name:
+            text += f". Меня зовут {name}"
+        return {
+            "url": f"{WHATSAPP_LINK}?text={quote(text)}",
+            "label": "Написать в WhatsApp →",
+            "note": "Сообщение уже готово — останется нажать «отправить».",
+        }
+
+    if tg_ready:
+        return {
+            "url": leads.deep_link(lead_id),
+            "label": "Продолжить в Telegram →",
+            "note": "Джарвис задаст пару вопросов по задаче, посчитает "
+                    "стоимость и передаст готовое ТЗ Гульнаре. Если не "
+                    "сейчас — мы всё равно свяжемся.",
+        }
+
+    return None
+
+
 @app.route("/api/order", methods=["POST"])
 def order():
     data = request.get_json(silent=True) or request.form or {}
@@ -642,22 +698,20 @@ def order():
                 "он у нас уже был, кнопка не понадобилась."
             )
 
-    if ok or pushed:
-        # tg — ссылка «Продолжить в Telegram» для новых клиентов. Номер
-        # заявки внутри, поэтому Джарвис узнаёт человека с первого сообщения.
-        return jsonify(
-            ok=True,
-            lead=lead_id,
-            tg=leads.deep_link(lead_id),
-            pushed=pushed,
-        )
-
-    if delivered:
-        # Telegram молчит, но заявка ушла письмом или во ВКонтакте — значит
-        # она у нас, и пугать клиента запасными кнопками незачем. Ссылку в
-        # бота не даём: раз Telegram недоступен нам, клиенту он, скорее
-        # всего, тоже не откроется.
-        return jsonify(ok=True, lead=lead_id)
+    # pushed отдельно от delivered: бывает, что все три канала до Гульнары
+    # молчат, а Джарвис клиенту написать успел — заявка при этом живая.
+    if delivered or pushed:
+        # Заявка у нас — дальше зовём клиента в его же мессенджер. Ссылка
+        # в Telegram несёт номер заявки, поэтому Джарвис узнаёт человека с
+        # первого сообщения.
+        answer = {"ok": True, "lead": lead_id, "pushed": pushed}
+        nxt = follow_up(channel, lead_id, name, tg_ready=(ok or pushed))
+        if nxt:
+            answer["next"] = nxt
+            # Старое поле оставляем ради страниц, которые ещё читают tg.
+            if channel != "VK" and channel != "WhatsApp":
+                answer["tg"] = nxt["url"]
+        return jsonify(**answer)
 
     # Заявка на диске лежит, но не дошла ни одним каналом. Браузеру отдаём
     # нейтральный текст — он покажет клиенту кнопки WhatsApp/Telegram.

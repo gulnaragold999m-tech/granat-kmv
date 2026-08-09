@@ -31,6 +31,8 @@ SERVICES = {
     "invites":     "Приглашения и открытки",
     "booklets":    "Буклеты",
     "lamination":  "Ламинация",
+    "plotter_drawings": "Чертежи на плоттере",
+    "plotter_posters":  "Плакаты и постеры на плоттере",
     "design":      "Макет, правка, дизайн",
 }
 
@@ -49,6 +51,11 @@ REQUIRED = {
     # micron обязателен: плёнка 250 мкм стоит вдвое дороже стандартной,
     # и назвать 70 ₽ тому, кому нужна жёсткая, — ошибка в два конца.
     "lamination":  ("format", "micron", "qty"),
+    # У чертежа цена зависит от заливки листа, у постера — от носителя.
+    # Это разные логики, поэтому и категории разные: иначе клиент принесёт
+    # яркий плакат А0 и будет ждать цену инженерного чёрно-белого листа.
+    "plotter_drawings": ("format", "color_mode", "qty"),
+    "plotter_posters":  ("format", "paper", "qty"),
 }
 
 # ── Цены ────────────────────────────────────────────────────────────────
@@ -208,6 +215,30 @@ PRICES = [
     ("lamination", {"format": "A3", "micron": "250"},  11, 50, 150, "per_sheet"),
     ("lamination", {"format": "A3", "micron": "250"},  51, 10**6, 130, "per_sheet"),
 
+    # Плоттер Canon TM-340: чертежи, схемы, проектная документация до А0.
+    # Цена за лист и зависит от заливки — чем больше краски, тем дороже.
+    ("plotter_drawings", {"format": "A2", "color_mode": "bw"}, 1, 10**6, 60, "per_sheet"),
+    ("plotter_drawings", {"format": "A2", "color_mode": "color_20"}, 1, 10**6, 100, "per_sheet"),
+    ("plotter_drawings", {"format": "A2", "color_mode": "color_50"}, 1, 10**6, 140, "per_sheet"),
+    ("plotter_drawings", {"format": "A2", "color_mode": "color_full"}, 1, 10**6, 220, "per_sheet"),
+    ("plotter_drawings", {"format": "A1", "color_mode": "bw"}, 1, 10**6, 110, "per_sheet"),
+    ("plotter_drawings", {"format": "A1", "color_mode": "color_20"}, 1, 10**6, 170, "per_sheet"),
+    ("plotter_drawings", {"format": "A1", "color_mode": "color_50"}, 1, 10**6, 230, "per_sheet"),
+    ("plotter_drawings", {"format": "A1", "color_mode": "color_full"}, 1, 10**6, 320, "per_sheet"),
+    ("plotter_drawings", {"format": "A0", "color_mode": "bw"}, 1, 10**6, 190, "per_sheet"),
+    ("plotter_drawings", {"format": "A0", "color_mode": "color_20"}, 1, 10**6, 260, "per_sheet"),
+    ("plotter_drawings", {"format": "A0", "color_mode": "color_50"}, 1, 10**6, 340, "per_sheet"),
+    ("plotter_drawings", {"format": "A0", "color_mode": "color_full"}, 1, 10**6, 450, "per_sheet"),
+
+    # Постеры и плакаты — тот же плоттер, но другие требования к цвету и
+    # бумаге, поэтому отдельной категорией и дороже чертежей.
+    ("plotter_posters", {"format": "A2", "paper": "plain"}, 1, 10**6, 180, "per_sheet"),
+    ("plotter_posters", {"format": "A2", "paper": "photo"}, 1, 10**6, 280, "per_sheet"),
+    ("plotter_posters", {"format": "A1", "paper": "plain"}, 1, 10**6, 300, "per_sheet"),
+    ("plotter_posters", {"format": "A1", "paper": "photo"}, 1, 10**6, 450, "per_sheet"),
+    ("plotter_posters", {"format": "A0", "paper": "plain"}, 1, 10**6, 500, "per_sheet"),
+    ("plotter_posters", {"format": "A0", "paper": "photo"}, 1, 10**6, 750, "per_sheet"),
+
     # Работа с макетом — вилки, поэтому храним нижнюю границу.
     ("design", {"kind": "prepress"},   1, 10**6, 150, "per_order"),
     ("design", {"kind": "adapt"},      1, 10**6, 300, "per_order"),
@@ -227,6 +258,8 @@ ADDON_SCOPE = {
     "flyers":      ("corner_round", "packing"),
     "booklets":    ("packing",),
     "lamination":  ("corner_round",),
+    "plotter_drawings": ("fold_a2", "fold_a1", "fold_a0"),
+    "plotter_posters":  (),
 }
 
 ADDONS = {
@@ -241,6 +274,9 @@ ADDONS = {
     "glitter":        ("Отделка глиттером", "per_piece", 50),
     "glitter_dense":  ("Глиттер, плотное покрытие", "per_piece", 100),
     "photo_paper_300": ("Плотная фотобумага 300 г/м²", "per_piece", 60),
+    "fold_a2":        ("Фальцовка чертежа А2 в А4", "per_piece", 20),
+    "fold_a1":        ("Фальцовка чертежа А1 в А4", "per_piece", 25),
+    "fold_a0":        ("Фальцовка чертежа А0 в А4", "per_piece", 35),
 }
 
 # ── Коэффициенты ────────────────────────────────────────────────────────
@@ -294,6 +330,9 @@ SYNONYMS = {
     "invites": ("приглас", "открытк", "поздравительн"),
     "design": ("макет", "дизайн", "верстк", "правк"),
     "lamination": ("ламинац", "ламиниров", "заламин", "плёнк", "пленк"),
+    "plotter_posters": ("постер", "плакат", "афиш"),
+    "plotter_drawings": ("чертёж", "чертеж", "плоттер", "ватман", "схем",
+                         "проектн", "инженерн"),
 }
 
 
@@ -304,8 +343,9 @@ def detect(text: str) -> str:
     а не в обычную фотопечать, поэтому photo_docs стоит раньше photo_paper.
     """
     low = (text or "").lower()
-    for cat in ("photo_docs", "booklets", "lamination", "print_docs",
-                "photo_paper", "flyers", "invites", "design"):
+    for cat in ("photo_docs", "plotter_posters", "plotter_drawings",
+                "booklets", "lamination", "print_docs", "photo_paper",
+                "flyers", "invites", "design"):
         if any(w in low for w in SYNONYMS[cat]):
             return cat
     return ""

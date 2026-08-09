@@ -340,6 +340,33 @@ def count_undelivered(hours=24):
     return pending
 
 
+def vk_health():
+    """Жив ли ключ сообщества. Ничего не отправляет — только спрашивает,
+    чьё это сообщество, и на этом проверяет ключ.
+
+    Коды ошибок расшифровываем теми же словами, что и при отправке: «5»
+    в отчёте через месяц ничего не скажет, «ключ отозван» — скажет.
+    """
+    if not VK_TOKEN:
+        return "VK_TOKEN не задан"
+    if not VK_PEER_ID:
+        return "VK_PEER_ID не задан — некуда слать"
+    try:
+        r = requests.get(
+            "https://api.vk.com/method/groups.getById",
+            params={"access_token": VK_TOKEN, "v": "5.199"},
+            timeout=10,
+        ).json()
+        if "response" in r:
+            return "ok"
+        err = r.get("error", {})
+        code = err.get("error_code")
+        hint = f" — {VK_ERRORS[code]}" if code in VK_ERRORS else ""
+        return f"{code} {err.get('error_msg', '')}{hint}"
+    except Exception as e:
+        return f"сеть: {type(e).__name__}: {e}"
+
+
 @app.route("/api/health")
 def health():
     """Самопроверка для сторожа: жив ли сайт и принимает ли Telegram наш токен.
@@ -350,12 +377,15 @@ def health():
     """
     ok, reason = False, "TELEGRAM_BOT_TOKEN не задан"
     if TOKEN:
-        # Две попытки и запас по времени: один медленный ответ Telegram
-        # не должен выглядеть как поломка формы.
-        for _ in range(2):
+        # Запас по времени тот же, что у настоящей отправки заявки: три
+        # попытки по 15 секунд. Раньше здесь стояло 8 секунд и две попытки,
+        # и 09.08.2026 это дало ложную тревогу: проверка кричала «Telegram
+        # недоступен», а заявка в это же время спокойно доходила. Проверка,
+        # которая строже боевого пути, врёт — и её перестают читать.
+        for _ in range(3):
             try:
                 r = requests.get(
-                    f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=8
+                    f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=15
                 )
                 ok = r.status_code == 200 and r.json().get("ok") is True
                 if ok:
@@ -371,6 +401,9 @@ def health():
         telegram="ok" if ok else mask(reason),
         chat_id_set=bool(CHAT_ID),
         undelivered=count_undelivered(),
+        # Резервный канал раньше в проверке не участвовал, и недействительный
+        # ключ ВК всплыл только из логов, когда его пошли искать руками.
+        vk=vk_health(),
         # Оба бота одним взглядом: кто из них жив и под каким именем.
         bots=bots.health(),
     )

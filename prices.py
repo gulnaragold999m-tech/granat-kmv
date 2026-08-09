@@ -39,7 +39,9 @@ REQUIRED = {
     "photo_paper": ("format", "qty"),
     "photo_docs":  ("kind",),
     "flyers":      ("format", "qty"),
-    "invites":     ("kind", "format", "qty"),
+    # layout обязателен: 65 ₽ — цена печати по ГОТОВОМУ макету, и назвать
+    # её тому, у кого макета нет, значит пообещать вчетверо дешевле.
+    "invites":     ("kind", "format", "qty", "layout"),
     "design":      ("kind",),
 }
 
@@ -113,30 +115,37 @@ PRICES = [
     ("flyers", {"format": "A4"},  1000, 10**6, 20, "per_piece"),
 
     # Открытки и приглашения: картон 300 г/м² — базовая цена.
-    ("invites", {"kind": "postcard", "format": "A6"},    10,  20, 60, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "A6"},    21,  50, 45, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "A6"},    51, 100, 35, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "A6"},   101, 10**6, 30, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "euro"},  10,  20, 70, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "euro"},  21,  50, 55, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "euro"},  51, 100, 42, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "euro"}, 101, 10**6, 34, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "A5"},    10,  20, 90, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "A5"},    21,  50, 70, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "A5"},    51, 100, 55, "per_piece"),
-    ("invites", {"kind": "postcard", "format": "A5"},   101, 10**6, 45, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A6"},      10,  20, 65, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A6"},      21,  50, 50, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A6"},      51, 100, 38, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A6"},     101, 10**6, 32, "per_piece"),
-    ("invites", {"kind": "invite", "format": "euro"},    10,  20, 75, "per_piece"),
-    ("invites", {"kind": "invite", "format": "euro"},    21,  50, 58, "per_piece"),
-    ("invites", {"kind": "invite", "format": "euro"},    51, 100, 45, "per_piece"),
-    ("invites", {"kind": "invite", "format": "euro"},   101, 10**6, 36, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A5"},      10,  20, 95, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A5"},      21,  50, 75, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A5"},      51, 100, 58, "per_piece"),
-    ("invites", {"kind": "invite", "format": "A5"},     101, 10**6, 48, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A6"},    10,  20, 60, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A6"},    21,  50, 45, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A6"},    51, 100, 35, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A6"},   101, 10**6, 30, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "euro"},  10,  20, 70, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "euro"},  21,  50, 55, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "euro"},  51, 100, 42, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "euro"}, 101, 10**6, 34, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A5"},    10,  20, 90, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A5"},    21,  50, 70, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A5"},    51, 100, 55, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "postcard", "format": "A5"},   101, 10**6, 45, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A6"},      10,  20, 65, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A6"},      21,  50, 50, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A6"},      51, 100, 38, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A6"},     101, 10**6, 32, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "euro"},    10,  20, 75, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "euro"},    21,  50, 58, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "euro"},    51, 100, 45, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "euro"},   101, 10**6, 36, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A5"},      10,  20, 95, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A5"},      21,  50, 75, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A5"},      51, 100, 58, "per_piece"),
+    ("invites", {"layout": "ready", "kind": "invite", "format": "A5"},     101, 10**6, 48, "per_piece"),
+
+    # Индивидуальное приглашение: клиент покупает не лист картона, а
+    # готовый персональный продукт — согласование, внесение имён, пробный
+    # вариант, подготовка к печати. 200 ₽ — стартовая цена за штуку, точную
+    # называем после выбора бумаги, тиража и сложности оформления.
+    ("invites", {"layout": "custom", "kind": "invite"},   1, 10**6, 200, "per_piece"),
+    ("invites", {"layout": "custom", "kind": "postcard"}, 1, 10**6, 200, "per_piece"),
 
     # Работа с макетом — вилки, поэтому храним нижнюю границу.
     ("design", {"kind": "prepress"},   1, 10**6, 150, "per_order"),

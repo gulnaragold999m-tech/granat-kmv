@@ -493,9 +493,10 @@ def health():
     """
     # Проверки каналов не зависят друг от друга, поэтому идут одновременно —
     # иначе на медленной почте вся страница проверки ждала бы её одну.
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         vk_state = pool.submit(vk_health)
         mail_state = pool.submit(mail_health)
+        bots_state = pool.submit(bots.health)
 
         ok, reason = False, "TELEGRAM_BOT_TOKEN не задан"
         if TOKEN:
@@ -528,7 +529,7 @@ def health():
         vk=vk_state.result(),
         mail=mail_state.result(),
         # Оба бота одним взглядом: кто из них жив и под каким именем.
-        bots=bots.health(),
+        bots=bots_state.result(),
     )
 
 

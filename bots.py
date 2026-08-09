@@ -113,19 +113,33 @@ def send_client(chat_id, text: str, markup=None):
 
 
 def health():
-    """Живы ли оба токена. Для /api/health и для сторожа."""
+    """Живы ли оба токена. Для /api/health и для сторожа.
+
+    Ответ этой функции уходит в /api/health, а его может открыть кто угодно
+    без пароля. Поэтому каждая строка отсюда обязана пройти через _mask():
+    09.08.2026 сетевая ошибка утекла в браузер вместе с полным адресом
+    запроса, а в адресе Telegram лежит токен бота — токен пришлось отзывать.
+    """
     out = {}
     for name, token in (("general", ADMIN_TOKEN), ("jarvis", JARVIS_TOKEN)):
         if not token:
             out[name] = "нет токена"
             continue
-        try:
-            r = requests.get(API.format(token=token, method="getMe"), timeout=8)
-            body = r.json() if r.status_code == 200 else {}
-            if body.get("ok"):
-                out[name] = "@" + body["result"].get("username", "?")
-            else:
-                out[name] = _mask(f"HTTP {r.status_code}: {r.text[:150]}")
-        except Exception as e:
-            out[name] = f"{type(e).__name__}: {e}"
+        # Запас по времени как у настоящей отправки: три попытки по 15
+        # секунд. С восемью секундами и одной попыткой проверка кричала
+        # «Telegram недоступен» в тот момент, когда заявки спокойно доходили.
+        last = ""
+        for _ in range(3):
+            try:
+                r = requests.get(API.format(token=token, method="getMe"), timeout=15)
+                body = r.json() if r.status_code == 200 else {}
+                if body.get("ok"):
+                    last = "@" + body["result"].get("username", "?")
+                    break
+                last = _mask(f"HTTP {r.status_code}: {r.text[:150]}")
+                if 400 <= r.status_code < 500:
+                    break  # чужой или отозванный токен — повторять незачем
+            except Exception as e:
+                last = _mask(f"{type(e).__name__}: {e}")
+        out[name] = last
     return out

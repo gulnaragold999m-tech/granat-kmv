@@ -43,6 +43,10 @@ import requests
 
 import config
 import dialog_manager
+try:
+    import prices
+except Exception:  # noqa: BLE001
+    prices = None
 import knowledge_base as kb
 import session as ss
 
@@ -349,7 +353,22 @@ def handle(peer_id, from_id, text: str, attachments=None):
     if stage in (ss.STAGE_CONSENT, ss.STAGE_PHONE, ss.STAGE_FLOW):
         flow = match_flow(text)
         if not flow:
-            send(peer_id, "Выберите направление:", flows_rows())
+            # Клиент написал словами, а не нажал кнопку. Раньше он получал в
+            # ответ то же меню — и на второй раз уходил. В прайсе лежит
+            # распознавание услуги по словам: «заламинировать», «чертёж»,
+            # «фото на паспорт». Если узнали — сразу в разговор, с его же
+            # фразой, а не заставляем искать нужную кнопку.
+            guess = prices.detect(text) if prices else ""
+            if guess:
+                sess["category"] = guess
+                sess["stage"] = ss.STAGE_DIALOG
+                sess["history"].clear()
+                sess["order_spec"].clear()
+                ss.push_history(sess, "user", text)
+                send(peer_id, "Секунду, вникаю в задачу…")
+                run_dialog_step(peer_id, sess)
+                return
+            send(peer_id, "Не понял задачу. Выберите направление:", flows_rows())
             return
         sess["flow"] = flow
         sess["stage"] = ss.STAGE_CAT
@@ -360,6 +379,16 @@ def handle(peer_id, from_id, text: str, attachments=None):
     if stage == ss.STAGE_CAT:
         cat = match_category(sess["flow"], text)
         if not cat:
+            guess = prices.detect(text) if prices else ""
+            if guess:
+                sess["category"] = guess
+                sess["stage"] = ss.STAGE_DIALOG
+                sess["history"].clear()
+                sess["order_spec"].clear()
+                ss.push_history(sess, "user", text)
+                send(peer_id, "Секунду, вникаю в задачу…")
+                run_dialog_step(peer_id, sess)
+                return
             send(peer_id, "Выберите категорию из списка:",
                  categories_rows(sess["flow"]))
             return

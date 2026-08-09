@@ -808,22 +808,33 @@ def bot_lead():
     lines.append("")
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
-    # Все каналы сразу — как и в заявке с формы выше.
+    # Все каналы сразу и в фоне — как и в заявке с формы выше. Симулятор
+    # ждал ответа всех трёх наравне с формой, значит и висел так же.
     text = "\n".join(lines)
-    (ok, reason), (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-        f"Заявка из симулятора №{lead_id}", text
-    )
-    delivered = ok or vk_ok or mail_ok
-    save_order(payload, delivered=delivered,
-               reason="" if delivered else
-                      f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}")
-    leads.log(lead_id, "notified", delivered=delivered,
-              telegram=ok, vk=vk_ok, mail=mail_ok)
+
+    def notify():
+        global _tg_last_ok
+        (ok, reason), (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
+            f"Заявка из симулятора №{lead_id}", text
+        )
+        _tg_last_ok = ok
+        delivered = ok or vk_ok or mail_ok
+        save_order(payload, delivered=delivered,
+                   reason="" if delivered else
+                          f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}")
+        leads.log(lead_id, "notified", delivered=delivered,
+                  telegram=ok, vk=vk_ok, mail=mail_ok)
+        if not delivered:
+            print(f"[bot-lead] заявка №{lead_id} сохранена, но не доставлена: "
+                  f"telegram: {reason}; вк: {vk_reason}; почта: {mail_reason}",
+                  flush=True)
+        return delivered
 
     # ── ДЖАРВИС забирает клиента, если он у нас уже был ──────────────────
-    pushed = False
-    chat = leads.find_chat_by_phone(contact)
-    if chat:
+    def jarvis_push():
+        chat = leads.find_chat_by_phone(contact)
+        if not chat:
+            return
         hello = f"Здравствуйте! Вижу вашу конфигурацию с сайта (заявка №{lead_id})."
         if route_text:
             hello += f"\nВы собрали: <b>{route_text}</b>"
@@ -843,16 +854,21 @@ def bot_lead():
         pushed, why = bots.send_client(chat, hello, markup)
         leads.log(lead_id, "jarvis_pushed", ok=pushed, reason=why, chat_id=chat)
 
-    if ok or pushed:
-        return jsonify(
-            ok=True, lead=lead_id, tg=leads.deep_link(lead_id), pushed=pushed
-        )
+    job = NOTIFY_POOL.submit(notify)
+    NOTIFY_POOL.submit(jarvis_push)
 
-    print(f"[bot-lead] заявка сохранена, но не доставлена: {reason}", flush=True)
-    return jsonify(
-        ok=False, saved=True, error="not_delivered",
-        lead=lead_id, tg=leads.deep_link(lead_id),
-    ), 200
+    try:
+        delivered = job.result(timeout=NOTIFY_WAIT)
+    except FuturesTimeout:
+        delivered = None
+
+    if delivered is False:
+        return jsonify(
+            ok=False, saved=True, error="not_delivered",
+            lead=lead_id, tg=leads.deep_link(lead_id),
+        ), 200
+
+    return jsonify(ok=True, lead=lead_id, tg=leads.deep_link(lead_id))
 
 
 @app.route("/api/watch")

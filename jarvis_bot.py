@@ -39,6 +39,7 @@ import keyboards as kbd
 import knowledge_base as kb
 import lead_handoff
 import session as ss
+import vk_jarvis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1059,8 +1060,19 @@ def main():
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, on_attachment))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
 
+    # Второй транспорт: тот же Джарвис отвечает во ВКонтакте. Запускаем до
+    # Telegram и под try/except — ВК не должен мешать основному каналу ни
+    # падением, ни отсутствием настроек.
+    try:
+        vk_started = vk_jarvis.start()
+    except Exception as e:  # noqa: BLE001
+        logger.error("ВК-Джарвис не запустился: %s: %s", type(e).__name__, e)
+        vk_started = False
+
     print("\n" + "=" * 60)
     print("🚀 ДЖАРВИС 2.0 (думающая архитектура) ЗАПУЩЕН!")
+    print("🔵 ВКонтакте: " + ("слушает сообщения сообщества"
+                              if vk_started else "выключен"))
     print("=" * 60)
     print("\n📱 Бот: @GranatJarvis_bot   Команда: /start")
     if not config.ADMIN_ID:

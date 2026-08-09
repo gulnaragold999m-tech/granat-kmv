@@ -30,6 +30,7 @@ SERVICES = {
     "flyers":      "Листовки и флаеры",
     "invites":     "Приглашения и открытки",
     "booklets":    "Буклеты",
+    "lamination":  "Ламинация",
     "design":      "Макет, правка, дизайн",
 }
 
@@ -45,6 +46,9 @@ REQUIRED = {
     "invites":     ("kind", "format", "qty", "layout"),
     "design":      ("kind",),
     "booklets":    ("format", "qty"),
+    # micron обязателен: плёнка 250 мкм стоит вдвое дороже стандартной,
+    # и назвать 70 ₽ тому, кому нужна жёсткая, — ошибка в два конца.
+    "lamination":  ("format", "micron", "qty"),
 }
 
 # ── Цены ────────────────────────────────────────────────────────────────
@@ -175,6 +179,35 @@ PRICES = [
     # Свыше 500 строки нет намеренно: такой тираж выгоднее в офсет, и его
     # считает менеджер, а не бот.
 
+    # Ламинация — за лист. Плёнка одна по цене, матовая и глянцевая
+    # стоят одинаково; разница только в толщине. 250 мкм — для жёстких
+    # изделий вроде меню и табличек, поэтому и дороже вдвое.
+    # Нестандартный размер считаем по ближайшему большему формату.
+    ("lamination", {"format": "A6", "micron": "100"},   1, 10, 40, "per_sheet"),
+    ("lamination", {"format": "A6", "micron": "100"},  11, 50, 35, "per_sheet"),
+    ("lamination", {"format": "A6", "micron": "100"},  51, 10**6, 30, "per_sheet"),
+    ("lamination", {"format": "A5", "micron": "100"},   1, 10, 50, "per_sheet"),
+    ("lamination", {"format": "A5", "micron": "100"},  11, 50, 45, "per_sheet"),
+    ("lamination", {"format": "A5", "micron": "100"},  51, 10**6, 40, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "100"},   1, 10, 70, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "100"},  11, 50, 60, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "100"},  51, 10**6, 50, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "100"},   1, 10, 100, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "100"},  11, 50, 85, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "100"},  51, 10**6, 75, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "150"},   1, 10, 90, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "150"},  11, 50, 80, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "150"},  51, 10**6, 70, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "150"},   1, 10, 130, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "150"},  11, 50, 115, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "150"},  51, 10**6, 100, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "250"},   1, 10, 120, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "250"},  11, 50, 100, "per_sheet"),
+    ("lamination", {"format": "A4", "micron": "250"},  51, 10**6, 85, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "250"},   1, 10, 180, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "250"},  11, 50, 150, "per_sheet"),
+    ("lamination", {"format": "A3", "micron": "250"},  51, 10**6, 130, "per_sheet"),
+
     # Работа с макетом — вилки, поэтому храним нижнюю границу.
     ("design", {"kind": "prepress"},   1, 10**6, 150, "per_order"),
     ("design", {"kind": "adapt"},      1, 10**6, 300, "per_order"),
@@ -193,6 +226,7 @@ ADDON_SCOPE = {
                     "corner_round", "fold", "packing"),
     "flyers":      ("corner_round", "packing"),
     "booklets":    ("packing",),
+    "lamination":  ("corner_round",),
 }
 
 ADDONS = {
@@ -233,6 +267,7 @@ MIN_ORDER = {
     "print_docs": 50,
     "flyers": 300,
     "booklets": 800,
+    "lamination": 50,
     "invites": 700,
     # Штучная открытка А4 с отделкой: ниже этой суммы работа не окупает
     # приёмку, резку и ручную доработку.
@@ -258,6 +293,7 @@ SYNONYMS = {
                  "два фальца", "складыва", "фальц"),
     "invites": ("приглас", "открытк", "поздравительн"),
     "design": ("макет", "дизайн", "верстк", "правк"),
+    "lamination": ("ламинац", "ламиниров", "заламин", "плёнк", "пленк"),
 }
 
 
@@ -268,8 +304,8 @@ def detect(text: str) -> str:
     а не в обычную фотопечать, поэтому photo_docs стоит раньше photo_paper.
     """
     low = (text or "").lower()
-    for cat in ("photo_docs", "booklets", "print_docs", "photo_paper",
-                "flyers", "invites", "design"):
+    for cat in ("photo_docs", "booklets", "lamination", "print_docs",
+                "photo_paper", "flyers", "invites", "design"):
         if any(w in low for w in SYNONYMS[cat]):
             return cat
     return ""

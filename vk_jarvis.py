@@ -345,8 +345,17 @@ def handle(peer_id, from_id, text: str, attachments=None):
     if not sess.get("consent"):
         if text.lower() == CONSENT_BUTTON.lower():
             sess["consent"] = True
-            start_over(peer_id, sess)
+            # Человек пришёл не с пустыми руками: первым сообщением он уже
+            # сказал, что ему нужно. Заставлять его повторяться после
+            # согласия — верный способ потерять клиента на ровном месте.
+            asked = sess.pop("first_words", "")
+            if asked:
+                handle(peer_id, from_id, asked)
+            else:
+                start_over(peer_id, sess)
         else:
+            # Запоминаем ровно одну фразу — ту, с которой человек пришёл.
+            sess.setdefault("first_words", text)
             send(peer_id, GREETING, [[CONSENT_BUTTON]])
         return
 

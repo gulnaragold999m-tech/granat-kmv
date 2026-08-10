@@ -23,6 +23,7 @@ import asyncio
 import html
 import logging
 import random
+import time
 
 from telegram import Update, ReplyKeyboardRemove
 from telegram.constants import ParseMode
@@ -1287,7 +1288,25 @@ def main():
 
     # allowed_updates=ALL_TYPES — иначе апдейты business_connection/business_message
     # (нужны для работы Джарвиса через личный аккаунт, Telegram Business) могут не долетать.
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    #
+    # bootstrap_retries=-1 — бесконечные попытки достучаться до Telegram при
+    # старте. 10.08.2026 в 16:25 бот упал целиком: Telegram не ответил на
+    # первое «представься», ошибка дошла до main() и остановила программу.
+    # Вместе с ней умер и ВКонтакте — он живёт отдельным потоком ВНУТРИ
+    # этого же процесса. То есть недоступность Telegram выключила канал,
+    # который мы завели ровно на случай недоступности Telegram.
+    try:
+        app.run_polling(allowed_updates=Update.ALL_TYPES, bootstrap_retries=-1)
+    except Exception as e:  # noqa: BLE001
+        logger.error("Telegram остановился: %s: %s", type(e).__name__, e)
+        if not vk_started:
+            raise
+        # ВК работает — держим процесс живым ради него. Клиенты из ВК не
+        # должны терять бота из-за чужого мессенджера.
+        logger.warning("Работаем только через ВКонтакте, Telegram недоступен")
+        print("⚠️  Telegram недоступен. ВКонтакте продолжает принимать заявки.")
+        while True:
+            time.sleep(3600)
 
 
 if __name__ == "__main__":

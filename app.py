@@ -14,7 +14,16 @@ from flask import (Flask, send_from_directory, request, jsonify, redirect,
                    render_template)
 
 import bots
+import contact
 import leads
+
+# Разбор мошеннических текстов общий с ботом. Здесь он нужен не для отказа, а
+# для пометки в заявке: решение по клиенту всегда принимает человек.
+try:
+    import fraud_check
+except Exception as e:  # noqa: BLE001
+    fraud_check = None
+    print(f"[init] проверка на мошенников не подключилась: {e}", flush=True)
 
 # Принудительно ходим по IPv4. На Amvera исходящие соединения по IPv6 не
 # проходят (Errno 101 "Network is unreachable"), а requests может выбрать
@@ -651,9 +660,8 @@ def order():
     data = request.get_json(silent=True) or request.form or {}
     name = (data.get("name") or "").strip()
     if not name:
-        return jsonify(ok=False, error="Укажите имя"), 400
+        return jsonify(ok=False, field="name", error="Укажите имя"), 400
 
-    phone = (data.get("phone") or "").strip()
     service = (data.get("service") or "").strip()
     notes = (data.get("notes") or "").strip()
 
@@ -664,8 +672,40 @@ def order():
                  "vk": "VK", "вконтакте": "VK"}
     channel = _CHANNELS.get((data.get("preferred_channel") or "").strip().lower(), "")
 
+    # Контакт разбираем до записи заявки. Поле принимает и телефон, и ник в
+    # Telegram, и до 10.08.2026 принимало заодно пять цифр и пустые пробелы:
+    # заявка ложилась в журнал, а связаться было нечем. Ошибку возвращаем с
+    # именем поля — по нему форма покажет подсказку у нужной строки, а не
+    # уведёт клиента в запасные кнопки, будто заявка принята.
+    raw_phone = (data.get("phone") or "").strip()
+    got = contact.parse(raw_phone)
+    if got["error"]:
+        return jsonify(ok=False, field="phone", error=got["error"]), 400
+
+    # WhatsApp работает только по номеру: ника там не существует. Поймать
+    # это на форме дешевле, чем обнаружить при попытке ответить.
+    if channel == "WhatsApp" and got["kind"] == "username":
+        return jsonify(ok=False, field="phone",
+                       error="Для WhatsApp нужен номер телефона — "
+                             "по нику там не написать. " + contact.HINT_PHONE), 400
+
+    phone = got["value"]
     payload = {"name": name, "phone": phone, "service": service, "notes": notes,
-               "preferred_channel": channel}
+               "preferred_channel": channel, "contact_kind": got["kind"]}
+    # Что человек напечатал на самом деле — оставляем, если привели к другому
+    # виду: пригодится, когда номер вдруг окажется неверным.
+    if raw_phone != phone:
+        payload["phone_raw"] = raw_phone
+
+    # Оценка риска — строчка для Гульнары, а не приговор заявке. Заявка уходит
+    # в любом случае: у типографии с предоплатой подставная заявка ничего не
+    # крадёт, а отклонённый по ошибке живой клиент — прямой убыток. Ловим
+    # ровно одно: схемы, обращённые к самой студии, — «переплатил, верните
+    # разницу» и ссылки-подделки «для получения оплаты».
+    risk = fraud_check.analyze(f"{service} {notes}") if fraud_check else None
+    if risk and risk["flags"]:
+        payload["risk_level"] = risk["level"]
+        payload["risk_flags"] = [title for title, _why in risk["flags"]]
 
     # Номер нужен, чтобы Джарвис узнал клиента, когда тот придёт в бота,
     # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
@@ -675,7 +715,8 @@ def order():
 
     lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
     if phone:
-        lines.append(f"📞 Телефон/Telegram: {phone}")
+        label = "Ник в Telegram" if got["kind"] == "username" else "Телефон"
+        lines.append(f"📞 {label}: {contact.pretty(phone)}")
     if channel:
         icon = {"Telegram": "✈️", "WhatsApp": "🟢", "VK": "🔵"}.get(channel, "💬")
         lines.append(f"{icon} Писать в: {channel}")
@@ -683,6 +724,14 @@ def order():
         lines.append(f"🛍 Услуга: {service}")
     if notes:
         lines.append(f"📝 Пожелания: {notes}")
+
+    if risk and risk["flags"]:
+        lines.append("")
+        lines.append("⚠️ В тексте заявки есть тревожные признаки:")
+        lines += [f"  • {title}" for title, _why in risk["flags"][:3]]
+        if risk["level"] == "danger":
+            lines.append("  Деньги вперёд не отправлять, по ссылкам не ходить.")
+
     lines.append("")
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 

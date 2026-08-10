@@ -84,9 +84,16 @@
           // lead_form — имя цели из ТЗ по Метрике. Историческую
           // «zayavka» не убираем: по ней собрана статистика за месяцы.
           if (window.granatGoal) window.granatGoal('lead_form', { form: 'site_order' });
-        } else if (json.error === 'Укажите имя') {
+        } else if (json.field || json.error === 'Укажите имя') {
+          // Клиент ошибся в поле — это чинится за секунду, если сказать где.
+          // Раньше сюда попадала только проверка имени, а всё остальное
+          // уходило в ветку ниже и показывало «мы получили вашу заявку» —
+          // хотя заявка отклонена. Человек уходил с неверным телефоном,
+          // уверенный, что всё хорошо.
           msg.style.color = '#ffb4b4';
-          msg.textContent = '❌ Укажите имя';
+          msg.textContent = '❌ ' + (json.error || 'Проверьте поля формы');
+          const bad = form.querySelector('[name="' + (json.field || 'name') + '"]');
+          if (bad) { bad.focus(); bad.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
         } else {
           msg.style.color = '#F9F3EB';
           msg.innerHTML = 'Мы получили вашу заявку, но чтобы ответить быстрее — ' +

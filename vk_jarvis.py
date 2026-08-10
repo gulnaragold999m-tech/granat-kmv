@@ -48,6 +48,10 @@ try:
 except Exception:  # noqa: BLE001
     fraud_check = None
 try:
+    import speech
+except Exception:  # noqa: BLE001
+    speech = None
+try:
     import prices
 except Exception:  # noqa: BLE001
     prices = None
@@ -199,6 +203,90 @@ def attachment_ids(msg: dict) -> list:
             item += f"_{obj['access_key']}"
         out.append(item)
     return out
+
+
+def voice_from(msg: dict):
+    """Голосовое из сообщения ВК, если оно там есть.
+
+    ВКонтакте часто расшифровывает голосовые сам и кладёт текст в
+    `transcript` — это бесплатно и уже готово, грех не воспользоваться.
+    Когда своей расшифровки нет, отдаём ссылку на ogg: формат ровно тот,
+    что принимает SpeechKit, перекодировать не нужно.
+    """
+    for att in msg.get("attachments") or []:
+        if att.get("type") != "audio_message":
+            continue
+        obj = att.get("audio_message") or {}
+        ready = obj.get("transcript_state") == "done"
+        return {
+            "transcript": (obj.get("transcript") or "").strip() if ready else "",
+            "url": obj.get("link_ogg") or "",
+            "duration": obj.get("duration") or 0,
+        }
+    return None
+
+
+def fetch_audio(url: str):
+    """Скачать голосовое. Возвращает (байты, причина_отказа).
+
+    Размер режем на лету: чужая ссылка не должна утянуть в память сколько
+    угодно, а всё, что больше лимита быстрого распознавания, всё равно не
+    пригодится.
+    """
+    if not url:
+        return b"", "нет ссылки"
+    try:
+        with requests.get(url, timeout=20, stream=True) as r:
+            if r.status_code != 200:
+                return b"", f"файл не отдался ({r.status_code})"
+            out = bytearray()
+            for chunk in r.iter_content(64 * 1024):
+                out += chunk
+                if len(out) > speech.MAX_BYTES:
+                    return b"", "запись длиннее 30 секунд"
+            return bytes(out), ""
+    except Exception as e:  # noqa: BLE001
+        logger.warning("голосовое не скачалось: %s: %s", type(e).__name__, e)
+        return b"", "сеть"
+
+
+def handle_voice(peer_id, from_id, voice: dict, attachments) -> bool:
+    """Голосовое клиента. True — разобрались, дальше идти не нужно.
+
+    Порядок тот же, что в Telegram, и по той же причине: сначала голос
+    уходит Гульнаре, и только потом мы пробуем его расшифровать. Что бы ни
+    случилось с распознаванием, клиента услышали.
+    """
+    if VK_ADMIN_PEER:
+        send(VK_ADMIN_PEER,
+             f"🎤 Голосовое от клиента {user_card(from_id)}"
+             + (f"\n⏱ {voice['duration']} сек" if voice.get("duration") else ""),
+             attachment=attachments)
+
+    text = voice.get("transcript") or ""
+    if not text:
+        if speech is None or not speech.enabled():
+            send(peer_id, speech.CANT_HEAR if speech else
+                 "Голосовое передал Гульнаре. Напишите, пожалуйста, коротко: "
+                 "что нужно и в каком количестве?")
+            return True
+        if speech.too_long(voice.get("duration")):
+            send(peer_id, speech.TOO_LONG)
+            return True
+        audio, why = fetch_audio(voice.get("url"))
+        if why:
+            send(peer_id, speech.CANT_HEAR)
+            return True
+        text, why = speech.recognize(audio)
+        if why or not text:
+            send(peer_id, speech.CANT_HEAR)
+            return True
+
+    # Расшифровку показываем до того, как пустить в работу: ошибка в числе —
+    # это ошибка в тираже, то есть в деньгах.
+    send(peer_id, speech.heard(text) if speech else f"📝 Я услышал: «{text}»")
+    handle(peer_id, from_id, text)
+    return True
 
 
 def skey(peer_id) -> str:
@@ -386,7 +474,7 @@ def fraud_guard(peer_id, sess, text: str, has_files: bool) -> bool:
     return True
 
 
-def handle(peer_id, from_id, text: str, attachments=None):
+def handle(peer_id, from_id, text: str, attachments=None, voice=None):
     """Одно входящее сообщение клиента."""
     text = (text or "").strip()
     attachments = attachments or []
@@ -395,6 +483,11 @@ def handle(peer_id, from_id, text: str, attachments=None):
 
     sess = ss.get_session(skey(peer_id))
     stage = sess.get("stage")
+
+    # Голосовое разбираем раньше общей ветки вложений: это не «файл-образец»,
+    # а сказанные слова, и путь у них свой.
+    if voice and handle_voice(peer_id, from_id, voice, attachments):
+        return
 
     if fraud_guard(peer_id, sess, text, bool(attachments)):
         return
@@ -587,7 +680,8 @@ def poll_once(state):
         if not peer_id or not from_id or from_id < 0:
             continue
         try:
-            handle(peer_id, from_id, msg.get("text", ""), attachment_ids(msg))
+            handle(peer_id, from_id, msg.get("text", ""), attachment_ids(msg),
+                   voice_from(msg))
         except Exception as e:  # noqa: BLE001
             logger.exception("разговор с %s оборвался: %s", peer_id, e)
             send(peer_id,

@@ -40,6 +40,7 @@ import keyboards as kbd
 import knowledge_base as kb
 import lead_handoff
 import session as ss
+import speech
 import vk_jarvis
 
 logging.basicConfig(
@@ -1036,13 +1037,119 @@ async def on_attachment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await msg.reply_text(text, reply_markup=kbd.kb_flows())
 
 
-async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Свободный текст клиента — топливо для Dialog Manager."""
+async def _forward_voice_to_admin(ctx: ContextTypes.DEFAULT_TYPE, user,
+                                  file_id: str, note: str = "") -> bool:
+    """Переслать голосовое Гульнаре. Делается ВСЕГДА и первым делом.
+
+    Распознавание может не сработать по десятку причин — от кончившихся денег
+    на ключе до сети. Ни одна из них не должна означать, что клиента не
+    услышали: голос уходит человеку независимо от того, получился текст или
+    нет.
+    """
+    if not config.ADMIN_ID:
+        return False
+    name = html.escape(user.full_name or "клиент")
+    username = f"@{user.username}" if user.username else "нет username"
+    head = (f"🎤 <b>Голосовое от клиента</b>\n"
+            f"👤 <a href=\"tg://user?id={user.id}\">{name}</a> ({username})")
+    if note:
+        head += f"\n{html.escape(note)}"
+    try:
+        await ctx.bot.send_voice(chat_id=config.ADMIN_ID, voice=file_id,
+                                 caption=head, parse_mode=ParseMode.HTML)
+        return True
+    except Exception as e:  # noqa: BLE001
+        logger.error("Не удалось переслать голосовое админу: %s", e)
+        return False
+
+
+async def on_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Голосовое сообщение или кружок.
+
+    До 10.08.2026 такие сообщения не ловил ни один обработчик: клиент
+    наговаривал задачу и получал тишину. Порядок здесь выстроен так, чтобы
+    тишины не было ни при каком исходе:
+
+      1. Голос уходит Гульнаре — всегда, до всяких попыток распознать.
+      2. Если распознавание выключено или запись длинная — честно говорим
+         об этом и просим пару слов текстом.
+      3. Если получилось — показываем расшифровку и ведём разговор дальше
+         тем же путём, что и напечатанный текст.
+    """
     uid = update.effective_user.id
     sess = ss.get_session(uid)
     msg = update.effective_message
     sess["business_connection_id"] = getattr(msg, "business_connection_id", None)
-    text = msg.text.strip()
+
+    media = msg.voice or msg.video_note or msg.audio
+    if not media:
+        return
+
+    duration = getattr(media, "duration", None)
+    size = getattr(media, "file_size", None)
+    await _forward_voice_to_admin(ctx, update.effective_user, media.file_id,
+                                  f"⏱ {duration} сек" if duration else "")
+
+    async def give_up(reason: str) -> None:
+        """Текста не будет — сказать об этом понятно и не бросить разговор."""
+        await _send_plain(msg, reason)
+        if sess.get("consent") and sess["stage"] in (ss.STAGE_DIALOG,
+                                                     ss.STAGE_CONFIRM):
+            return  # разговор уже идёт, клиент просто ответит текстом
+        if not sess.get("consent"):
+            await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
+
+    if not speech.enabled():
+        await give_up(speech.CANT_HEAR)
+        return
+    if speech.too_long(duration, size):
+        await give_up(speech.TOO_LONG)
+        return
+
+    try:
+        await msg.chat.send_action(
+            "typing",
+            business_connection_id=getattr(msg, "business_connection_id", None),
+        )
+    except (TimedOut, NetworkError):
+        pass  # «печатает…» — косметика
+
+    try:
+        tg_file = await media.get_file()
+        audio = bytes(await tg_file.download_as_bytearray())
+    except Exception as e:  # noqa: BLE001
+        logger.error("Не скачалось голосовое: %s: %s", type(e).__name__, e)
+        await give_up(speech.CANT_HEAR)
+        return
+
+    # Распознавание синхронное и ходит в сеть — в отдельном потоке, иначе на
+    # эти секунды встал бы весь бот и остальные клиенты ждали бы молча.
+    text, why = await asyncio.to_thread(speech.recognize, audio)
+    if why or not text:
+        if why:
+            logger.info("Голосовое не распознано: %s", why)
+        await give_up(speech.CANT_HEAR)
+        return
+
+    # Показываем расшифровку до того, как пустить её в работу: распознавание
+    # ошибается на именах и числах, а число здесь — это тираж, то есть деньги.
+    await _send_plain(msg, speech.heard(text))
+    await on_text(update, ctx, text_override=text)
+
+
+async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+                  text_override: str = None):
+    """Свободный текст клиента — топливо для Dialog Manager.
+
+    `text_override` подставляет расшифровку голосового: у такого сообщения
+    `msg.text` пустой, а дальше по коду всё одинаково. Так голосовое проходит
+    ровно тот же путь, что и напечатанное, включая проверку на мошенников.
+    """
+    uid = update.effective_user.id
+    sess = ss.get_session(uid)
+    msg = update.effective_message
+    sess["business_connection_id"] = getattr(msg, "business_connection_id", None)
+    text = text_override if text_override is not None else (msg.text or "").strip()
 
     # Проверка на мошенников идёт до всех остальных проверок — см. _fraud_guard.
     if await _fraud_guard(msg, sess, text):
@@ -1131,6 +1238,10 @@ def main():
     app.add_handler(BusinessConnectionHandler(on_business_connection))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.CONTACT, on_contact))
+    # Голосовые — до общего обработчика вложений: голосовое это не «файл»,
+    # у него свой путь через распознавание.
+    app.add_handler(MessageHandler(
+        filters.VOICE | filters.VIDEO_NOTE | filters.AUDIO, on_voice))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, on_attachment))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
 

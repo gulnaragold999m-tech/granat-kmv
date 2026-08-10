@@ -384,9 +384,26 @@ def run_dialog_step(peer_id, sess):
     send(peer_id, result["message"], rows)
 
 
+def is_urgent(spec: dict) -> bool:
+    """Срочный ли заказ — по тому, что накопил диалог.
+
+    Ключи в order_spec задаёт модель по-русски и по-разному: «срочность»,
+    «срок», «когда нужно». Поэтому смотрим и ключи, и значения.
+    """
+    for key, value in (spec or {}).items():
+        text = f"{key} {value}".lower()
+        if "срочн" in text or "день в день" in text or "горит" in text:
+            # «не срочно» и «без срочности» — это как раз НЕ срочно.
+            if "не срочн" in text or "без срочн" in text:
+                continue
+            return True
+    return False
+
+
 def hand_over(peer_id, sess, from_id):
     """ТЗ собрано и подтверждено — отдаём его Гульнаре."""
     spec = dict(sess.get("order_spec") or {})
+    urgent = is_urgent(spec)
     channel = spec.pop(dialog_manager.CHANNEL_FIELD, "") or "ВКонтакте"
     lines = [
         "🔥 ГОРЯЧАЯ ЗАЯВКА ИЗ ВКОНТАКТЕ",
@@ -425,7 +442,11 @@ def hand_over(peer_id, sess, from_id):
         answer = (
             "✅ Заявка оформлена и уже у менеджера!\n\n"
             "Менеджер рассчитает точную стоимость и свяжется с вами здесь же. "
-            f"{config.PAYMENT_TERMS}\n\n"
+            # Условие берём по срочности заказа. 10.08.2026 здесь стояло
+            # жёстко PAYMENT_TERMS, и клиент получал два разных ответа
+            # подряд: в сводке «предоплата 100%», а следующим сообщением
+            # «студия работает по предоплате 50%».
+            f"{config.payment_terms(urgent)}\n\n"
             f"Если срочно: {s['phone']}\n📍 {s['address']} ({s['hours']})"
         )
     else:

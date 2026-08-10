@@ -298,6 +298,16 @@ COEFFICIENTS = {
     "photo_premium":  ("Премиальная фотобумага", 1.20, "base"),
 }
 
+# Какие материальные множители вообще уместны в этой услуге. Срочность сюда
+# не входит — она применима везде и добавляется отдельно. Без этой таблицы
+# боту показывали бы «Картон 250 г/м²» в разделе фотопечати.
+COEF_SCOPE = {
+    "flyers":   ("paper_150", "paper_170", "paper_200", "paper_designer"),
+    "invites":  ("carton_250", "carton_350", "paper_designer"),
+    "booklets": ("paper_150", "paper_170", "paper_200"),
+    "photo_paper": ("photo_premium",),
+}
+
 # Минимальная стоимость заказа. Ниже неё работа не окупает время.
 MIN_ORDER = {
     "print_docs": 50,
@@ -543,6 +553,16 @@ def block(category: str) -> str:
             title, kind, value = ADDONS[code]
             unit = "за штуку" if kind == "per_piece" else "за заказ"
             out.append(f"    • {title} — {value} ₽ {unit}")
+
+    # Множители. До 10.08.2026 их здесь не было вовсе, и это стоило денег:
+    # бот назвал срочному клиенту 450 ₽ вместо 585 ₽, потому что видел
+    # только базовую цену и про наценку за срочность просто не знал.
+    out.append("  Множители (применяются К НАЗВАННОЙ ЦЕНЕ, не забудь их):")
+    title, mult, _scope = COEFFICIENTS["urgent"]
+    out.append(f"    • {title} — ×{mult} ко ВСЕМУ заказу, вместе с допуслугами")
+    for code in COEF_SCOPE.get(category, ()):
+        title, mult, _scope = COEFFICIENTS[code]
+        out.append(f"    • {title} — ×{mult} только к базовой печати")
     floor = MIN_ORDER.get(category)
     if floor:
         out.append(f"  Минимальный заказ — {floor} ₽.")

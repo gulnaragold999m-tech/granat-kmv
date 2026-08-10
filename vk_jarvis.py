@@ -91,6 +91,15 @@ GREETING = (
 )
 
 CONSENT_BUTTON = "Согласен, продолжим"
+
+# Что говорим, если человек ответил текстом, а не кнопкой. Коротко и без
+# повтора приветствия: длинный текст второй раз подряд читать не будут.
+CONSENT_HINT = (
+    "Имя и задачу спрошу дальше — сейчас нужно только ваше согласие "
+    "на обработку данных.\n\n"
+    "Нажмите кнопку «Согласен, продолжим» внизу экрана — или просто "
+    "напишите «да»."
+)
 CONFIRM_BUTTON = "Всё верно, оформляем"
 AMEND_BUTTON = "Хочу дополнить"
 RESTART_BUTTON = "Начать заново"
@@ -521,7 +530,7 @@ def handle(peer_id, from_id, text: str, attachments=None, voice=None):
         return
 
     if not sess.get("consent"):
-        if text.lower() == CONSENT_BUTTON.lower():
+        if text.lower() == CONSENT_BUTTON.lower() or ss.consent_given(text):
             sess["consent"] = True
             # Человек пришёл не с пустыми руками: первым сообщением он уже
             # сказал, что ему нужно. Заставлять его повторяться после
@@ -531,7 +540,15 @@ def handle(peer_id, from_id, text: str, attachments=None, voice=None):
                 handle(peer_id, from_id, asked)
             else:
                 start_over(peer_id, sess)
+        elif sess.get("greeted"):
+            # Второй раз одно и то же приветствие не шлём. 10.08.2026 клиент
+            # так и ходил по кругу: написал задачу — приветствие, написал имя
+            # — снова приветствие. Он не понимал, чего от него хотят, потому
+            # что в приветствии сказано «понадобится ваше имя», и выглядит
+            # это как просьба имя написать.
+            send(peer_id, CONSENT_HINT, [[CONSENT_BUTTON]])
         else:
+            sess["greeted"] = True
             # Запоминаем ровно одну фразу — ту, с которой человек пришёл.
             sess.setdefault("first_words", text)
             send(peer_id, GREETING, [[CONSENT_BUTTON]])

@@ -68,6 +68,16 @@ GREETING = (
     "для связи по заказу и никуда больше не передаются."
 )
 
+# Ответ на текст вместо кнопки согласия. Приветствие второй раз подряд не
+# повторяем: человек его уже прочитал, а из фразы «понадобятся твои
+# контактные данные (имя…)» понял, что надо написать имя, — и написал.
+CONSENT_HINT = (
+    "Имя и задачу спрошу дальше — сейчас нужно только твоё согласие "
+    "на обработку данных.\n\n"
+    "Нажми кнопку «✅ Даю согласие» под приветствием — или просто "
+    "напиши «да»."
+)
+
 ASK_PHONE = (
     "Спасибо! ✅\n\n"
     "Теперь подтверди, пожалуйста, номер телефона — нажми кнопку "
@@ -1155,9 +1165,20 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
     if await _fraud_guard(msg, sess, text):
         return
 
-    # Пока не пройдены согласие и подтверждение номера — в диалог не пускаем
+    # Пока не пройдены согласие и подтверждение номера — в диалог не пускаем.
     if not sess["consent"]:
-        await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
+        if ss.consent_given(text):
+            # Согласие словом, а не кнопкой. 10.08.2026 выяснилось, что
+            # человек, отвечающий текстом, ходил по кругу: любое сообщение
+            # до согласия возвращало то же приветствие, и выхода не было.
+            sess["consent"] = True
+            sess["stage"] = ss.STAGE_PHONE
+            await msg.reply_text(ASK_PHONE, reply_markup=kbd.kb_contact())
+        elif sess.get("greeted"):
+            await msg.reply_text(CONSENT_HINT, reply_markup=kbd.kb_consent())
+        else:
+            sess["greeted"] = True
+            await msg.reply_text(GREETING, reply_markup=kbd.kb_consent())
         return
     # Fix #2: проверяем не только наличие, но и непустоту номера
     if not sess.get("phone") or not sess["phone"].strip():

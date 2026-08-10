@@ -713,7 +713,13 @@ def order():
     payload["lead"] = lead_id
     leads.log(lead_id, "created", source="site_form", **payload)
 
-    lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
+    # Дата и время — первой строкой после номера. 10.08.2026 Гульнара
+    # открыла письмо и не смогла понять, свежая это заявка или недельной
+    # давности: в тексте даты не было вовсе, а в списке писем видно только
+    # «9 авг». Для срочных заказов это решает, успеваем мы или нет.
+    stamp = now_msk().strftime("%d.%m.%Y, %H:%M")
+    lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}",
+             f"🕒 {stamp} (мск)", "", f"👤 Имя: {name}"]
     if phone:
         label = "Ник в Telegram" if got["kind"] == "username" else "Телефон"
         lines.append(f"📞 {label}: {contact.pretty(phone)}")

@@ -23,7 +23,41 @@ import asyncio
 import html
 import logging
 import random
+import socket
 import time
+
+# Принудительно ходим по IPv4 — до импорта telegram, чтобы правка успела
+# подействовать на все соединения бота.
+#
+# На Amvera исходящие соединения по IPv6 не проходят (Errno 101 "Network is
+# unreachable"). DNS для api.telegram.org возвращает и IPv6-адреса, и если
+# библиотека выберет такой — соединение просто висит до таймаута. Снаружи
+# это выглядит как «Telegram не отвечает», хотя по IPv4 он отвечает прекрасно.
+#
+# В сайте (app.py) эта правка стоит с 09.08.2026 и там же в комментарии
+# названа именно про api.telegram.org. В боте её не было — а бот с этим
+# адресом и работает. 10.08.2026 бот дважды падал на TimedOut при старте:
+# в 10:49 обошлось перезапуском, в 16:25 он остановился совсем и утянул за
+# собой ВКонтакте.
+_real_getaddrinfo = socket.getaddrinfo
+
+
+def _getaddrinfo_ipv4_only(*args, **kwargs):
+    res = _real_getaddrinfo(*args, **kwargs)
+    ipv4 = [r for r in res if r[0] == socket.AF_INET]
+    # Нет IPv4 вовсе — отдаём что есть: пусть лучше попробует и честно
+    # упадёт с понятной ошибкой, чем молча вернёт пустой список.
+    return ipv4 or res
+
+
+socket.getaddrinfo = _getaddrinfo_ipv4_only
+
+try:
+    import urllib3.util.connection as urllib3_cn
+
+    urllib3_cn.allowed_gai_family = lambda: socket.AF_INET
+except Exception as e:  # noqa: BLE001
+    print(f"[init] IPv4-режим для requests не включился: {e}", flush=True)
 
 from telegram import Update, ReplyKeyboardRemove
 from telegram.constants import ParseMode

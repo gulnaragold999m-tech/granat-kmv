@@ -1,0 +1,68 @@
+    <!-- Было/Стало + калькулятор -->
+    <section id="vygoda" class="py-20" style="background:#4A0E17;">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-2xl reveal">
+          <p class="kicker mb-3">Зачем вам бот</p>
+          <h2 class="text-3xl md:text-4xl font-bold text-white">Было, стало — и сколько это стоит</h2>
+          <p class="text-lg text-white/70 mt-4">Выберите свою сферу и посмотрите, где сейчас утекают заказы. Ниже калькулятор — он посчитает на ваших цифрах.</p>
+        </div>
+
+        <div class="reveal" style="margin-top:40px;">
+          <div class="bs-tabs" role="tablist" aria-label="Сфера бизнеса">
+            <button class="bs-tab is-on" type="button" role="tab" aria-selected="true" data-bs="cafe">Кафе и доставка</button>
+            <button class="bs-tab" type="button" role="tab" aria-selected="false" data-bs="beauty">Салоны и мастера</button>
+            <button class="bs-tab" type="button" role="tab" aria-selected="false" data-bs="sales">Продажи и заявки</button>
+          </div>
+
+          <div class="bs-grid">
+            <article class="bs-card bs-bad">
+              <div class="bs-label">Было</div>
+              <p class="bs-text" id="bsBad"></p>
+            </article>
+            <article class="bs-card bs-good">
+              <div class="bs-label">Стало</div>
+              <p class="bs-text" id="bsGood"></p>
+            </article>
+          </div>
+        </div>
+
+        <div class="reveal calc" style="margin-top:56px;">
+          <h3 class="calc-h">Окупаемость автопилота</h3>
+          <p class="calc-sub">Подвиньте ползунки под свой бизнес — цифры пересчитаются сразу.</p>
+
+          <div class="calc-grid">
+            <div class="calc-controls">
+              <label class="calc-field">
+                <span class="calc-cap">Заказов или заявок в день <b id="vOrders">15</b></span>
+                <input type="range" id="rOrders" min="1" max="100" step="1" value="15">
+              </label>
+              <label class="calc-field">
+                <span class="calc-cap">Минут на обработку одного <b id="vMins">10</b></span>
+                <input type="range" id="rMins" min="2" max="30" step="1" value="10">
+              </label>
+              <label class="calc-field">
+                <span class="calc-cap">Средний чек, ₽ <b id="vCheck">2 000</b></span>
+                <input type="range" id="rCheck" min="500" max="10000" step="100" value="2000">
+              </label>
+            </div>
+
+            <div class="calc-out">
+              <div class="calc-metric">
+                <div class="calc-num" id="oHours">75 ч</div>
+                <div class="calc-cap2">часов рутины в месяц бот снимет с менеджера</div>
+              </div>
+              <div class="calc-metric">
+                <div class="calc-num" id="oMoney">135 000 ₽</div>
+                <div class="calc-cap2">перестанет утекать каждый месяц из-за медленных ответов</div>
+              </div>
+              <div class="calc-note" id="oPayback"></div>
+            </div>
+          </div>
+
+          <p class="calc-fine">Расчёт оценочный. В основе допущение, что при долгом ответе теряется около 15% обращений, и цена рабочего бота с интеграцией 35 000 ₽. Точные цифры по вашей сфере считаем на бесплатной консультации.</p>
+          <a href="#zayavka" class="calc-cta">Посчитать мой случай</a>
+        </div>
+      </div>
+    </section>
+
+{% include "partials/_js-vygoda.html" %}

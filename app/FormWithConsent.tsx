@@ -38,10 +38,17 @@ export default function FormWithConsent() {
         setConsent(false);
         setTimeout(() => setSuccess(false), 3000);
       } else {
-        setError('Ошибка при отправке заявки. Попробуйте позже.');
+        /* Показываем ровно то, что ответил сервер: там сказано, что
+           делать дальше — позвонить. Общая фраза «попробуйте позже»
+           человека никуда не ведёт, и заявка теряется. */
+        const data = await response.json().catch(() => null);
+        setError(
+          data?.error ||
+            'Заявка не ушла. Позвоните нам: +7 (999) 244-99-99 — ответим сразу.',
+        );
       }
-    } catch (err) {
-      setError('Ошибка соединения. Попробуйте позже.');
+    } catch {
+      setError('Нет связи с сайтом. Позвоните: +7 (999) 244-99-99 или напишите в WhatsApp.');
     } finally {
       setLoading(false);
     }

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { STUDIYA } from "../data/prices";
 
 export const metadata: Metadata = {
   title: "Гранат — типография и веб-студия в Лермонтове",
-  description: "Печать приглашений, сертификатов, сайты и Telegram-боты. Студия Гранат в Лермонтове, КМВ.",
+  description:
+    "Фото на документы, печать фотографий, копии, флаеры, буклеты, открытки и приглашения, чертежи, ламинация. Сайты и чат-боты. Студия «Гранат» в Лермонтове, работаем по всему КМВ.",
   metadataBase: new URL("https://granat-kmv.ru"),
 };
 
@@ -30,12 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Link>
                 <Link href="/cifra" className="hover:text-red-600 transition">
                   Сайты и боты
-                </Link>
-                <Link href="/portfolio" className="hover:text-red-600 transition">
-                  Работы
-                </Link>
-                <Link href="/o-nas" className="hover:text-red-600 transition">
-                  О нас
                 </Link>
                 <Link href="/kontakty" className="hover:text-red-600 transition">
                   Контакты
@@ -73,10 +69,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </p>
               </div>
               <div>
+                {/* Контакты берутся из прайса: адрес и часы работы напечатаны
+                    на бумаге, которую клиент держит в руках, и разойтись
+                    с сайтом не должны. Telegram убран 15.08.2026 — он больше
+                    не канал для заявок. */}
                 <h4 className="font-bold mb-4">Контакты</h4>
                 <p className="text-gray-400 text-sm">
-                  <a href="tel:+79992449999" className="hover:text-white">
-                    +7 999 244-99-99
+                  <a href={`tel:${STUDIYA.telefonSsylka}`} className="hover:text-white">
+                    {STUDIYA.telefon}
+                  </a>
+                  <br />
+                  <a
+                    href={`https://wa.me/${STUDIYA.telefonSsylka.replace("+", "")}`}
+                    className="hover:text-white"
+                  >
+                    Написать в WhatsApp
                   </a>
                   <br />
                   <a
@@ -86,12 +93,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     gulnaravibecoder999@yandex.ru
                   </a>
                   <br />
-                  <a
-                    href="https://t.me/GranatJarvis_bot"
-                    className="hover:text-white"
-                  >
-                    @GranatJarvis_bot
-                  </a>
+                  {STUDIYA.adres}
+                  <br />
+                  {STUDIYA.chasy}
                 </p>
               </div>
             </div>

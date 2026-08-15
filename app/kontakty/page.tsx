@@ -1,9 +1,11 @@
 import FormWithConsent from '../FormWithConsent';
 import Link from 'next/link';
+import { STUDIYA } from '../../data/prices';
 
 export const metadata = {
-  title: 'Контакты — дизайн-студия Гранат',
-  description: 'Свяжитесь с нами. Телефон, Telegram, адрес офиса в Лермонтове. Отвечаем в течение часа.',
+  title: 'Контакты — студия «Гранат», Лермонтов',
+  description:
+    'Телефон, WhatsApp, почта и адрес студии «Гранат»: г. Лермонтов, ул. Нагорная 2/1, этаж 2. Работаем по всему КМВ.',
 };
 
 export default function Kontakty() {
@@ -32,38 +34,26 @@ export default function Kontakty() {
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">Телефон</h3>
                   <a
-                    href="tel:+79992449999"
-                    className="text-xl text-red-600 hover:underline font-semibold"
+                    href={`tel:${STUDIYA.telefonSsylka}`}
+                    className="text-xl text-red-600 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-red-600 rounded"
                   >
-                    +7 999 244 9999
+                    {STUDIYA.telefon}
                   </a>
-                  <p className="text-sm text-gray-600 mt-1">Пн–Пт 10:00–19:00, Сб 11:00–18:00</p>
+                  <p className="text-sm text-gray-600 mt-1">{STUDIYA.chasy}</p>
                 </div>
 
                 {/* Email */}
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">Email</h3>
                   <a
-                    href="mailto:info@granat-kmv.ru"
-                    className="text-lg text-red-600 hover:underline"
+                    href="mailto:gulnaravibecoder999@yandex.ru"
+                    className="text-lg text-red-600 hover:underline focus:outline-none focus:ring-2 focus:ring-red-600 rounded"
                   >
-                    info@granat-kmv.ru
+                    gulnaravibecoder999@yandex.ru
                   </a>
-                  <p className="text-sm text-gray-600 mt-1">Ответим в течение часа</p>
-                </div>
-
-                {/* Telegram */}
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">Telegram</h3>
-                  <a
-                    href="https://t.me/GranatJarvis_bot"
-                    target="_blank"
-                    rel="noopener"
-                    className="text-lg text-red-600 hover:underline"
-                  >
-                    @GranatJarvis_bot
-                  </a>
-                  <p className="text-sm text-gray-600 mt-1">24/7, быстрые ответы</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Сюда же присылайте макет: мессенджеры сжимают картинки, и в печати это видно
+                  </p>
                 </div>
 
                 {/* WhatsApp */}
@@ -83,11 +73,8 @@ export default function Kontakty() {
                 {/* Адрес */}
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">Адрес</h3>
-                  <p className="text-gray-700">
-                    Лермонтово<br />
-                    Ставропольский край
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">Встречи по предварительной договорённости</p>
+                  <p className="text-gray-700">{STUDIYA.adres}</p>
+                  <p className="text-sm text-gray-600 mt-1">{STUDIYA.ohvat}</p>
                 </div>
               </div>
             </div>

@@ -1,961 +1,814 @@
-import os
-import json
-import smtplib
-import socket
-import ssl
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
-from datetime import datetime, timedelta
-from email.message import EmailMessage
-from urllib.parse import quote
-from zoneinfo import ZoneInfo
-
-import requests
-from flask import (Flask, send_from_directory, request, jsonify, redirect,
-                   render_template)
-
-import bots
-import contact
-import leads
-
-# ── TELEGRAM СНЯТ 15.08.2026 ─────────────────────────────────────────────
-# Решение владелицы, её словами: «Телеграм как трафик для заявок снимаем.
-# У меня телеграм не работает — я вижу, когда приходит информация, но
-# открыть не могу».
-#
-# Канал, до которого нельзя дотянуться, хуже отсутствующего: заявка
-# считается доставленной, счётчик недоставленных молчит, а прочитать её
-# нельзя. Поэтому Telegram убран из доставки целиком, а не «отключён
-# на время».
-#
-# Что осталось: ВКонтакте и почта — два независимых канала. Плюс журнал
-# на диске, он пишется ДО всякой отправки, поэтому заявка не теряется,
-# даже когда молчат оба.
-#
-# Что убрано: отправка в Telegram, кнопка «Продолжить в Telegram» на
-# экране «заявка принята», приглашение Джарвиса и доклад сторожа
-# тишины в Telegram. Сторож теперь пишет туда же, куда заявки.
-
-# Разбор мошеннических текстов общий с ботом. Здесь он нужен не для отказа, а
-# для пометки в заявке: решение по клиенту всегда принимает человек.
-try:
-    import fraud_check
-except Exception as e:  # noqa: BLE001
-    fraud_check = None
-    print(f"[init] проверка на мошенников не подключилась: {e}", flush=True)
-
-# Принудительно ходим по IPv4. На Amvera исходящие соединения по IPv6 не
-# проходят (Errno 101 "Network is unreachable"), а requests может выбрать
-# именно IPv6-адрес api.telegram.org и упасть, хотя IPv4 работает.
-try:
-    import urllib3.util.connection as urllib3_cn
-
-    urllib3_cn.allowed_gai_family = lambda: socket.AF_INET
-except Exception as e:
-    print(f"[init] IPv4-режим не включился: {e}", flush=True)
-
-# То же самое, но для всего остального, что ходит наружу мимо requests —
-# в первую очередь для почты: smtplib открывает сокет сам и про настройку
-# выше не знает. Без этого письмо с заявкой упало бы на первом же адресе
-# IPv6, который вернёт DNS.
-_real_getaddrinfo = socket.getaddrinfo
-
-
-def _getaddrinfo_ipv4_only(*args, **kwargs):
-    res = _real_getaddrinfo(*args, **kwargs)
-    ipv4 = [r for r in res if r[0] == socket.AF_INET]
-    # Если IPv4-адресов нет вовсе, отдаём что есть: пусть лучше попробует
-    # и честно упадёт с понятной ошибкой, чем молча вернёт пустой список.
-    return ipv4 or res
-
-
-socket.getaddrinfo = _getaddrinfo_ipv4_only
-
-app = Flask(__name__, static_folder=".", static_url_path="")
-
-# Картинки, логотип и скрипты браузер держит у себя сутки и не запрашивает
-# заново на каждой странице. По умолчанию Flask ставит 12 часов и при каждом
-# переходе всё равно ходит на сервер спрашивать «не изменилось ли». На
-# портфолио это лишние полтора десятка запросов на ровном месте.
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
-
-# TELEGRAM_BOT_TOKEN и ADMIN_CHAT_ID больше не читаются: сайт в Telegram
-# не пишет. Переменные в Amvera можно оставить — они нужны приложению
-# Джарвиса, оно живёт отдельно.
-
-# Постоянное хранилище Amvera: заявка ложится сюда, даже если Telegram молчит.
-ORDERS_FILE = "/data/orders.jsonl"
-
-# Контейнер живёт по Гринвичу, а смотреть на заявки нам по-московски.
-TZ = ZoneInfo("Europe/Moscow")
-
-
-def now_msk():
-    """Московское время без пометки о зоне — чтобы в файле было понятно
-    и сравнение со старыми записями не ломалось."""
-    return datetime.now(TZ).replace(tzinfo=None)
-
-OLD_HOST = "granat-site-granatgold999.amvera.io"
-NEW_DOMAIN = "https://granat-kmv.ru"
-
-
-def mask(s):
-    """Осталась от телеграмного токена: раньше прятала его из логов.
-    Сейчас прятать нечего, но вызовы по коду оставлены — если однажды
-    появится новый секрет, прятать его будут здесь, в одном месте."""
-    return s
-
-
-def save_order(payload, delivered, reason=""):
-    record = {
-        "at": now_msk().isoformat(timespec="seconds"),
-        "delivered": delivered,
-        "reason": reason,
-        **payload,
-    }
-    try:
-        os.makedirs(os.path.dirname(ORDERS_FILE), exist_ok=True)
-        with open(ORDERS_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except Exception as e:
-        print(f"[order] заявку не удалось записать на диск: {e}", flush=True)
-
-
-# ── ВКонтакте: второй канал доставки заявок ──────────────────────────────
-# ЗАЧЕМ. Telegram — одна точка отказа: 03.08.2026 он перестал принимать
-# сообщения, и заявки уходили в пустоту. ВК живёт на отдельном токене и
-# отдельной инфраструктуре, поэтому одновременный отказ обоих почти
-# невероятен. Каналы независимы: отказ одного не отменяет второй.
-#
-# ПЕРЕМЕННЫЕ (Amvera → Переменные окружения):
-#   VK_TOKEN   — ключ сообщества с правом «Сообщения сообщества».
-#   VK_PEER_ID — куда слать: числовой id, короткое имя или ссылка на страницу.
-#
-# ВАЖНО: сообщество не может написать человеку первым, пока тот сам не
-# написал сообществу хотя бы раз — как кнопка «Старт» у ботов Telegram.
-# Иначе ВК ответит ошибкой 901.
-VK_TOKEN = os.getenv("VK_TOKEN", "").strip()
-VK_PEER_ID = os.getenv("VK_PEER_ID", "").strip()
-
-# Куда уводить клиента после заявки. Ссылки
-# ведут в переписку с нами, а не на страницу сообщества: цель — чтобы
-# человек написал, а не полистал ленту.
-VK_WRITE_LINK = os.getenv("VK_WRITE_LINK", "https://vk.me/club238836731").strip()
-WHATSAPP_LINK = os.getenv("WHATSAPP_LINK", "https://wa.me/79992449999").strip()
-
-# ── Почта: третий канал доставки заявки ─────────────────────────────────
-# 09.08.2026 Telegram отвечал с третьей попытки за пятнадцать секунд, а ключ
-# ВКонтакте оказался отозван. Заявка при этом лежала на диске, но узнать о
-# ней было неоткуда. Почта на Яндексе живёт внутри страны и не зависит ни от
-# того, ни от другого — поэтому она здесь третьей, а не вместо.
-#
-# ПЕРЕМЕННЫЕ (Amvera → Переменные окружения):
-#   MAIL_LOGIN    — полный адрес ящика, например gulnaravibecoder999@yandex.ru
-#   MAIL_PASSWORD — ПАРОЛЬ ПРИЛОЖЕНИЯ из Яндекс ID, не пароль от почты.
-#                   Обычный пароль Яндекс для программ не принимает.
-#   MAIL_TO       — куда слать заявку. Не задан — шлём на сам ящик.
-MAIL_HOST = os.getenv("MAIL_HOST", "smtp.yandex.ru").strip()
-MAIL_PORT = int(os.getenv("MAIL_PORT", "465"))
-MAIL_LOGIN = os.getenv("MAIL_LOGIN", "").strip()
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "").strip()
-MAIL_TO = os.getenv("MAIL_TO", "").strip() or MAIL_LOGIN
-
-# Расшифровки частых кодов: без них «ошибка 901» в логах через месяц
-# ничего не скажет тому, кто их откроет.
-VK_ERRORS = {
-    5: "ключ недействителен или отозван — получите новый в настройках сообщества",
-    901: "получатель ни разу не писал сообществу — напишите сообществу любое "
-         "сообщение со своей страницы",
-    902: "настройки приватности получателя запрещают сообществу писать ему",
-    914: "сообщение длиннее допустимого",
-    100: "неверный параметр запроса (чаще всего peer_id)",
-}
-
-# id получателя спрашиваем у ВК один раз за жизнь процесса и запоминаем:
-# короткое имя меняется редко, а лишний запрос на каждую заявку ни к чему.
-_vk_peer_cache = None
-
-
-def vk_peer():
-    """Числовой id получателя. Принимает id, короткое имя или ссылку."""
-    global _vk_peer_cache
-    if _vk_peer_cache:
-        return _vk_peer_cache
-
-    raw = VK_PEER_ID.rstrip("/").split("/")[-1]
-    if raw.lstrip("-").isdigit():
-        _vk_peer_cache = raw
-        return raw
-    if raw.startswith("id") and raw[2:].isdigit():
-        _vk_peer_cache = raw[2:]
-        return _vk_peer_cache
-
-    try:
-        r = requests.post(
-            "https://api.vk.com/method/utils.resolveScreenName",
-            data={"access_token": VK_TOKEN, "v": "5.199", "screen_name": raw},
-            timeout=15,
-        ).json()
-        object_id = str(r.get("response", {}).get("object_id") or "")
-        if object_id:
-            _vk_peer_cache = object_id
-            return object_id
-        print(f"[vk] не удалось определить id по «{raw}»: {r}", flush=True)
-    except Exception as e:
-        print(f"[vk] resolveScreenName: {type(e).__name__}: {e}", flush=True)
-    return ""
-
-
-def send_to_vk(text):
-    """Дубль заявки в личку ВК. Возвращает (ok, причина).
-
-    Наружу не падает никогда: это второй канал, и его отказ не должен
-    ронять обработку заявки.
-    """
-    if not VK_TOKEN or not VK_PEER_ID:
-        return False, "не настроен"
-
-    peer = vk_peer()
-    if not peer:
-        return False, "не удалось определить id получателя"
-
-    try:
-        r = requests.post(
-            "https://api.vk.com/method/messages.send",
-            data={
-                "access_token": VK_TOKEN,
-                "v": "5.199",
-                "peer_id": peer,
-                # random_id обязателен: по нему ВК отбрасывает дубли, если
-                # сеть моргнула и запрос ушёл дважды. Должен влезать в int32.
-                "random_id": (int(datetime.now().timestamp() * 1000) % 2_000_000_000),
-                # 4096 — предел ВК на длину. Режем сами: обрезанная заявка
-                # полезнее ошибки 914 и полностью потерянной заявки.
-                "message": text[:4000],
-            },
-            timeout=15,
-        ).json()
-
-        if "response" in r:
-            return True, ""
-
-        # ВК отвечает HTTP 200 даже на ошибку — причина лежит в теле.
-        err = r.get("error", {})
-        code = err.get("error_code")
-        hint = f" — {VK_ERRORS[code]}" if code in VK_ERRORS else ""
-        reason = f"{code} {err.get('error_msg', '')}{hint}"
-        print(f"[vk] отказ: {reason}", flush=True)
-        return False, reason
-    except Exception as e:
-        reason = f"сеть: {type(e).__name__}: {e}"
-        print(f"[vk] {reason}", flush=True)
-        return False, reason
-
-
-def auth_reason(err):
-    """Человеческая причина отказа на входе в почту + дословный ответ сервера.
-
-    Раньше здесь стояла одна фраза «нужен пароль приложения». Она верна для
-    самого частого случая, но 09.08.2026 пароль приложения уже был заведён,
-    а вход всё равно отклонялся — и по нашей же фразе понять это было
-    нельзя. Ответ Яндекса различает причины, поэтому кладём его целиком.
-    """
-    detail = getattr(err, "smtp_error", b"") or b""
-    if isinstance(detail, bytes):
-        detail = detail.decode("utf-8", "replace")
-    detail = " ".join(str(detail).split())[:200]
-
-    return mask(
-        "вход отклонён. Проверьте: 1) в MAIL_PASSWORD лежит пароль приложения "
-        "из Яндекс ID, а не пароль от почты; 2) в MAIL_LOGIN — полный адрес "
-        "ящика; 3) в настройках почты разрешён доступ почтовым программам. "
-        f"Ответ сервера: {detail}"
-    )
-
-
-def send_to_mail(subject, text):
-    """Дубль заявки письмом. Возвращает (ok, причина).
-
-    Наружу не падает никогда: это ещё один параллельный канал, и его отказ
-    не должен ронять обработку заявки. Пароль в причину не попадает —
-    smtplib его в текст ошибки не кладёт, но на всякий случай прогоняем
-    результат через mask(), как и телеграмный.
-    """
-    if not MAIL_LOGIN or not MAIL_PASSWORD:
-        return False, "не настроена"
-
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = MAIL_LOGIN
-    msg["To"] = MAIL_TO
-    msg.set_content(text)
-
-    try:
-        with smtplib.SMTP_SSL(MAIL_HOST, MAIL_PORT,
-                              context=ssl.create_default_context(),
-                              timeout=15) as s:
-            s.login(MAIL_LOGIN, MAIL_PASSWORD)
-            s.send_message(msg)
-        return True, ""
-    except smtplib.SMTPAuthenticationError as e:
-        reason = auth_reason(e)
-        print(f"[mail] {reason}", flush=True)
-        return False, reason
-    except Exception as e:
-        reason = f"{type(e).__name__}: {e}"
-        print(f"[mail] {mask(reason)}", flush=True)
-        return False, mask(reason)
-
-
-def mail_health():
-    """Принимает ли ящик наш пароль. Письмо не отправляет — только вход.
-
-    Проверяем по-настоящему, а не «переменная задана»: ровно так мы
-    09.08.2026 проглядели отозванный ключ ВКонтакте — он был задан и
-    считался рабочим, пока не полезли в логи руками.
-    """
-    if not MAIL_LOGIN or not MAIL_PASSWORD:
-        return "не настроена"
-    try:
-        with smtplib.SMTP_SSL(MAIL_HOST, MAIL_PORT,
-                              context=ssl.create_default_context(),
-                              timeout=10) as s:
-            s.login(MAIL_LOGIN, MAIL_PASSWORD)
-        return "ok"
-    except smtplib.SMTPAuthenticationError as e:
-        return auth_reason(e)
-    except Exception as e:
-        return mask(f"{type(e).__name__}: {e}")
-
-
-# Рассылка живёт в фоне, поэтому пул общий и создаётся один раз. Заводить
-# его на каждую заявку — значит платить за создание потоков ровно в тот
-# момент, когда клиент ждёт ответа.
-NOTIFY_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="notify")
-
-# Сколько секунд держим клиента, пока каналы отвечают. Уложились — скажем
-# правду: дошло или не дошло. Не уложились — отпускаем с «заявка принята»,
-# она к этому моменту уже лежит на диске, а рассылка доедет без него.
-NOTIFY_WAIT = 6
-
-
-def deliver(subject, text):
-    """Разослать заявку по обоим каналам сразу. Возвращает две пары (ok, причина).
-
-    Каналы независимы, поэтому ждать их по очереди незачем: одновременно
-    ждём самый медленный, а не сумму. Ответы забираем полностью — заявка
-    должна попасть в журнал с честными отметками по каждому каналу,
-    иначе счётчик недоставленных снова начнёт врать.
-
-    Каналов было три, Telegram снят 15.08.2026 — см. заметку в начале файла.
-    """
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        vk = pool.submit(send_to_vk, text)
-        mail = pool.submit(send_to_mail, subject, text)
-        return vk.result(), mail.result()
-
-
-@app.before_request
-def redirect_old_domain():
-    if request.host.lower() == OLD_HOST:
-        return redirect(NEW_DOMAIN + request.full_path.rstrip("?"), code=301)
-
-
-# ── Страницы сайта ──────────────────────────────────────────────────────
-# Раньше сайт был одностраничным: все разделы жили в index.html и
-# открывались якорями (#pechat, #cifra). Для поиска это одна страница с
-# одним заголовком — по запросу «печать приглашений Пятигорск» и по
-# запросу «телеграм-бот под ключ» Яндекс видел один и тот же title.
-# Теперь у каждого направления свой адрес, свой title и свой description,
-# и каждое можно продвигать отдельно.
-#
-# Разметка не переписана, а разложена по кусочкам: templates/base.html
-# держит общую обвязку (шапка, подвал, стили, счётчик, бот-проводник),
-# templates/partials/* — те же секции, что были в index.html, слово в слово.
-
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-
-@app.route("/pechat")
-def pechat():
-    return render_template("pechat.html")
-
-
-@app.route("/cifra")
-def cifra():
-    return render_template("cifra.html")
-
-
-@app.route("/raboty")
-def raboty():
-    return render_template("raboty.html")
-
-
-@app.route("/kak-rabotaem")
-def kak_rabotaem():
-    return render_template("kak-rabotaem.html")
-
-
-@app.route("/kontakty")
-def kontakty():
-    return render_template("kontakty.html")
-
-
-# Старые ссылки с якорями остаются рабочими: их присылали в переписке,
-# они разошлись по сторис и по чатам. Якорь браузер на сервер не шлёт,
-# поэтому ловим только те адреса, что писали руками.
-@app.route("/index.html")
-def index_html():
-    return redirect("/", code=301)
-
-
-# Статика раздаётся из корня проекта, и без этой заглушки заготовки страниц
-# отдавались бы как обычные файлы — со служебной разметкой наружу.
-@app.route("/templates/<path:_ignored>")
-def templates_are_not_public(_ignored):
-    return ("Not Found", 404)
-
-
-# sitemap.xml и robots.txt отдаём явными маршрутами, а не как обычную статику.
-# Внешний загрузчик при проверке 08.08.2026 получил вместо XML нечитаемые
-# байты: раздача статики отдаёт файл как есть и полагается на угаданный тип.
-# Здесь тип и кодировка заданы прямо, поэтому гадать больше нечего.
-@app.route("/sitemap.xml")
-def sitemap():
-    return send_from_directory(".", "sitemap.xml", mimetype="application/xml")
-
-
-@app.route("/robots.txt")
-def robots():
-    return send_from_directory(".", "robots.txt", mimetype="text/plain")
-
-
-# Свой экран вместо служебной страницы Flask: с меню, ссылками на разделы и
-# телефоном. Человек, попавший на битую ссылку, остаётся на сайте, а не
-# закрывает вкладку с надписью «Not Found» на английском.
-@app.errorhandler(404)
-def page_not_found(_e):
-    return render_template("404.html"), 404
-
-
-@app.route("/privacy.html")
-def privacy():
-    return send_from_directory(".", "privacy.html")
-
-
-@app.route("/consent.html")
-def consent():
-    """Согласие на обработку ПДн — отдельным документом, как требует
-    редакция 152-ФЗ, действующая с 01.09.2025."""
-    return send_from_directory(".", "consent.html")
-
-
-def count_undelivered(hours=24):
-    """Заявки, зависшие ПОСЛЕ последней успешной отправки.
-
-    Любая дошедшая заявка обнуляет счёт: значит связь восстановилась, и
-    вспоминать о прежнем сбое больше незачем. Иначе сторож неделю будет
-    поминать давно почившую проблему, и его перестанут читать.
-    Старше N часов тоже не считаем — на случай, если успешных не было вовсе.
-    """
-    cutoff = now_msk() - timedelta(hours=hours)
-    pending = 0
-    try:
-        with open(ORDERS_FILE, encoding="utf-8") as f:
-            for line in f:
-                try:
-                    rec = json.loads(line)
-                except Exception:
-                    continue
-                if rec.get("delivered"):
-                    pending = 0
-                    continue
-                try:
-                    if datetime.fromisoformat(rec["at"]) >= cutoff:
-                        pending += 1
-                except Exception:
-                    continue
-    except FileNotFoundError:
-        return 0
-    except Exception:
-        return -1
-    return pending
-
-
-def vk_health():
-    """Жив ли ключ сообщества. Ничего не отправляет — только спрашивает,
-    чьё это сообщество, и на этом проверяет ключ.
-
-    Коды ошибок расшифровываем теми же словами, что и при отправке: «5»
-    в отчёте через месяц ничего не скажет, «ключ отозван» — скажет.
-    """
-    if not VK_TOKEN:
-        return "VK_TOKEN не задан"
-    if not VK_PEER_ID:
-        return "VK_PEER_ID не задан — некуда слать"
-    try:
-        r = requests.get(
-            "https://api.vk.com/method/groups.getById",
-            params={"access_token": VK_TOKEN, "v": "5.199"},
-            timeout=10,
-        ).json()
-        if "response" in r:
-            return "ok"
-        err = r.get("error", {})
-        code = err.get("error_code")
-        hint = f" — {VK_ERRORS[code]}" if code in VK_ERRORS else ""
-        return f"{code} {err.get('error_msg', '')}{hint}"
-    except Exception as e:
-        return f"сеть: {type(e).__name__}: {e}"
-
-
-@app.route("/api/health")
-def health():
-    """Самопроверка: жив ли сайт и принимают ли нас ВКонтакте и почта.
-
-    Никому ничего не отправляет — дёргать можно хоть каждые пять минут.
-
-    ГЛАВНОЕ ПОЛЕ — `ok`. Оно означает: есть ли хотя бы один живой канал,
-    по которому заявка до Гульнары дойдёт. Каналов теперь два, и если
-    оба молчат, заявка ляжет только на диск, а знать об этом будет
-    некому. Поэтому `ok` считается по ним обоим, а не по одному.
-    """
-    # Проверки не зависят друг от друга, поэтому идут одновременно —
-    # иначе на медленной почте вся страница проверки ждала бы её одну.
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        vk_state = pool.submit(vk_health)
-        mail_state = pool.submit(mail_health)
-        bots_state = pool.submit(bots.health)
-
-    vk_ok = vk_state.result()
-    mail_ok = mail_state.result()
-
-    return jsonify(
-        ok=(vk_ok == "ok" or mail_ok == "ok"),
-        undelivered=count_undelivered(),
-        vk=vk_ok,
-        mail=mail_ok,
-        # Под каким адресом ходим на почту. Не секрет — он и так на странице
-        # контактов, зато опечатка в переменной видна сразу, без похода в
-        # панель хостинга.
-        mail_login=MAIL_LOGIN or "не задан",
-        # Telegram снят с сайта 15.08.2026. Строчка оставлена нарочно:
-        # без неё непонятно, снят он осознанно или отвалился.
-        telegram="снят с сайта 15.08.2026",
-        # Джарвис живёт отдельным приложением и в Telegram остаётся —
-        # показываем его состояние справочно.
-        bots=bots_state.result(),
-    )
-
-
-def follow_up(channel, lead_id, name):
-    """Куда позвать клиента дальше — в тот канал, который он выбрал сам.
-
-    В Telegram не зовём с 15.08.2026: Гульнара его не открывает, и клиент,
-    ушедший туда, остался бы без ответа. Остались ВКонтакте и WhatsApp.
-
-    ВКонтакте — основной выход: он работает из России без обхода
-    блокировок. WhatsApp даём тем, кто сам его выбрал, и подстраховываем
-    ссылкой на ВК: 09.08.2026 сообщение в WhatsApp ушло с одной галочкой
-    и не дошло, а сервер об этом не узнает никогда.
-
-    Возвращает словарь для браузера.
-    """
-    vk_exit = {
-        "url": VK_WRITE_LINK,
-        "label": "Написать во ВКонтакте →",
-        "note": "Напишите нам в сообщения сообщества — ответим там же, "
-                f"по заявке №{lead_id}.",
-    }
-
-    if channel == "WhatsApp":
-        text = (f"Здравствуйте! Я оставил заявку №{lead_id} на сайте "
-                f"granat-kmv.ru")
-        if name:
-            text += f". Меня зовут {name}"
-        return {
-            "url": f"{WHATSAPP_LINK}?text={quote(text)}",
-            "label": "Написать в WhatsApp →",
-            "note": "Сообщение уже готово — останется нажать «отправить».",
-            "fallback": {
-                "url": VK_WRITE_LINK,
-                "label": "Не отправляется? Написать во ВКонтакте",
-            },
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Подтверждение прав в Яндекс.Вебмастере. Не удалять: без этого тега
+       панель отвяжется, а вместе с ней пропадут статистика запросов,
+       переобход страниц и диагностика. Код выдан для granat-kmv.ru
+       03.08.2026, у каждого сайта он свой. -->
+  <meta name="yandex-verification" content="4cb0c6f73fcadb40" />
+  <title>{% block title %}Типография и веб-студия в Лермонтове — печать, сайты, Telegram-боты · Гранат{% endblock %}</title>
+  <meta name="description" content="{% block description %}Печать приглашений от 200 ₽, сертификатов и визиток, разработка сайтов от 25 000 ₽, Telegram-боты от 15 000 ₽. Студия «Гранат» в Лермонтове, работаем на весь КМВ: Пятигорск, Ессентуки, Кисловодск, Минеральные Воды.{% endblock %}" />
+  <!-- Open Graph / превью при шаринге в Telegram, VK, WhatsApp — обнови URL после переезда на короткий домен -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:title" content="{{ self.title() }}" />
+  <meta property="og:description" content="{{ self.description() }}" />
+  <meta property="og:image" content="https://granat-kmv.ru/logo.png" />
+  <meta property="og:url" content="https://granat-kmv.ru{% block path %}/{% endblock %}" />
+  <link rel="canonical" href="https://granat-kmv.ru{{ self.path() }}" />
+  <meta name="twitter:card" content="summary" />
+
+  <!-- Значок вкладки. Без него браузер всё равно просит /favicon.ico и получает
+       404 на каждый заход, а в закладках и в истории сайт выглядит безымянным
+       листом бумаги. Сделан из logo.png, чтобы вкладка и логотип совпадали. -->
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+  <!-- Микроразметка Schema.org. Описывает роботу то, что человек и так
+       видит на странице: кто мы, где находимся, как связаться.
+       Яндекс по ней собирает карточку организации в выдаче — с адресом,
+       телефоном и логотипом вместо голой синей ссылки.
+
+       ВАЖНО: здесь только то, что есть на самой странице. Часы работы
+       продублированы в подвале — правите в одном месте, правьте и во
+       втором. Разметка, расходящаяся с содержимым страницы, считается
+       обманом робота и работает против сайта.
+       Города в areaServed перечислены те же, что в тексте главной и в
+       подвале. Стартовые цены — те же, что в блоке «Стартовые цены».
+       Меняете цену на странице — правьте и здесь. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ProfessionalService",
+    "@id": "https://granat-kmv.ru/#organization",
+    "name": "Студия «Гранат»",
+    "alternateName": "Дизайн-студия Гранат",
+    "description": "Типография и веб-студия в Лермонтове: печать приглашений, сертификатов и визиток, тиснение золотом, плоттерная резка — и разработка сайтов, Telegram-ботов, автоматизация бизнеса. Работаем в Лермонтове, Пятигорске, Ессентуках, Кисловодске, Минеральных Водах.",
+    "priceRange": "от 200 ₽",
+    "url": "https://granat-kmv.ru/",
+    "logo": "https://granat-kmv.ru/logo.png",
+    "image": "https://granat-kmv.ru/logo.png",
+    "telephone": "+7-999-244-99-99",
+    "email": "gulnaravibecoder999@yandex.ru",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "ул. Нагорная, д. 2/1",
+      "addressLocality": "Лермонтов",
+      "addressRegion": "Ставропольский край",
+      "postalCode": "357340",
+      "addressCountry": "RU"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 44.107635,
+      "longitude": 42.979023
+    },
+    "hasMap": "https://yandex.ru/maps/?text=Лермонтов, Нагорная улица, 2/1",
+    "founder": {
+      "@type": "Person",
+      "name": "Мелконян Гульнара Рифкатовна"
+    },
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        "opens": "09:00",
+        "closes": "20:00"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": "Sunday",
+        "opens": "10:00",
+        "closes": "19:00"
+      }
+    ],
+    "areaServed": [
+      { "@type": "City", "name": "Лермонтов" },
+      { "@type": "City", "name": "Пятигорск" },
+      { "@type": "City", "name": "Ессентуки" },
+      { "@type": "City", "name": "Кисловодск" },
+      { "@type": "City", "name": "Минеральные Воды" },
+      { "@type": "City", "name": "Железноводск" },
+      { "@type": "AdministrativeArea", "name": "Кавказские Минеральные Воды" },
+      { "@type": "Country", "name": "Россия" }
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Услуги студии «Гранат»",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": { "@type": "Service", "name": "Печать приглашений" },
+          "price": "200",
+          "priceCurrency": "RUB",
+          "eligibleQuantity": { "@type": "QuantitativeValue", "unitText": "шт" }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": { "@type": "Service", "name": "Печать сертификатов" },
+          "price": "300",
+          "priceCurrency": "RUB"
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": { "@type": "Service", "name": "Плоттерная резка" },
+          "price": "300",
+          "priceCurrency": "RUB"
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": { "@type": "Service", "name": "Разработка сайта-лендинга" },
+          "price": "25000",
+          "priceCurrency": "RUB"
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": { "@type": "Service", "name": "Разработка многостраничного сайта" },
+          "price": "40000",
+          "priceCurrency": "RUB"
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": { "@type": "Service", "name": "Разработка Telegram-бота для заявок" },
+          "price": "15000",
+          "priceCurrency": "RUB"
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": { "@type": "Service", "name": "Telegram-бот с CRM и оплатой" },
+          "price": "35000",
+          "priceCurrency": "RUB"
         }
+      ]
+    },
+    "sameAs": [
+      "https://vk.com/club238836731",
+      "https://wa.me/79992449999"
+    ]
+  }
+  </script>
 
-    return vk_exit
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": "https://granat-kmv.ru/#website",
+    "url": "https://granat-kmv.ru/",
+    "name": "Студия «Гранат»",
+    "inLanguage": "ru-RU",
+    "publisher": { "@id": "https://granat-kmv.ru/#organization" }
+  }
+  </script>
+  {%- if crumb %}
+  <!-- Хлебные крошки. Яндекс показывает их в выдаче вместо голого адреса,
+       а человеку на внутренней странице видно, где он и как вернуться.
+       Разметка совпадает с видимой строкой под шапкой — иначе робот считает
+       это обманом. Имя раздела страница задаёт переменной crumb. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Главная", "item": "https://granat-kmv.ru/" },
+      { "@type": "ListItem", "position": 2, "name": "{{ crumb }}", "item": "https://granat-kmv.ru{{ self.path() }}" }
+    ]
+  }
+  </script>
+  {%- endif %}
+  <style>
+    :root {
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --gold-gradient: linear-gradient(120deg, #a9781f 0%, #e6c04a 22%, #f7e5b5 45%, #e6c04a 62%, #c8961f 82%, #a9781f 100%);
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Montserrat', sans-serif; color: #1C1C1C; background: #F9F3EB; }
+    h1, h2, h3, .serif { font-family: 'Playfair Display', Georgia, serif; }
+    .gold-line { border: none; height: 1px; background: linear-gradient(to right, transparent, #D4AF37, transparent); }
+    .nav-link { position: relative; transition: color 200ms ease; }
+    .nav-link::after { content: ''; position: absolute; bottom: -3px; left: 0; width: 100%; height: 1px; background: var(--gold-gradient); transform: scaleX(0); transform-origin: left; transition: transform 200ms var(--ease-out); }
+    @media (hover: hover) and (pointer: fine) { .nav-link:hover::after { transform: scaleX(1); } }
+    @media (max-width: 768px) { nav { opacity: 0; transform: translateX(-20px); transition: opacity 300ms ease, transform 300ms ease; } nav.show { opacity: 1; transform: translateX(0); } }
+    .studio-logo-gold {
+      font-family: 'Playfair Display', serif; font-weight: 700; text-transform: uppercase; letter-spacing: .18em;
+      background: linear-gradient(135deg, #f7e5b5 0%, #d4af37 40%, #b8860b 70%, #f7e5b5 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline-block;
+    }
+    .gold-grad {
+      background: var(--gold-gradient);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+    }
+    .btn-gold { background: linear-gradient(120deg, #b8860b 0%, #e6c04a 28%, #f3d271 48%, #d4af37 70%, #b8860b 100%); color: #3a0b12; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 15px 34px; border: none; cursor: pointer; transition: filter .2s, letter-spacing .2s, box-shadow .2s, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; box-shadow: 0 6px 20px -6px rgba(212,175,55,.5); min-height: 44px; border-radius: 4px; }
+    .btn-gold:active { transform: scale(0.97); }
+    .btn-gold:focus-visible { outline: 3px solid #D4AF37; outline-offset: 2px; }
+    .btn-outline { background: transparent; color: #D4AF37; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; padding: 14px 32px; border: 1.5px solid #D4AF37; cursor: pointer; transition: background .2s ease-out, color .2s ease-out, transform 160ms var(--ease-out); display: inline-flex; align-items: center; gap: 9px; min-height: 44px; border-radius: 4px; }
+    .btn-outline:active { transform: scale(0.97); }
+    .btn-outline:focus-visible { outline: 3px solid #D4AF37; outline-offset: 2px; }
+    @media (hover: hover) and (pointer: fine) {
+      .btn-gold:hover { filter: brightness(1.08); letter-spacing: .11em; box-shadow: 0 10px 26px -6px rgba(212,175,55,.7); }
+      .btn-outline:hover { background: rgba(212,175,55,.12); }
+    }
+    .product-card {
+      transition: box-shadow .35s ease, border-color .35s ease;
+      box-shadow: 0 0 20px rgba(212,175,55,0.10), 0 12px 30px rgba(74,14,23,0.08);
+      will-change: transform;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .product-card:hover { box-shadow: 0 0 36px rgba(212,175,55,0.32), 0 16px 42px rgba(74,14,23,0.16); }
+    }
+    .product-card:nth-child(3n+1) { animation: card-float-a 6.6s ease-in-out infinite; }
+    .product-card:nth-child(3n+2) { animation: card-float-b 8.2s ease-in-out infinite; }
+    .product-card:nth-child(3n+3) { animation: card-float-c 7.3s ease-in-out infinite; }
+    @keyframes card-float-a { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-11px); } }
+    @keyframes card-float-b { 0%,100% { transform: translateY(-7px); } 50% { transform: translateY(9px); } }
+    @keyframes card-float-c { 0%,100% { transform: translateY(4px); } 50% { transform: translateY(-13px); } }
+    @media (prefers-reduced-motion: reduce) { .product-card { animation: none; } }
 
-
-@app.route("/api/order", methods=["POST"])
-def order():
-    data = request.get_json(silent=True) or request.form or {}
-    name = (data.get("name") or "").strip()
-    if not name:
-        return jsonify(ok=False, field="name", error="Укажите имя"), 400
-
-    service = (data.get("service") or "").strip()
-    notes = (data.get("notes") or "").strip()
-
-    # Канал связи клиент выбирает прямо в форме. Telegram с 15.08.2026
-    # не предлагаем — но старая страница может остаться у человека
-    # в кэше браузера и прислать его. Тогда считаем, что канал не выбран:
-    # обещать ответ там, куда мы не смотрим, нельзя.
-    _CHANNELS = {"whatsapp": "WhatsApp", "vk": "VK", "вконтакте": "VK"}
-    raw_channel = (data.get("preferred_channel") or "").strip().lower()
-    channel = _CHANNELS.get(raw_channel, "")
-
-    # Контакт разбираем до записи заявки. Поле принимает и телефон, и ник в
-    # Telegram, и до 10.08.2026 принимало заодно пять цифр и пустые пробелы:
-    # заявка ложилась в журнал, а связаться было нечем. Ошибку возвращаем с
-    # именем поля — по нему форма покажет подсказку у нужной строки, а не
-    # уведёт клиента в запасные кнопки, будто заявка принята.
-    raw_phone = (data.get("phone") or "").strip()
-    got = contact.parse(raw_phone)
-    if got["error"]:
-        return jsonify(ok=False, field="phone", error=got["error"]), 400
-
-    # Ник в Telegram больше не принимаем как единственный контакт: с
-    # 15.08.2026 мы в Telegram не пишем, и связаться по нику будет нечем.
-    # Заявка с одним ником — это заявка, на которую нельзя ответить.
-    if got["kind"] == "username":
-        return jsonify(ok=False, field="phone",
-                       error="Оставьте, пожалуйста, номер телефона: "
-                             "мы отвечаем звонком, в WhatsApp или "
-                             "во ВКонтакте. " + contact.HINT_PHONE), 400
-
-    phone = got["value"]
-    payload = {"name": name, "phone": phone, "service": service, "notes": notes,
-               "preferred_channel": channel, "contact_kind": got["kind"]}
-    if raw_channel == "telegram":
-        # Видно в заявке: человек просил Telegram, а мы туда не пишем.
-        # Значит звоним или пишем в WhatsApp по номеру.
-        payload["prosil_telegram"] = True
-    # Что человек напечатал на самом деле — оставляем, если привели к другому
-    # виду: пригодится, когда номер вдруг окажется неверным.
-    if raw_phone != phone:
-        payload["phone_raw"] = raw_phone
-
-    # Оценка риска — строчка для Гульнары, а не приговор заявке. Заявка уходит
-    # в любом случае: у типографии с предоплатой подставная заявка ничего не
-    # крадёт, а отклонённый по ошибке живой клиент — прямой убыток. Ловим
-    # ровно одно: схемы, обращённые к самой студии, — «переплатил, верните
-    # разницу» и ссылки-подделки «для получения оплаты».
-    risk = fraud_check.analyze(f"{service} {notes}") if fraud_check else None
-    if risk and risk["flags"]:
-        payload["risk_level"] = risk["level"]
-        payload["risk_flags"] = [title for title, _why in risk["flags"]]
-
-    # Номер нужен, чтобы Джарвис узнал клиента, когда тот придёт в бота,
-    # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
-    lead_id = leads.next_id()
-    payload["lead"] = lead_id
-    leads.log(lead_id, "created", source="site_form", **payload)
-
-    lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
-    if phone:
-        label = "Ник в Telegram" if got["kind"] == "username" else "Телефон"
-        lines.append(f"📞 {label}: {contact.pretty(phone)}")
-    if channel:
-        icon = {"Telegram": "✈️", "WhatsApp": "🟢", "VK": "🔵"}.get(channel, "💬")
-        lines.append(f"{icon} Писать в: {channel}")
-    if service:
-        lines.append(f"🛍 Услуга: {service}")
-    if notes:
-        lines.append(f"📝 Пожелания: {notes}")
-
-    if risk and risk["flags"]:
-        lines.append("")
-        lines.append("⚠️ В тексте заявки есть тревожные признаки:")
-        lines += [f"  • {title}" for title, _why in risk["flags"][:3]]
-        if risk["level"] == "danger":
-            lines.append("  Деньги вперёд не отправлять, по ссылкам не ходить.")
-
-    lines.append("")
-    lines.append("Ждём клиента в боте для сбора ТЗ.")
-
-    # ── 1. ГЕНЕРАЛ докладывает Гульнаре ──────────────────────────────────
-    # Три канала одновременно. Заявка считается доставленной, если её принял
-    # хотя бы один: отказ одного канала больше не теряет клиента.
-    #
-    # Рассылка идёт в фоне, и это главное. Раньше браузер ждал, пока все три
-    # мессенджера ответят, — а если один тормозил, кнопка «Отправляем...»
-    # висела до минуты, и клиент уходил, не увидев ни номера заявки, ни
-    # ссылки в бота. При этом заявка уже лежала на диске: leads.log выше
-    # записывает её до всякой отправки, так что потерять её нельзя.
-    text = "\n".join(lines)
-
-    def notify():
-        """Разослать заявку по каналам и записать результат. Возвращает,
-        дошла ли она хоть куда-нибудь."""
-        (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка с сайта №{lead_id} — {name}", text
-        )
-        delivered = vk_ok or mail_ok
-        save_order(payload, delivered=delivered,
-                   reason="" if delivered else
-                          f"вк: {vk_reason}; почта: {mail_reason}")
-        leads.log(lead_id, "notified", delivered=delivered,
-                  vk=vk_ok, mail=mail_ok)
-        if not delivered:
-            print(f"[order] заявка №{lead_id} сохранена, но не доставлена: "
-                  f"вк: {vk_reason}; почта: {mail_reason}", flush=True)
-        return delivered
-
-    # ── 2. ДЖАРВИС ───────────────────────────────────────────────────────
-    # Приглашение в Джарвиса убрано 15.08.2026 вместе с Telegram: бот живёт
-    # только там, а собранное им ТЗ приходило Гульнаре тоже в Telegram —
-    # то есть туда, куда она не смотрит. Клиента ведём в ВК или WhatsApp,
-    # а вопросы по задаче задаёт человек.
-    #
-    # Сам бот при этом жив и стоит отдельным приложением: если Telegram
-    # у Гульнары заработает, вернуть приглашение — это вернуть вызов
-    # bots.send_client сюда же.
-
-    job = NOTIFY_POOL.submit(notify)
-
-    try:
-        delivered = job.result(timeout=NOTIFY_WAIT)
-    except FuturesTimeout:
-        # Каналы ещё думают. Не держим клиента: заявка у нас, а результат
-        # рассылки допишется в журнал, когда придёт.
-        delivered = None
-
-    if delivered is False:
-        # Оба канала молчат — делать вид, что всё хорошо, нельзя.
-        # Браузер покажет кнопки, чтобы клиент отправил заявку сам.
-        return jsonify(ok=False, saved=True, error="not_delivered"), 200
-
-    # Заявка у нас — дальше зовём клиента туда, где мы отвечаем.
-    # Поле `tg` из ответа убрано вместе с Telegram: страницы, которые
-    # его читали, поправлены в шаблонах.
-    answer = {"ok": True, "lead": lead_id, "next": follow_up(channel, lead_id, name)}
-    return jsonify(**answer)
-
-
-@app.route("/api/bot-lead", methods=["POST"])
-def bot_lead():
-    """Заявка из симулятора на странице: контакт + собранная конфигурация.
-
-    Отдельно от /api/order, потому что здесь есть чек — сумма и выбранные
-    опции. Он ложится в журнал заявки: в ссылку ?start= его не втиснуть
-    (Telegram даёт 64 символа), а по номеру Джарвис поднимет всё целиком.
-    """
-    data = request.get_json(silent=True) or request.form or {}
-
-    contact = (data.get("contact") or "").strip()
-    if not contact:
-        return jsonify(ok=False, error="Укажите номер телефона"), 400
-
-    path = data.get("path") or []
-    if isinstance(path, str):
-        path = [path]
-    route_text = " → ".join(str(p) for p in path if str(p).strip())
-
-    try:
-        total = int(data.get("total") or 0)
-    except (TypeError, ValueError):
-        total = 0
-
-    payload = {
-        "source": "site_simulator",
-        "contact": contact,
-        "phone": contact,          # чтобы узнавание по телефону работало и здесь
-        "service": route_text,
-        "total": total,
-        "options": [str(p) for p in path if str(p).strip()],
-        "scenario": (data.get("scenario") or "").strip(),
+    /* ИИ-проводник — полупрозрачная комета */
+    .ai-orb {
+      position: fixed; left: 0; top: 0; width: 20px; height: 20px; z-index: 9998; cursor: pointer; border-radius: 50%; will-change: transform;
+      background: radial-gradient(circle at 42% 38%, rgba(255,248,224,0.5) 0%, rgba(230,192,74,0.3) 42%, rgba(212,175,55,0.09) 70%, rgba(212,175,55,0) 100%);
+      box-shadow: 0 0 14px 4px rgba(230,192,74,0.2), 0 0 30px 10px rgba(212,175,55,0.09);
+      filter: blur(0.4px);
+      animation: comet-twinkle 3.6s ease-in-out infinite alternate;
+    }
+    .ai-orb.docked { left: auto !important; right: 24px; bottom: 24px; top: auto; transform: none !important; width: 24px; height: 24px; }
+    @media (max-width: 768px) { .ai-orb.docked { bottom: 80px; animation: comet-twinkle 3.6s ease-in-out infinite alternate !important; } }
+    .comet-dot {
+      position: fixed; left: 0; top: 0; border-radius: 50%; pointer-events: none; z-index: 9997; will-change: transform, opacity;
+      background: radial-gradient(circle, rgba(255,240,200,0.45) 0%, rgba(212,175,55,0.2) 45%, rgba(212,175,55,0) 75%); filter: blur(0.5px);
+    }
+    @media (max-width: 768px) { .comet-dot { display: none; } }
+    .orb-bubble {
+      position: absolute; right: 30px; top: 50%; transform: translateY(-50%) translateX(8px);
+      background: rgba(58,11,18,.95); color: #f7e5b5; font-size: 12.5px; line-height: 1.35; font-weight: 600;
+      padding: 10px 14px; border-radius: 14px 14px 4px 14px; border: 1px solid rgba(212,175,55,.42);
+      white-space: normal; width: max-content; max-width: 230px; text-align: left;
+      opacity: 0; pointer-events: none; transition: opacity .4s ease, transform .4s ease;
+      backdrop-filter: blur(6px); box-shadow: 0 10px 30px rgba(0,0,0,.3);
+    }
+    .ai-orb.speak .orb-bubble, .ai-orb:hover .orb-bubble { opacity: 1; transform: translateY(-50%) translateX(0); }
+    .ai-orb.pulse { animation: comet-twinkle 3.6s ease-in-out infinite alternate, comet-pulse 1.7s ease-in-out infinite; }
+    .ai-orb:hover { filter: brightness(1.2); }
+    @keyframes comet-twinkle {
+      from { box-shadow: 0 0 12px 3px rgba(230,192,74,0.15), 0 0 24px 8px rgba(212,175,55,0.06); opacity: 0.7; }
+      to   { box-shadow: 0 0 18px 5px rgba(230,192,74,0.25), 0 0 40px 12px rgba(212,175,55,0.12); opacity: 0.92; }
+    }
+    @keyframes comet-pulse { 0%,100% { box-shadow: 0 0 16px 4px rgba(230,192,74,0.2), 0 0 34px 10px rgba(212,175,55,0.1); } 50% { box-shadow: 0 0 24px 7px rgba(230,192,74,0.36), 0 0 52px 16px rgba(212,175,55,0.2); } }
+    @media (prefers-reduced-motion: reduce) { .ai-orb { animation: none; } .comet-dot { display: none; } }
+    .reveal { opacity: 0; transform: translateY(26px); transition: opacity 600ms var(--ease-smooth), transform 600ms var(--ease-smooth); }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .kicker {
+      text-transform: uppercase; letter-spacing: .22em; font-size: 11px; font-weight: 700; display: inline-block;
+      background: var(--gold-gradient);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
     }
 
-    lead_id = leads.next_id()
-    payload["lead"] = lead_id
-    leads.log(lead_id, "created", **payload)
+    /* Логотип с воздушной 3D-орбитой */
+    .logo-orbit {
+      position: relative; width: clamp(240px, 80vw, 340px); height: clamp(150px, 60vw, 250px); margin: 0 auto 22px;
+      filter: drop-shadow(0 0 46px rgba(212,175,55,0.18));
+    }
+    .logo-orbit .logo-img {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 160px; height: 160px; border-radius: 50%; z-index: 2;
+      animation: logo-breathe 4.5s ease-in-out infinite alternate;
+    }
+    .orbit-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(212,175,55,0.22); }
+    .orbit-ring-1 { width: 100%; height: 100%; top: 0; left: 0; transform: rotateX(68deg); animation: ring-spin 15s linear infinite; }
+    .orbit-ring-2 { width: 68%; height: 68%; top: 16%; left: 16%; border-color: rgba(212,175,55,0.13); transform: rotateX(68deg) rotateZ(60deg); animation: ring-spin 10s linear infinite reverse; }
+    .orbit-ring-1::after, .orbit-ring-2::after {
+      content: ''; position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+      width: 9px; height: 9px; border-radius: 50%;
+    }
+    .orbit-ring-1::after { background: radial-gradient(circle at 35% 30%, #fbeec2, #d4af37 55%, #7a5500); box-shadow: 0 0 18px rgba(212,175,55,0.95), 0 0 6px rgba(255,240,200,0.9); }
+    .orbit-ring-2::after { width: 6px; height: 6px; top: -3px; background: radial-gradient(circle at 35% 30%, #fff6df, #e6c04a 60%, #9a6e2a); box-shadow: 0 0 12px rgba(212,175,55,0.8); }
+    @keyframes ring-spin { to { transform: rotateX(68deg) rotateZ(360deg); } }
+    @keyframes logo-breathe {
+      0% { filter: drop-shadow(0 0 8px rgba(212,175,55,0.3)); }
+      100% { filter: drop-shadow(0 0 26px rgba(212,175,55,0.75)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .orbit-ring, .logo-orbit .logo-img { animation: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+    a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #D4AF37; outline-offset: 3px; }
+  .brand-logo{background:url(/logo.png) center/cover no-repeat;border-radius:50%;display:inline-block;}
+    .port-cat { margin-top: 42px; }
+    .port-cat h3 { font-family: 'Playfair Display', Georgia, serif; font-size: 1.4rem; color: #4A0E17; margin-bottom: 14px; }
+    .port-strip { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; position: relative; }
+    .port-strip::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 40px; background: linear-gradient(90deg, transparent 0%, rgba(74,14,23,.08) 70%, rgba(74,14,23,.15) 100%); pointer-events: none; }
+    .port-strip::-webkit-scrollbar { height: 6px; }
+    .port-strip::-webkit-scrollbar-thumb { background: rgba(212,175,55,.4); border-radius: 3px; }
+    .port-strip figure { flex: 0 0 auto; width: 228px; margin: 0; scroll-snap-align: start; border-radius: 14px; overflow: hidden; box-shadow: 0 14px 34px rgba(74,14,23,.14); background: #fff; transition: transform .3s ease; }
+    @media (max-width: 640px) { .port-strip figure { width: 200px; } }
+    .port-strip img { width: 228px; height: 290px; object-fit: cover; display: block; transition: transform .35s ease; }
+    .port-strip figure:hover img { transform: scale(1.05); }
+    .port-strip figcaption { padding: 10px 12px; font-size: 13px; color: #4A0E17; opacity: .82; }
+    /* Плавающий значок с мягкой золотой подсветкой над услугами */
+    .product-card h3::before, #cifra article h3::before {
+      content: '✦'; display: block; font-size: 22px; line-height: 1; margin-bottom: 10px;
+      color: #e6c04a; filter: drop-shadow(0 0 8px rgba(212,175,55,.7)) drop-shadow(0 0 18px rgba(212,175,55,.35));
+      animation: spark-float 3.6s ease-in-out infinite;
+    }
+    #cifra article h3::before { color: #f3d271; }
+    @keyframes spark-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    /* Полупрозрачный принтер в разделе печати */
+    .print-visual {
+      position: absolute; top: 44px; right: 5%; width: 180px; height: auto; z-index: 0; pointer-events: none;
+      fill: none; stroke: #D4AF37; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      opacity: 0.16; filter: drop-shadow(0 0 12px rgba(212,175,55,.5));
+      animation: printer-float 6s ease-in-out infinite;
+    }
+    .print-visual .print-paper { animation: paper-print 3.6s ease-in-out infinite; transform-origin: center; }
+    @keyframes paper-print { 0%,100% { transform: translateY(6px); opacity: .55; } 50% { transform: translateY(-4px); opacity: 1; } }
+    @keyframes printer-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @media (max-width: 760px) { .print-visual { width: 108px; opacity: 0.11; right: -8px; top: 18px; } }
+    @media (prefers-reduced-motion: reduce) { .print-visual, .print-visual .print-paper { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .product-card h3::before, #cifra article h3::before { animation: none; } }
+    /* Мобильная оптимизация */
+    @media (max-width: 640px) {
+      .max-w-6xl { padding-left: 12px; padding-right: 12px; }
+      p { line-height: 1.6; }
+      p.text-white\/75 { opacity: 0.90; }
+      p.text-white\/70 { opacity: 0.85; }
+      p.opacity-80 { opacity: 0.85; }
+    }
+    /* Улучшение фокусов для доступности */
+    input:focus-visible, textarea:focus-visible { outline: 3px solid #D4AF37; outline-offset: 1px; }
+    label { cursor: pointer; }
+    /* Плавные переходы для интерактивных элементов */
+    .port-strip figure:active { transform: scale(0.98); }
+    a { transition: color 200ms ease; }
+    a:focus-visible { outline-offset: 2px; }
+  </style>
 
-    # ── ГЕНЕРАЛ докладывает ──────────────────────────────────────────────
-    lines = [f"🤖 ЗАЯВКА ИЗ СИМУЛЯТОРА №{lead_id}", "", f"📞 Контакт: {contact}"]
-    if route_text:
-        lines.append(f"🧭 Собрал: {route_text}")
-    if total:
-        lines.append("💰 На сумму: {:,} ₽".format(total).replace(",", " "))
-    lines.append("")
-    lines.append("Ждём клиента в боте для сбора ТЗ.")
+  <!-- Yandex.Metrika counter — счётчик 110961373 «САЙТ ГРАНАТ» -->
+  <script type="text/javascript">
+    // Раньше счётчик ждал нажатия «Принять все» и поэтому не запускался почти
+    // никогда: баннер большинство просто прокручивает. В Метрике было 0 визитов,
+    // а Яндекс Бизнес и Директ не могли учиться на целях — обучать было не на чем.
+    //
+    // Теперь посещения считаются всегда: это обезличенная статистика (сколько
+    // человек, откуда, с какого устройства), опознать по ней посетителя нельзя.
+    // А то, что действительно снимает поведение конкретного человека — запись
+    // экрана Вебвизором и карта кликов — включается только с согласия.
+    var GRANAT_METRIKA_ID = 110961373;
+    var granatMetrikaStarted = false;
 
-    # Все каналы сразу и в фоне — как и в заявке с формы выше. Симулятор
-    # ждал ответа всех трёх наравне с формой, значит и висел так же.
-    text = "\n".join(lines)
+    function granatStartMetrika() {
+      if (granatMetrikaStarted) return;
+      granatMetrikaStarted = true;
 
-    def notify():
-        (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка из симулятора №{lead_id}", text
-        )
-        delivered = vk_ok or mail_ok
-        save_order(payload, delivered=delivered,
-                   reason="" if delivered else
-                          f"вк: {vk_reason}; почта: {mail_reason}")
-        leads.log(lead_id, "notified", delivered=delivered,
-                  vk=vk_ok, mail=mail_ok)
-        if not delivered:
-            print(f"[bot-lead] заявка №{lead_id} сохранена, но не доставлена: "
-                  f"вк: {vk_reason}; почта: {mail_reason}", flush=True)
-        return delivered
+      // localStorage падает в приватном режиме Safari — тогда считаем,
+      // что согласия нет, и остаёмся на щадящем режиме.
+      var consent = null;
+      try { consent = localStorage.getItem('granat_cookie_consent'); } catch (e) {}
+      var full = consent === 'all';
 
-    # Приглашение Джарвиса убрано 15.08.2026 вместе с Telegram — причина
-    # та же, что и в заявке с формы выше.
+      (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+      m[i].l=1*new Date();
+      for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+      k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+      (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
 
-    job = NOTIFY_POOL.submit(notify)
+      ym(GRANAT_METRIKA_ID, "init", {
+        trackLinks: true,
+        accurateTrackBounce: true,
+        clickmap: full,
+        webvisor: full
+      });
+    }
 
-    try:
-        delivered = job.result(timeout=NOTIFY_WAIT)
-    except FuturesTimeout:
-        delivered = None
+    // Отправка цели в Метрику. Обёрнуто, чтобы блокировщик рекламы
+    // у посетителя не ронял остальные скрипты страницы. Если посетитель
+    // отказался от аналитики, вызов просто ничего не делает.
+    function metrikaGoal(name) {
+      try { if (window.ym) ym(GRANAT_METRIKA_ID, 'reachGoal', name); } catch (e) {}
+    }
 
-    if delivered is False:
-        return jsonify(ok=False, saved=True, error="not_delivered",
-                       lead=lead_id, next=follow_up("", lead_id, "")), 200
+    // Решение посетителя храним в localStorage: cookie для этого заводить
+    // не нужно, а значит и согласия на него не требуется. Сам счётчик
+    // запускаем сразу — режим он выберет сам, заглянув в это решение.
+    granatStartMetrika();
+  </script>
+  <noscript><div><img src="https://mc.yandex.ru/watch/110961373" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+  <!-- /Yandex.Metrika counter -->
+  <style>
 
-    return jsonify(ok=True, lead=lead_id, next=follow_up("", lead_id, ""))
+    /* ===== Было/Стало + калькулятор ===== */
+    .bs-tabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:26px}
+    .bs-tab{padding:11px 20px;border-radius:999px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;color:rgba(255,255,255,.75);background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.28);transition:.25s}
+    .bs-tab:hover{border-color:rgba(212,175,55,.6);color:#fff}
+    .bs-tab.is-on{background:linear-gradient(135deg,#EBD79B,#D4AF37);border-color:transparent;color:#4A0E17}
+    .bs-grid{display:grid;grid-template-columns:1fr;gap:18px}
+    @media(min-width:768px){.bs-grid{grid-template-columns:1fr 1fr}}
+    .bs-card{position:relative;border-radius:20px;padding:26px 24px 24px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);overflow:hidden}
+    .bs-card:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .bs-bad:before{background:#E86A6A}
+    .bs-good:before{background:#4ADE80}
+    .bs-label{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px}
+    .bs-bad .bs-label{color:#E86A6A}
+    .bs-good .bs-label{color:#4ADE80}
+    .bs-text{font-size:15px;line-height:1.65;color:rgba(255,255,255,.8);margin:0;transition:opacity .22s}
+    .bs-text.fade{opacity:0}
+    .calc{background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.25);border-radius:24px;padding:32px 26px}
+    .calc-h{font-family:'Playfair Display',Georgia,serif;font-size:26px;font-weight:700;color:#EBD79B;margin:0 0 8px}
+    .calc-sub{font-size:14px;color:rgba(255,255,255,.6);margin:0 0 28px}
+    .calc-grid{display:grid;grid-template-columns:1fr;gap:30px}
+    @media(min-width:900px){.calc-grid{grid-template-columns:1fr 1fr;gap:44px}}
+    .calc-controls{display:flex;flex-direction:column;gap:24px}
+    .calc-field{display:block}
+    .calc-cap{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px;color:rgba(255,255,255,.75);margin-bottom:12px}
+    .calc-cap b{font-size:19px;color:#EBD79B;font-weight:700;white-space:nowrap}
+    .calc-field input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,.14);outline:0;cursor:pointer}
+    .calc-field input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#EBD79B,#D4AF37);border:0;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+    .calc-field input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#EBD79B,#D4AF37);border:0;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+    .calc-out{display:flex;flex-direction:column;gap:22px;justify-content:center}
+    .calc-metric{border-left:2px solid rgba(212,175,55,.5);padding-left:18px}
+    .calc-num{font-family:'Playfair Display',Georgia,serif;font-size:34px;line-height:1.1;font-weight:700;color:#fff}
+    .calc-cap2{font-size:13px;line-height:1.5;color:rgba(255,255,255,.6);margin-top:6px}
+    .calc-note{font-size:14px;font-weight:600;line-height:1.5;padding:14px 18px;border-radius:14px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.35);color:#B9F0C9}
+    .calc-fine{font-size:12px;line-height:1.6;color:rgba(255,255,255,.42);margin:26px 0 0}
+    .chan{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:999px;font-size:13px;font-weight:600;text-decoration:none;border:1px solid rgba(212,175,55,.4);color:#EBD79B;transition:.2s}
+    .chan:hover{background:rgba(212,175,55,.16);border-color:rgba(212,175,55,.85)}
+    .chan i{font-style:normal;font-size:15px}
+    .calc-cta{display:inline-block;margin-top:20px;padding:13px 26px;border-radius:999px;font-size:14px;font-weight:700;text-decoration:none;background:linear-gradient(135deg,#EBD79B,#D4AF37);color:#4A0E17}
 
+    /* ===== Симулятор бота ===== */
+    .sim{display:grid;grid-template-columns:1fr;gap:30px;margin-top:44px;align-items:start}
+    @media(min-width:900px){.sim{grid-template-columns:1fr 340px;gap:56px}}
+    .sim-side{display:flex;flex-direction:column;gap:12px;order:-1}
+    @media(min-width:900px){.sim-side{order:0}}
+    .sim-side-t{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(74,14,23,.5);margin-bottom:2px}
+    .sim-mode{display:flex;align-items:center;gap:14px;text-align:left;padding:16px 18px;border-radius:18px;font:inherit;cursor:pointer;background:#fff;border:1px solid rgba(74,14,23,.14);transition:.22s}
+    .sim-mode:hover{border-color:rgba(212,175,55,.75);transform:translateY(-1px)}
+    .sim-mode.is-on{background:#4A0E17;border-color:#4A0E17}
+    .sim-ico{font-size:24px;line-height:1;flex:none}
+    .sim-mt{display:flex;flex-direction:column;gap:3px;min-width:0}
+    .sim-mt b{font-size:15px;font-weight:700;color:#4A0E17}
+    .sim-mt i{font-style:normal;font-size:12px;color:rgba(74,14,23,.55)}
+    .sim-mode.is-on .sim-mt b{color:#EBD79B}
+    .sim-mode.is-on .sim-mt i{color:rgba(255,255,255,.55)}
+    .sim-total{margin-top:10px;padding:20px;border-radius:18px;background:#fff;border:1px dashed rgba(212,175,55,.7);display:flex;flex-direction:column;gap:4px}
+    .sim-total span{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(74,14,23,.5)}
+    .sim-total b{font-family:'Playfair Display',Georgia,serif;font-size:30px;line-height:1.1;color:#4A0E17}
+    .sim-total em{font-style:normal;font-size:12px;line-height:1.5;color:rgba(74,14,23,.6)}
+    .sim-hint{font-size:12px;line-height:1.6;color:rgba(74,14,23,.5);margin:4px 0 0}
+    .sim-phone{position:relative;max-width:340px;margin:0 auto;padding:12px;border-radius:44px;background:linear-gradient(160deg,#2B2B2F,#131316);box-shadow:0 34px 70px -26px rgba(74,14,23,.6),inset 0 0 0 1px rgba(255,255,255,.09)}
+    .sim-notch{position:absolute;top:20px;left:50%;transform:translateX(-50%);width:86px;height:20px;border-radius:99px;background:#0C0C0E;z-index:3}
+    .sim-screen{border-radius:34px;overflow:hidden;background:#EDE4DA;display:flex;flex-direction:column;height:560px}
+    .sim-head{display:flex;align-items:center;gap:11px;padding:34px 16px 12px;background:#4A0E17;flex:none}
+    .sim-ava{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#EBD79B,#D4AF37);color:#4A0E17;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:18px}
+    .sim-hi{min-width:0}
+    .sim-name{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sim-st{font-size:11px;color:#7ED99B}
+    .sim-feed{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;scrollbar-color:rgba(74,14,23,.3) transparent}
+    .sim-feed::-webkit-scrollbar{width:5px}
+    .sim-feed::-webkit-scrollbar-thumb{background:rgba(74,14,23,.28);border-radius:99px}
+    .sim-row{display:flex;animation:simIn .28s ease both}
+    .sim-row.me{justify-content:flex-end}
+    .sim-b{max-width:86%;padding:9px 13px;font-size:13.5px;line-height:1.5;border-radius:16px;position:relative}
+    .sim-row.bot .sim-b{background:#fff;color:#2A1116;border-bottom-left-radius:5px;box-shadow:0 1px 2px rgba(74,14,23,.12)}
+    .sim-row.me .sim-b{background:linear-gradient(135deg,#EBD79B,#D4AF37);color:#3A0B12;font-weight:600;border-bottom-right-radius:5px}
+    .sim-b b{color:#4A0E17}
+    .sim-check{background:#fff;border-left:3px solid #D4AF37;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.7;color:#2A1116}
+    .sim-check .r{display:flex;justify-content:space-between;gap:10px}
+    .sim-check .sum{border-top:1px solid rgba(74,14,23,.14);margin-top:8px;padding-top:8px;font-weight:700;font-size:15px;color:#4A0E17}
+    .sim-dots{display:flex;gap:5px;padding:12px 14px;background:#fff;border-radius:16px;border-bottom-left-radius:5px}
+    .sim-dots i{width:6px;height:6px;border-radius:50%;background:#C9A24B;animation:simBlink 1.1s infinite}
+    .sim-dots i:nth-child(2){animation-delay:.16s}
+    .sim-dots i:nth-child(3){animation-delay:.32s}
+    .sim-kb{flex:none;padding:8px 10px 12px;display:flex;flex-direction:column;gap:7px;background:#E3D8CC;border-top:1px solid rgba(74,14,23,.1)}
+    .sim-btn{width:100%;padding:11px 14px;border-radius:13px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:#4A0E17;border:1px solid rgba(74,14,23,.16);transition:.18s;text-align:center}
+    .sim-btn:hover{background:#4A0E17;color:#EBD79B;border-color:#4A0E17}
+    .sim-btn.ghost{background:transparent;border-style:dashed;color:rgba(74,14,23,.65);font-weight:500}
+    .sim-form{display:flex;gap:6px}
+    .sim-in{flex:1;min-width:0;padding:11px 13px;border-radius:13px;font:inherit;font-size:13px;background:#fff;border:1px solid rgba(74,14,23,.2);color:#2A1116}
+    .sim-in::placeholder{color:rgba(74,14,23,.4)}
+    .sim-go{padding:11px 15px;border-radius:13px;border:0;font:inherit;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#EBD79B,#D4AF37);color:#3A0B12}
+    .sim-err{font-size:11.5px;color:#B4232F;padding:0 4px}
+    @keyframes simIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes simBlink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+    @media (prefers-reduced-motion:reduce){.sim-row,.sim-dots i,.sim-mode{animation:none;transition:none}}
+  </style>
+  <!-- Стили. Раньше здесь висел cdn.tailwindcss.com: браузер на каждой
+       странице тянул с чужого сервера почти полмегабайта и собирал стили
+       уже в момент показа. Пока файл не пришёл, вёрстка разъезжалась —
+       в шапке одновременно вылезали обе кнопки заявки. Сами авторы
+       Tailwind пишут, что этот способ только для черновиков.
+       Теперь стили собраны заранее в один файл на 13 КБ и лежат рядом
+       с сайтом. Настройки цветов и шрифтов переехали в tailwind.config.js.
+       После правки вёрстки файл пересобирается командой:
+         npx tailwindcss -i static/css/input.css -o static/css/tailwind.css --minify
 
-@app.route("/api/watch")
-def watch():
-    """Сторож тишины. Дёргается по расписанию — Amvera → Cron Jobs.
+       Подключение стоит последним в <head> не случайно: с CDN стили
+       вставлялись в самый конец и там переопределяли собственные
+       правила сайта. Поднимешь эту строку выше — и на десктопе
+       вылезет мобильная кнопка «Заявка»: .btn-gold перебьёт
+       md:hidden, потому что при равной силе побеждает тот, кто ниже. -->
+  <link rel="stylesheet" href="/static/css/tailwind.css" />
+</head>
+<body>
 
-    Находит заявки, на которые никто не ответил, и шлёт Гульнаре
-    напоминание с телефоном: перехватить вручную, пока человек тёплый.
-    Про каждую заявку говорит один раз — сторож, повторяющий одно и то же,
-    перестаёт читаться.
+  <!-- Header -->
+  <header class="sticky top-0 z-50" style="background:#4A0E17;">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3">
+        <span class="brand-logo" role="img" aria-label="Логотип студии Гранат" style="width:40px;height:40px;"></span>
+        <span class="studio-logo-gold text-xl">Гранат</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-8 text-xs font-semibold tracking-widest uppercase text-white/80">
+        <a href="/pechat" class="nav-link hover:text-white">Печать, дизайн и полиграфия</a>
+        <a href="/cifra" class="nav-link hover:text-white">Сайты и боты</a>
+        <a href="/raboty" class="nav-link hover:text-white" data-goal="portfolio_view">Работы</a>
+        <a href="/kak-rabotaem" class="nav-link hover:text-white">Как работаем</a>
+        <a href="#zayavka" class="btn-gold" style="padding:11px 22px;">Оставить заявку</a>
+      </nav>
+      <a href="#zayavka" class="md:hidden btn-gold" style="padding:10px 18px;">Заявка</a>
+    </div>
+  </header>
 
-    С 15.08.2026 докладывает туда же, куда уходят заявки — во ВКонтакте
-    и на почту. Раньше он писал в Telegram, а значит с этого дня кричал
-    бы в пустоту: заявка без ответа висела бы молча.
+  <main id="top">
+    {%- if crumb %}
+    <nav aria-label="Хлебные крошки" class="py-3" style="background:#F9F3EB; border-bottom:1px solid rgba(74,14,23,.08);">
+      <div class="max-w-6xl mx-auto px-6 text-xs" style="color:rgba(74,14,23,.65);">
+        <a href="/" class="hover:underline">Главная</a>
+        <span aria-hidden="true"> · </span>
+        <span>{{ crumb }}</span>
+      </div>
+    </nav>
+    {%- endif %}
+{% block content %}{% endblock %}
+  </main>
 
-    Расписание, каждые 5 минут:
-        curl -s "https://granat-kmv.ru/api/watch?token=ТОКЕН&minutes=15"
-    """
-    token = os.getenv("WATCH_TOKEN", "").strip()
-    if not token or request.args.get("token", "") != token:
-        return jsonify(ok=False, error="forbidden"), 403
+  <!-- Footer -->
+  <footer class="py-12" style="background:#3a0b12; color:rgba(255,255,255,.7);">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="flex flex-wrap gap-8 justify-between">
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="brand-logo" role="img" aria-label="Логотип студии Гранат" style="width:44px;height:44px;"></span>
+            <span class="studio-logo-gold text-lg">Гранат</span>
+          </div>
+          <p class="text-sm mt-3 max-w-xs">Типография и дизайн-студия премиум-полиграфии и цифровых решений. Печать и код под одной крышей.</p>
+          <!-- Города КМВ. Те же, что в тексте главной и в areaServed
+               микроразметки, — правите здесь, правьте во всех трёх местах. -->
+          <p class="text-white font-semibold mt-5 mb-2 uppercase tracking-widest text-xs">География работы</p>
+          <p class="text-sm max-w-xs">
+            Лермонтов, Пятигорск, Ессентуки, Кисловодск, Минеральные Воды, Железноводск
+            и весь регион КМВ. Макет согласуем онлайн — приезжать ради правок не нужно.
+            Готовый заказ забираете в офисе в Лермонтове, по отправке в другой город
+            договоримся отдельно.
+          </p>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <p class="text-white font-semibold mb-2 uppercase tracking-widest text-xs">Контакты</p>
+          <p>Россия, Ставропольский край,<br />г. Лермонтов, ул. Нагорная, д. 2/1</p>
+          <!-- Часы работы должны совпадать с микроразметкой в <head>.
+               Меняете здесь — правьте и там, иначе Яндекс покажет в выдаче
+               одно, а на сайте будет другое. -->
+          <p>Пн–Сб: 09:00–20:00<br />Вс: 10:00–19:00</p>
+          <p><a href="tel:+79992449999" class="gold-grad">+7 999 244-99-99</a></p>
+          <p><a href="mailto:gulnaravibecoder999@yandex.ru" class="gold-grad">gulnaravibecoder999@yandex.ru</a></p>
+          <p><a href="https://vk.me/club238836731" class="gold-grad" target="_blank" rel="noopener">Написать во ВКонтакте</a></p>
+          <p class="mt-3"><a href="/kontakty" class="gold-grad">Все контакты и время работы</a></p>
 
-    try:
-        minutes = int(request.args.get("minutes", "15"))
-    except ValueError:
-        minutes = 15
+          <p class="text-white font-semibold mt-5 mb-2 uppercase tracking-widest text-xs">Напишите, где удобно</p>
+          <div id="chanList" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+      <hr class="gold-line my-8" />
+      <div class="flex flex-wrap gap-4 justify-between text-xs opacity-60">
+        <span>© 2026 ИП Мелконян Г.Р. · Студия ГРАНАТ · ИНН 490600091128</span>
+        <span class="flex gap-4">
+          <a href="/privacy.html" class="underline">Политика конфиденциальности</a>
+          <a href="/consent.html" class="underline">Согласие на обработку ПДн</a>
+        </span>
+      </div>
+    </div>
+  </footer>
 
-    items = leads.pending(minutes)
-    sent = 0
-    for it in items:
-        lines = [
-            f"⏳ ЗАЯВКА №{it['id']} — без ответа",
-            "",
-            f"Прошло: {it.get('age_min', '?')} мин",
-        ]
-        if it.get("name"):
-            lines.append(f"👤 {it['name']}")
-        phone = it.get("phone") or it.get("contact") or ""
-        if phone:
-            lines.append(f"📞 {phone}")
-        if it.get("service"):
-            lines.append(f"🛍 {it['service']}")
-        chk = leads.cheque(it)
-        if chk:
-            lines.append(f"💰 Собрал: {chk}")
-        if it.get("notes"):
-            lines.append(f"📝 {it['notes']}")
-        lines.append("")
-        lines.append("Позвоните сами — клиент ждёт.")
+  <script>
+    // Scroll reveal
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  </script>
+  <!-- ИИ-проводник -->
+  <div class="ai-orb" id="aiOrb" role="button" tabindex="0" aria-label="Помощник студии — оформить заявку">
+    <span class="orb-bubble" id="orbBubble"></span>
+  </div>
 
-        (vk_ok, _vk_why), (mail_ok, _mail_why) = deliver(
-            f"Заявка №{it['id']} без ответа", "\n".join(lines)
-        )
-        if vk_ok or mail_ok:
-            leads.mark_alerted(it["id"])
-            sent += 1
+  <script>
+    (function () {
+      var orb = document.getElementById('aiOrb'), bubble = document.getElementById('orbBubble');
+      if (!orb) return;
+      var fine = window.matchMedia('(pointer:fine)').matches;
+      if (fine) {
+        var cx = innerWidth - 90, cy = innerHeight / 2, mx = cx, my = cy;
+        addEventListener('mousemove', function (e) { mx = e.clientX + 14; my = e.clientY + 16; });
+        // Полупрозрачный хвост кометы
+        var N = 14, dots = [];
+        for (var k = 0; k < N; k++) { var d = document.createElement('span'); d.className = 'comet-dot'; document.body.appendChild(d); dots.push({ el: d, x: cx, y: cy }); }
+        (function raf() {
+          cx += (mx - cx) * 0.16; cy += (my - cy) * 0.16;
+          orb.style.transform = 'translate(' + (cx - 10) + 'px,' + (cy - 10) + 'px)';
+          var px = cx, py = cy;
+          for (var i = 0; i < N; i++) {
+            var t = 1 - i / N, dt = dots[i];
+            dt.x += (px - dt.x) * 0.34; dt.y += (py - dt.y) * 0.34;
+            var s = 2 + 9 * t;
+            dt.el.style.width = s + 'px'; dt.el.style.height = s + 'px';
+            dt.el.style.opacity = (0.3 * t).toFixed(2);
+            dt.el.style.transform = 'translate(' + (dt.x - s / 2) + 'px,' + (dt.y - s / 2) + 'px)';
+            px = dt.x; py = dt.y;
+          }
+          requestAnimationFrame(raf);
+        })();
+      } else { orb.classList.add('docked'); }
 
-    return jsonify(ok=True, alerted=sent, found=len(items), minutes=minutes)
+      // Реплики — ценность, а не пересказ: лайфхак, частая ошибка, инсайд, ответ на частый вопрос
+      var msgs = {
+        hero: 'Заметили — сайт живой? Это не магия, это код. Так мы и работаем 👋 Полистайте.',
+        pechat: 'Лайфхак: тиснение заметнее на матовой бумаге, чем на глянце. Мелочь, а «вау» сильнее.',
+        cifra: 'Между нами: живой сайт держит внимание в разы дольше статичного. Вы это сейчас и чувствуете 😉',
+        raboty: 'Частая ошибка — брать шаблон. Мы делаем под характер бренда, поэтому работы не похожи одна на другую.',
+        kak: 'Секрет спокойных проектов — чёткое ТЗ на старте. Мы соберём его за вас: вопросами, а не терминами.',
+        zayavka: 'Здесь обычно спрашивают про сроки. Печать — от 1–2 дней, сайт — от нескольких. Точнее посчитаем в заявке.'
+      };
+      var spoken = {}, autoCount = 0, AUTO_MAX = 3;
+      function speak(t) { if (t) bubble.textContent = t; orb.classList.add('speak'); clearTimeout(orb._t); orb._t = setTimeout(function () { orb.classList.remove('speak'); }, 6500); }
 
+      // Какой блок сейчас перед глазами
+      var ids = ['pechat', 'cifra', 'raboty', 'kak', 'zayavka'], current = null, dwell = null;
+      var io = new IntersectionObserver(function (es) {
+        es.forEach(function (en) {
+          if (en.isIntersecting && en.intersectionRatio >= 0.55) current = en.target.id;
+          if (en.target.id === 'zayavka') { if (en.isIntersecting) orb.classList.add('pulse'); else orb.classList.remove('pulse'); }
+        });
+        scheduleDwell();
+      }, { threshold: [0.55] });
+      ids.forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
 
-@app.route("/api/pending")
-def pending_leads():
-    """Для Генерала: заявки, где клиент не дошёл до бота.
+      // Говорит, только если клиент задержался на блоке ~6 сек и перестал скроллить
+      function scheduleDwell() {
+        clearTimeout(dwell);
+        dwell = setTimeout(function () {
+          if (current && !spoken[current] && msgs[current] && autoCount < AUTO_MAX) {
+            spoken[current] = true; autoCount++; speak(msgs[current]);
+          }
+        }, 6000);
+      }
+      addEventListener('scroll', function () { orb.classList.remove('speak'); scheduleDwell(); }, { passive: true });
 
-    Защищено токеном — иначе список контактов клиентов открыт всему интернету.
-    Задай WATCH_TOKEN в переменных Amvera и дёргай так:
-        /api/pending?token=...&minutes=15
-    """
-    token = os.getenv("WATCH_TOKEN", "").strip()
-    if not token or request.args.get("token", "") != token:
-        return jsonify(ok=False, error="forbidden"), 403
-    try:
-        minutes = int(request.args.get("minutes", "15"))
-    except ValueError:
-        minutes = 15
-    items = leads.pending(minutes)
-    return jsonify(ok=True, count=len(items), minutes=minutes, leads=items)
+      // Приветствие — один раз
+      setTimeout(function () { speak(msgs.hero); }, 1500);
 
+      // Микро-подсказки при наведении на ключевые кнопки — «сайт читает мысли»
+      var tips = [
+        ['a[href*="vk.me"]', 'Во ВКонтакте ответим быстрее всего — там заявку принимает бот.'],
+        ['#orderForm button[type="submit"]', 'Смелее — это ни к чему не обязывает. Посчитаем и покажем примеры.'],
+        ['a[href="#zayavka"]', 'Тут без «купи сейчас». Просто расскажете задачу — остальное на нас.']
+      ];
+      var hoverCount = 0;
+      tips.forEach(function (t) {
+        document.querySelectorAll(t[0]).forEach(function (el) {
+          var ht;
+          el.addEventListener('mouseenter', function () { ht = setTimeout(function () { if (hoverCount < 4) { hoverCount++; speak(t[1]); } }, 650); });
+          el.addEventListener('mouseleave', function () { clearTimeout(ht); });
+        });
+      });
 
-# ── Мостик к Джарвису ───────────────────────────────────────────────────
-# Джарвис — отдельное приложение Amvera со своим диском. Журнал заявок
-# лежит на диске сайта, и заглянуть в него бот не может: у каждого
-# приложения своё /data. Поэтому заявка ходит между ними по сети.
-#
-# Без этого ссылка «Продолжить в Telegram» несла номер заявки, который
-# боту было негде посмотреть, — и он спрашивал всё заново у человека,
-# только что заполнившего форму.
-#
-# Защищено тем же WATCH_TOKEN, что и /api/pending: в заявке лежат имя и
-# телефон клиента, отдавать их кому попало нельзя.
-# В переменных Джарвиса задай SITE_URL и SITE_TOKEN.
+      function go() { var f = document.getElementById('zayavka'); if (f) f.scrollIntoView({ behavior: 'smooth' }); }
+      orb.addEventListener('click', go);
+      orb.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    })();
+  </script>
 
-def _token_ok():
-    token = os.getenv("WATCH_TOKEN", "").strip()
-    return bool(token) and request.args.get("token", "") == token
+  <script>
+  (function(){
+    // ── Каналы связи ────────────────────────────────────────────────────
+    // Впиши ссылку — кнопка появится на сайте. Оставь пустым — её не будет.
+    // Так на сайт не попадёт битая ссылка, если канал ещё не заведён.
+    // Telegram убран 15.08.2026: канал, который не открывается у хозяйки,
+    // на сайте хуже отсутствующего — человек напишет и не дождётся ответа.
+    var CHANNELS = [
+      {n:"ВКонтакте",  i:"🅥",  url:"https://vk.me/club238836731"},
+      {n:"MAX",        i:"Ⓜ️", url:""},   // https://max.ru/idИНН_bot
+      {n:"WhatsApp",   i:"🟢", url:"https://wa.me/79992449999"},
+      {n:"Позвонить",  i:"📞", url:"tel:+79992449999"},
+      {n:"Почта",      i:"✉️", url:"mailto:gulnaravibecoder999@yandex.ru"}
+    ];
+    var box=document.getElementById("chanList");
+    if(!box)return;
+    CHANNELS.forEach(function(c){
+      if(!c.url)return;              // канал не заведён — кнопки нет
+      var a=document.createElement("a");
+      a.className="chan";a.href=c.url;a.rel="noopener";
+      if(c.url.indexOf("http")===0)a.target="_blank";
+      a.innerHTML='<i>'+c.i+'</i>'+c.n;
+      box.appendChild(a);
+    });
+  })();
+  </script>
 
+{% block page_scripts %}{% endblock %}
 
-@app.route("/api/lead/<int:lead_id>")
-def lead_read(lead_id):
-    """Отдать Джарвису заявку по номеру."""
-    if not _token_ok():
-        return jsonify(ok=False, error="forbidden"), 403
-    lead = leads.find(lead_id)
-    if not lead:
-        return jsonify(ok=False, error="not_found"), 404
-    return jsonify(ok=True, lead=lead)
+  <!-- ═══════════════════════════════════════════════════
+       Баннер согласия на cookie (152-ФЗ)
+       Показывается один раз, решение живёт в localStorage.
+       «Принять все» запускает Яндекс.Метрику, «Только
+       необходимые» — не запускает ничего.
+  ═══════════════════════════════════════════════════ -->
+  <style>
+    /* Выбор мессенджера в форме заявки: три кнопки-таблетки.
+       Сам radio скрыт, кликается подпись — так надёжнее на телефонах. */
+    .ch-pick{display:flex;gap:10px;flex-wrap:wrap}
+    .ch-pick label{flex:1 1 120px;cursor:pointer;margin:0}
+    .ch-pick input{position:absolute;opacity:0;width:0;height:0}
+    .ch-pick span{display:block;text-align:center;padding:13px 10px;border-radius:10px;
+      border:1px solid rgba(212,175,55,.35);background:rgba(255,255,255,.06);
+      color:rgba(255,255,255,.85);font-size:14px;transition:all .18s}
+    .ch-pick label:hover span{background:rgba(255,255,255,.12);border-color:rgba(212,175,55,.6)}
+    .ch-pick input:checked + span{
+      background:linear-gradient(135deg,#F9EFC0,#E8C96A 45%,#C9A24B 75%,#93702A);
+      color:#4A0E17;font-weight:600;border-color:#D4AF37}
+    .ch-pick input:focus-visible + span{outline:2px solid #D4AF37;outline-offset:2px}
 
+    #cookie-bar{position:fixed;left:0;right:0;bottom:0;z-index:9999;display:none;
+      background:#4A0E17;border-top:1px solid rgba(212,175,55,.45);
+      padding:18px 20px;box-shadow:0 -8px 30px rgba(0,0,0,.28)}
+    #cookie-bar.show{display:block}
+    .cb-wrap{max-width:1100px;margin:0 auto;display:flex;align-items:center;
+      gap:22px;flex-wrap:wrap}
+    .cb-text{flex:1 1 380px;color:#F9F3EB;font-size:13px;line-height:1.6;opacity:.92}
+    .cb-text a{color:#D4AF37;text-decoration:underline}
+    .cb-btns{display:flex;gap:10px;flex-wrap:wrap}
+    .cb-btn{border:none;cursor:pointer;font-family:inherit;font-size:13px;
+      font-weight:600;padding:12px 22px;border-radius:8px;white-space:nowrap;
+      transition:opacity .2s,transform .1s}
+    .cb-btn:active{transform:scale(.98)}
+    .cb-accept{background:linear-gradient(135deg,#F9EFC0,#E8C96A 45%,#C9A24B 75%,#93702A);
+      color:#4A0E17}
+    .cb-accept:hover{opacity:.9}
+    .cb-min{background:transparent;color:#F9F3EB;border:1px solid rgba(249,243,235,.4)}
+    .cb-min:hover{background:rgba(249,243,235,.1)}
+    @media(max-width:640px){
+      .cb-wrap{gap:14px}
+      .cb-btns{width:100%}
+      .cb-btn{flex:1}
+    }
+  </style>
 
-@app.route("/api/lead/<int:lead_id>/event", methods=["POST"])
-def lead_event(lead_id):
-    """Принять от Джарвиса отметку о ходе заявки.
+  <div id="cookie-bar" role="dialog" aria-live="polite"
+       aria-label="Согласие на использование файлов cookie">
+    <div class="cb-wrap">
+      <div class="cb-text">
+        Мы используем файлы cookie. Необходимые нужны, чтобы сайт работал.
+        Яндекс.Метрика считает посещения обезличенно. Запись экрана и карта
+        кликов включаются только с вашего согласия. Подробности — в
+        <a href="/privacy.html">Политике обработки персональных данных</a>.
+      </div>
+      <div class="cb-btns">
+        <button class="cb-btn cb-min" type="button" onclick="granatCookieChoice('necessary')">Только необходимые</button>
+        <button class="cb-btn cb-accept" type="button" data-goal="cookie_accept" onclick="granatCookieChoice('all')">Принять все</button>
+      </div>
+    </div>
+  </div>
 
-    entered_bot — клиент дошёл до бота, запоминаем его chat_id: со
-    следующего раза Джарвис напишет ему первым.
-    postponed   — нажал «Позже».
-    brief_ready — ТЗ собрано, сторож тишины может о заявке забыть.
-    """
-    if not _token_ok():
-        return jsonify(ok=False, error="forbidden"), 403
+  <script>
+  (function(){
+    var KEY = 'granat_cookie_consent';
+    var bar = document.getElementById('cookie-bar');
 
-    data = request.get_json(silent=True) or {}
-    event = (data.get("event") or "").strip()
+    function saved(){
+      try { return localStorage.getItem(KEY); } catch(e){ return 'all'; }
+    }
 
-    if event == "entered_bot":
-        leads.link_client(
-            lead_id,
-            data.get("chat_id"),
-            phone=(data.get("phone") or ""),
-            username=(data.get("username") or ""),
-        )
-    elif event == "postponed":
-        leads.log(lead_id, "postponed")
-    elif event == "brief_ready":
-        leads.log(lead_id, "brief_ready", brief=(data.get("brief") or "")[:2000])
-    else:
-        # Чужие события в журнал не пускаем: он читается сторожем и
-        # счётчиками, и мусор в нём стоит дороже отказа.
-        return jsonify(ok=False, error="unknown_event"), 400
+    // Решение ещё не принято — показываем баннер. Небольшая задержка, чтобы
+    // он не выпрыгивал одновременно с загрузкой первого экрана.
+    if (!saved()) {
+      setTimeout(function(){ bar.classList.add('show'); }, 1200);
+    }
 
-    return jsonify(ok=True)
+    // Счётчик к этому моменту уже работает в щадящем режиме, поэтому здесь
+    // не «включаем Метрику», а запоминаем выбор. Вебвизор и карта кликов
+    // подхватят его при следующей загрузке страницы: переинициализировать
+    // уже запущенный счётчик Метрика не даёт.
+    window.granatCookieChoice = function(choice){
+      try { localStorage.setItem(KEY, choice); } catch(e){}
+      bar.classList.remove('show');
+    };
+  })();
+  </script>
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=80, threaded=True)
+  <!-- Цели Яндекс.Метрики. Счётчик стоит выше, в <head>, — здесь только цели.
+       Прямой путь, а не url_for: static_folder приложения равен корню проекта,
+       и url_for('static', ...) дал бы /js/..., а файл лежит в /static/js/. -->
+  <script src="/static/js/metrika-goals.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,591 @@
+<title>Прайс-лист — Студия «Гранат», Лермонтов</title>
+<style>
+  /* Цвета и шрифты студии — те же, что на granat-kmv.ru: гранатовый #4A0E17,
+     золото #D4AF37, кремовый фон #F9F3EB, Playfair Display в заголовках и
+     Montserrat в тексте. Прайс и сайт должны выглядеть одним хозяйством.
+     Золото яркое и на светлом фоне читается плохо, поэтому в мелком тексте
+     работает приглушённое --gold-ink, а #D4AF37 остаётся линиям и акцентам. */
+  :root {
+    --brand:    #4A0E17;
+    --gold:     #D4AF37;
+    --gold-ink: #8A6A1E;
+    --ink:      #1C1C1C;
+    --muted:    #6B5B54;
+    --ground:   #F9F3EB;
+    --surface:  #FFFFFF;
+    --line:     rgba(74, 14, 23, .14);
+    --line-strong: rgba(74, 14, 23, .30);
+    --mark:     rgba(212, 175, 55, .16);
+    --display: "Playfair Display", Georgia, serif;
+    --body: "Montserrat", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    /* Золотые градиенты с сайта, один в один: простой — для линий,
+       богатый с переливом — для названия студии. */
+    --gold-line: linear-gradient(90deg, transparent, #D4AF37, transparent);
+    --gold-rich: linear-gradient(135deg, #f7e5b5 0%, #d4af37 40%,
+                                 #b8860b 70%, #f7e5b5 100%);
+    --gold-fade: linear-gradient(90deg, #D4AF37, rgba(212, 175, 55, 0));
+    --logo: #4A0E17;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --brand:    #EBD79B;
+      --gold:     #D4AF37;
+      --gold-ink: #C9A24B;
+      --ink:      #F9F3EB;
+      --muted:    #B9A79C;
+      --ground:   #2A1116;
+      --surface:  #38171E;
+      --line:     rgba(235, 215, 155, .16);
+      --line-strong: rgba(235, 215, 155, .34);
+      --mark:     rgba(212, 175, 55, .16);
+    --logo: #F3E4D8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --brand:    #EBD79B;
+    --gold:     #D4AF37;
+    --gold-ink: #C9A24B;
+    --ink:      #F9F3EB;
+    --muted:    #B9A79C;
+    --ground:   #2A1116;
+    --surface:  #38171E;
+    --line:     rgba(235, 215, 155, .16);
+    --line-strong: rgba(235, 215, 155, .34);
+    --mark:     rgba(212, 175, 55, .16);
+  --logo: #F3E4D8;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 20px 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 52px;
+  }
+
+  /* ── Шапка ─────────────────────────────────────────────────────── */
+  .head { display: flex; flex-direction: column; gap: 18px; }
+  .mark-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  /* Название — гранатовым, как заголовки разделов: это имя студии, оно
+     должно читаться первым.
+     Насыщенность задана явно. Без неё блок наследовал обычное начертание и
+     выглядел легче заголовков разделов, хотя стоит выше них по смыслу:
+     жирное браузер сам ставит только тегам h1–h6. */
+  .logo {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(32px, 6.4vw, 48px);
+    line-height: 1.1;
+    color: var(--logo);
+    letter-spacing: .01em;
+  }
+  /* Направление студии — золотом с переливом, тем же градиентом, что на
+     сайте. Кегль и насыщенность подняты до уровня заголовков разделов:
+     на мелком и тонком перелив смазывается в грязь и читается как дефект
+     печати — для типографии так себе первое впечатление.
+     Цвет задан обычным свойством до градиента: не поймёт браузер обрезку
+     фона по тексту — надпись останется золотой, а не исчезнет. */
+  .tag {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(16px, 2.4vw, 19px);
+    color: var(--gold-ink);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    background-image: var(--gold-rich);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 28px;
+    font-size: 15px;
+    color: var(--muted);
+    padding-top: 18px;
+    /* Золотая линия градиентом, а не сплошной: тот же приём, что делит
+       блоки на сайте. */
+    background-image: var(--gold-line);
+    background-repeat: no-repeat;
+    background-size: 100% 2px;
+    background-position: top left;
+  }
+  .contacts b { color: var(--ink); font-weight: 600; }
+  .contacts a { color: inherit; }
+
+  /* ── Разделы ───────────────────────────────────────────────────── */
+  section { display: flex; flex-direction: column; gap: 16px; }
+  h2 {
+    font-family: var(--display);
+    font-size: clamp(21px, 3.4vw, 27px);
+    line-height: 1.2;
+    margin: 0;
+    color: var(--brand);
+    text-wrap: balance;
+    /* Градиентная черта под каждым разделом — та же, что делит секции на
+       сайте. Она же задаёт ритм длинному прайсу: глазу есть за что зацепиться
+       между таблицами. */
+    padding-bottom: 12px;
+    background-image: var(--gold-fade);
+    background-repeat: no-repeat;
+    background-size: 220px 2px;
+    background-position: bottom left;
+  }
+  .lede { margin: 0; color: var(--muted); font-size: 15px; max-width: 62ch; }
+
+  /* Таблицы — главное вещество прайса, поэтому им максимум внимания. */
+  .scroll { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    font-variant-numeric: tabular-nums;
+    font-size: 15px;
+  }
+  caption {
+    text-align: left;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--gold-ink);
+    padding-bottom: 8px;
+  }
+  th, td {
+    padding: 11px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+  }
+  thead th {
+    font-size: 12px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line-strong);
+    white-space: nowrap;
+  }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td b { font-weight: 600; }
+  .best { background: var(--mark); }
+
+  /* Пояснения под таблицей — там, где иначе рождаются споры о деньгах. */
+  .note {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 70ch;
+  }
+  .note b { color: var(--ink); font-weight: 600; }
+
+  .callout {
+    border-left: 3px solid var(--gold);
+    padding: 12px 0 12px 16px;
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 70ch;
+  }
+  .callout b { color: var(--ink); }
+
+  /* ── Условия ───────────────────────────────────────────────────── */
+  .terms { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .terms li {
+    display: grid;
+    grid-template-columns: 172px 1fr;
+    gap: 4px 20px;
+    font-size: 15px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .terms dt, .terms b {
+    color: var(--brand);
+    font-weight: 600;
+  }
+  .terms span { color: var(--muted); }
+  @media (max-width: 560px) {
+    .terms li { grid-template-columns: 1fr; }
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .cta {
+    font-family: var(--display);
+    font-size: clamp(18px, 3vw, 22px);
+    color: var(--brand);
+    margin: 0;
+    text-wrap: balance;
+  }
+  .fine { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+  /* ── Печать ────────────────────────────────────────────────────── */
+  @media print {
+    /* На бумаге тёмная тема даёт залитые краской листы: принудительно
+       возвращаем светлую палитру независимо от настроек экрана. */
+    :root {
+      --brand: #4A0E17; --gold: #D4AF37; --gold-ink: #8A6A1E;
+      --ink: #1C1C1C; --muted: #55483F; --ground: #FFFFFF;
+      --surface: #FFFFFF; --logo: #4A0E17;
+      --line: rgba(0,0,0,.22); --line-strong: rgba(0,0,0,.45);
+      --mark: rgba(212,175,55,.22);
+    }
+    body { background: #fff; font-size: 11pt; }
+    .wrap { max-width: none; padding: 0; gap: 26px; }
+    /* Раздел не должен разрываться между страницами: таблица цен,
+       разрезанная посередине, читается как две разные. */
+    section, table { break-inside: avoid; page-break-inside: avoid; }
+    h2 { break-after: avoid; page-break-after: avoid; }
+    /* Заливка ячеек по умолчанию не печатается — просим браузер сохранить
+       её, иначе выгодные цены перестанут выделяться. */
+    .best { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    a { text-decoration: none; color: inherit; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="head">
+    <div class="mark-row">
+      <div class="logo">Студия «Гранат<span>»</span></div>
+      <div class="tag">Типография и полиграфия</div>
+    </div>
+    <div class="contacts">
+      <span><b>+7 (999) 244-99-99</b></span>
+      <span>г. Лермонтов, ул. Нагорная 2/1, этаж 2</span>
+      <span>Пн–Сб 09:00–20:00, Вс 10:00–19:00</span>
+      <span>Работаем по всему КМВ</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Фото на документы</h2>
+    <p class="lede">Самая быстрая услуга: если файл уже готов — печатаем при вас.</p>
+    <div class="scroll">
+      <table>
+        <caption>Цена за услугу</caption>
+        <thead>
+          <tr><th>Услуга</th><th class="num">Цена</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Печать готового сегмента, лист 10×15, матовая бумага</td><td class="num"><b>150 ₽</b></td></tr>
+          <tr><td>Повторная печать того же сегмента</td><td class="num">100 ₽</td></tr>
+          <tr><td>Компоновка из вашего фото и печать листа</td><td class="num">250 ₽</td></tr>
+          <tr><td>Съёмка в студии, базовая коррекция, 4–6 фото</td><td class="num">350 ₽</td></tr>
+          <tr><td>Электронный файл готового фото</td><td class="num">+100 ₽</td></tr>
+          <tr><td>Замена одежды, сложная ретушь</td><td class="num">от 150 ₽</td></tr>
+          <tr><td>Срочно, вне очереди</td><td class="num">+100 ₽</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="callout"><b>Что такое «готовый сегмент».</b> Файл уже собран в нужном размере и количестве — нам остаётся его напечатать. Проверка соответствия требованиям документа, ретушь и компоновка в эту цену не входят и считаются отдельно.</p>
+  </section>
+
+  <section>
+    <h2>Печать фотографий</h2>
+    <p class="lede">Фотобумага глянец или мат. Чем больше отпечатков — тем ниже цена штуки.</p>
+    <div class="scroll">
+      <table>
+        <caption>Цена за 1 фотографию</caption>
+        <thead>
+          <tr>
+            <th>Формат</th>
+            <th class="num">1–9 шт.</th>
+            <th class="num">10–49 шт.</th>
+            <th class="num">50–99 шт.</th>
+            <th class="num">от 100 шт.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>10 × 15</td><td class="num">40 ₽</td><td class="num">30 ₽</td><td class="num">25 ₽</td><td class="num best"><b>20 ₽</b></td></tr>
+          <tr><td>13 × 18</td><td class="num">55 ₽</td><td class="num">50 ₽</td><td class="num">45 ₽</td><td class="num best"><b>40 ₽</b></td></tr>
+          <tr><td>15 × 21</td><td class="num">80 ₽</td><td class="num">75 ₽</td><td class="num">65 ₽</td><td class="num best"><b>60 ₽</b></td></tr>
+          <tr><td>А5</td><td class="num">90 ₽</td><td class="num">85 ₽</td><td class="num">75 ₽</td><td class="num best"><b>70 ₽</b></td></tr>
+          <tr><td>А4</td><td class="num">180 ₽</td><td class="num">165 ₽</td><td class="num">150 ₽</td><td class="num best"><b>140 ₽</b></td></tr>
+          <tr><td>А3</td><td class="num">350 ₽</td><td class="num">—</td><td class="num">—</td><td class="num">по запросу</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Коррекция яркости и цвета — от 30 ₽ за фото. Базовая ретушь — от 100 ₽ за фото. Премиальная плотная фотобумага — плюс 15–25%.</p>
+  </section>
+
+  <section>
+    <h2>Ксерокопия и распечатка</h2>
+    <p class="lede">Цена за лист. Скидка считается автоматически по количеству листов в заказе.</p>
+    <div class="scroll">
+      <table>
+        <caption>Цена за 1 лист</caption>
+        <thead>
+          <tr>
+            <th>Услуга</th>
+            <th class="num">1–49 л.</th>
+            <th class="num">50–99 л.</th>
+            <th class="num">от 100 л.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>А4, ч/б, ксерокопия</td><td class="num">10 ₽</td><td class="num">9 ₽</td><td class="num best"><b>8 ₽</b></td></tr>
+          <tr><td>А4, ч/б, печать с файла</td><td class="num">12 ₽</td><td class="num">10 ₽</td><td class="num best"><b>9 ₽</b></td></tr>
+          <tr><td>А4, цветная печать</td><td class="num">35 ₽</td><td class="num">30 ₽</td><td class="num best"><b>27 ₽</b></td></tr>
+          <tr><td>А3, ч/б, ксерокопия</td><td class="num">20 ₽</td><td class="num">18 ₽</td><td class="num best"><b>16 ₽</b></td></tr>
+          <tr><td>А3, цветная печать</td><td class="num">70 ₽</td><td class="num">60 ₽</td><td class="num best"><b>55 ₽</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Двусторонняя печать считается как два листа. <b>Минимальный заказ на копирование и распечатку — 50 ₽:</b> подготовка файла и работа с техникой занимают время независимо от количества листов.</p>
+  </section>
+
+  <section>
+    <h2>Флаеры и листовки</h2>
+    <p class="lede">Мелованная бумага 130 г/м², полноцветная печать с двух сторон.</p>
+    <div class="scroll">
+      <table>
+        <caption>Цена за 1 штуку</caption>
+        <thead>
+          <tr>
+            <th>Формат</th>
+            <th class="num">50–100 шт.</th>
+            <th class="num">200–300 шт.</th>
+            <th class="num">500 шт.</th>
+            <th class="num">1000 шт.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>А6, 105×148 мм</td><td class="num">15 ₽</td><td class="num">12 ₽</td><td class="num">от 10 ₽</td><td class="num">от 8 ₽</td></tr>
+          <tr><td>Евро, 210×97 мм</td><td class="num">18 ₽</td><td class="num">14 ₽</td><td class="num">от 12 ₽</td><td class="num">от 9 ₽</td></tr>
+          <tr><td>А5, 148×210 мм</td><td class="num">24 ₽</td><td class="num">18 ₽</td><td class="num">от 14 ₽</td><td class="num">от 11 ₽</td></tr>
+          <tr><td>А4, 210×297 мм</td><td class="num">40 ₽</td><td class="num">30 ₽</td><td class="num">от 24 ₽</td><td class="num">от 20 ₽</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Цены указаны <b>при готовом макете</b> и включают бумагу, полноцветную двустороннюю печать и резку. Дизайн в стоимость не входит — см. раздел «Работа с макетом». Тиражи от 500 штук и нестандартные размеры считаем после проверки файла.</p>
+    <div class="scroll">
+      <table>
+        <caption>Наценка за плотность бумаги</caption>
+        <thead>
+          <tr><th>Бумага</th><th class="num">К базовой цене</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>115–130 г/м²</td><td class="num">без наценки</td></tr>
+          <tr><td>150 г/м²</td><td class="num">+10%</td></tr>
+          <tr><td>170 г/м²</td><td class="num">+15%</td></tr>
+          <tr><td>200 г/м²</td><td class="num">+25%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Бумага плотнее 250 г/м² считается по разделу «Открытки и приглашения».</p>
+  </section>
+
+  <section>
+    <h2>Евробуклет А4, два фальца</h2>
+    <p class="lede">Лист 210×297 мм складывается в три панели 99×210 мм — шесть рекламных полос вместо одной. Мелованная бумага 115–130 г/м², полноцвет с двух сторон.</p>
+    <div class="scroll">
+      <table>
+        <caption>Цена за 1 буклет</caption>
+        <thead>
+          <tr><th>Тираж</th><th class="num">Цена за штуку</th><th class="num">Стоимость тиража</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>10–20 шт.</td><td class="num">80 ₽</td><td class="num">от 800 ₽</td></tr>
+          <tr><td>21–50 шт.</td><td class="num">60 ₽</td><td class="num">3 000 ₽</td></tr>
+          <tr><td>51–100 шт.</td><td class="num">45 ₽</td><td class="num">4 500 ₽</td></tr>
+          <tr><td>101–200 шт.</td><td class="num">35 ₽</td><td class="num">7 000 ₽</td></tr>
+          <tr><td>201–500 шт.</td><td class="num best"><b>25 ₽</b></td><td class="num">12 500 ₽</td></tr>
+          <tr><td>от 1000 шт.</td><td class="num">—</td><td class="num">считаем отдельно</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">В цену включены бумага, двусторонняя печать, резка и фальцовка. Цена действует <b>при готовом макете</b>. Бумага плотнее — по той же шкале наценок, что у листовок; на 170 г/м² и выше линию сгиба обязательно бигуем, иначе тонер трескается. От 250 г/м² считаем как открытку.</p>
+  </section>
+
+  <section>
+    <h2>Открытки, поздравления, приглашения</h2>
+    <p class="lede">Картон 300–350 г/м², полноцветная печать с двух сторон.</p>
+    <p class="callout"><b>Две разные услуги, не перепутайте.</b> Таблицы ниже — цена печати <b>по готовому макету</b>: файл собран, остаётся напечатать и порезать. Если макета нет и приглашение делаем с нуля — согласование, внесение имён, пробный вариант, — это <b>индивидуальное приглашение от 200 ₽ за штуку</b>, минимальный заказ 10 штук. Точную сумму называем после выбора бумаги, тиража и сложности оформления.</p>
+    <div class="scroll">
+      <table>
+        <caption>Открытки — цена за 1 штуку</caption>
+        <thead>
+          <tr><th>Формат</th><th class="num">10–20 шт.</th><th class="num">50 шт.</th><th class="num">100 шт.</th><th class="num">200 шт.</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>А6</td><td class="num">60 ₽</td><td class="num">45 ₽</td><td class="num">35 ₽</td><td class="num best"><b>30 ₽</b></td></tr>
+          <tr><td>Евро</td><td class="num">70 ₽</td><td class="num">55 ₽</td><td class="num">42 ₽</td><td class="num best"><b>34 ₽</b></td></tr>
+          <tr><td>А5</td><td class="num">90 ₽</td><td class="num">70 ₽</td><td class="num">55 ₽</td><td class="num best"><b>45 ₽</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="scroll">
+      <table>
+        <caption>Приглашения — цена за 1 штуку</caption>
+        <thead>
+          <tr><th>Формат</th><th class="num">10–20 шт.</th><th class="num">50 шт.</th><th class="num">100 шт.</th><th class="num">200 шт.</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>А6</td><td class="num">65 ₽</td><td class="num">50 ₽</td><td class="num">38 ₽</td><td class="num best"><b>32 ₽</b></td></tr>
+          <tr><td>Евро</td><td class="num">75 ₽</td><td class="num">58 ₽</td><td class="num">45 ₽</td><td class="num best"><b>36 ₽</b></td></tr>
+          <tr><td>А5</td><td class="num">95 ₽</td><td class="num">75 ₽</td><td class="num">58 ₽</td><td class="num best"><b>48 ₽</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="callout"><b>Приглашение со сгибом</b> считается так: цена открытки нужного формата плюс биговка и сгиб от 7 ₽ за штуку. Минимальный заказ по разделу — 700 ₽.</p>
+    <div class="scroll">
+      <table>
+        <caption>Материал и отделка</caption>
+        <thead>
+          <tr><th>Позиция</th><th class="num">К базовой цене</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Картон 250 г/м²</td><td class="num">−10%</td></tr>
+          <tr><td>Картон 300 г/м²</td><td class="num">базовая цена</td></tr>
+          <tr><td>Картон 350 г/м²</td><td class="num">+10%</td></tr>
+          <tr><td>Фактурная дизайнерская бумага</td><td class="num">+20–40%</td></tr>
+          <tr><td>Скругление углов</td><td class="num">от 5 ₽/шт</td></tr>
+          <tr><td>Биговка, сгиб</td><td class="num">от 7 ₽/шт</td></tr>
+          <tr><td>Индивидуальная упаковка</td><td class="num">от 10 ₽/шт</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Печать на плоттере: чертежи и плакаты</h2>
+    <p class="lede">Canon TM-340, форматы до А0. Чертежи, схемы, проектная документация, плакаты и постеры. Нестандартный размер считаем по ближайшему большему формату.</p>
+    <div class="scroll">
+      <table>
+        <caption>Чертежи — цена за лист</caption>
+        <thead>
+          <tr>
+            <th>Формат</th>
+            <th class="num">Чёрно-белый</th>
+            <th class="num">Цвет до 20%</th>
+            <th class="num">Цвет до 50%</th>
+            <th class="num">Цвет 50%+</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>А2</td><td class="num">60 ₽</td><td class="num">100 ₽</td><td class="num">140 ₽</td><td class="num">220 ₽</td></tr>
+          <tr><td>А1</td><td class="num">110 ₽</td><td class="num">170 ₽</td><td class="num">230 ₽</td><td class="num">320 ₽</td></tr>
+          <tr><td>А0</td><td class="num">190 ₽</td><td class="num">260 ₽</td><td class="num">340 ₽</td><td class="num">450 ₽</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Цена растёт с заливкой листа: чем больше краски, тем дороже. Фальцовка чертежа в А4 — 20 ₽ для А2, 25 ₽ для А1, 35 ₽ для А0.</p>
+    <div class="scroll">
+      <table>
+        <caption>Плакаты и постеры — цена за лист</caption>
+        <thead>
+          <tr><th>Формат</th><th class="num">Бумага 90–120 г/м²</th><th class="num">Фотобумага, плотная</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>А2</td><td class="num">180 ₽</td><td class="num">280 ₽</td></tr>
+          <tr><td>А1</td><td class="num">300 ₽</td><td class="num">450 ₽</td></tr>
+          <tr><td>А0</td><td class="num">500 ₽</td><td class="num">750 ₽</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="callout"><b>Плакат — не чертёж.</b> Плотная заливка, фотографии, афиши и постеры считаются по этой таблице, а не по чертёжной: там другие требования к цвету и другой носитель.</p>
+  </section>
+
+  <section>
+    <h2>Ламинация</h2>
+    <p class="lede">Цена за лист. Матовая и глянцевая плёнка стоят одинаково — разница только в толщине.</p>
+    <div class="scroll">
+      <table>
+        <caption>Цена за 1 лист</caption>
+        <thead>
+          <tr>
+            <th>Формат</th>
+            <th>Плёнка</th>
+            <th class="num">1–10 шт.</th>
+            <th class="num">11–50 шт.</th>
+            <th class="num">от 51 шт.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>А6 и меньше</td><td>80–100 мкм</td><td class="num">40 ₽</td><td class="num">35 ₽</td><td class="num best"><b>30 ₽</b></td></tr>
+          <tr><td>А5</td><td>80–100 мкм</td><td class="num">50 ₽</td><td class="num">45 ₽</td><td class="num best"><b>40 ₽</b></td></tr>
+          <tr><td>А4</td><td>80–100 мкм</td><td class="num">70 ₽</td><td class="num">60 ₽</td><td class="num best"><b>50 ₽</b></td></tr>
+          <tr><td>А3</td><td>80–100 мкм</td><td class="num">100 ₽</td><td class="num">85 ₽</td><td class="num best"><b>75 ₽</b></td></tr>
+          <tr><td>А4</td><td>125–150 мкм</td><td class="num">90 ₽</td><td class="num">80 ₽</td><td class="num best"><b>70 ₽</b></td></tr>
+          <tr><td>А3</td><td>125–150 мкм</td><td class="num">130 ₽</td><td class="num">115 ₽</td><td class="num best"><b>100 ₽</b></td></tr>
+          <tr><td>А4</td><td>250 мкм</td><td class="num">120 ₽</td><td class="num">100 ₽</td><td class="num best"><b>85 ₽</b></td></tr>
+          <tr><td>А3</td><td>250 мкм</td><td class="num">180 ₽</td><td class="num">150 ₽</td><td class="num best"><b>130 ₽</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Плёнка 250 мкм — для жёстких изделий: меню, таблички, ценники. Нестандартный размер считаем по ближайшему большему формату. <b>Минимальная стоимость заказа на ламинацию — 50 ₽.</b></p>
+  </section>
+
+  <section>
+    <h2>Работа с макетом</h2>
+    <p class="lede">Разные задачи — разная работа. Что именно нужно вашему файлу, скажем после проверки.</p>
+    <div class="scroll">
+      <table>
+        <caption>Цена за работу</caption>
+        <thead>
+          <tr><th>Услуга</th><th>Что делаем</th><th class="num">Цена</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Проверка макета</td>
+            <td>Смотрим размер, поля, разрешение, цветовую модель — годится ли в печать</td>
+            <td class="num">150 ₽</td>
+          </tr>
+          <tr>
+            <td>Адаптация</td>
+            <td>Правим под наш формат: вылеты, поля, шрифты, замена текста</td>
+            <td class="num">300–500 ₽</td>
+          </tr>
+          <tr>
+            <td>Подготовка сложного файла</td>
+            <td>Пересборка многостраничного или многослойного макета</td>
+            <td class="num">от 600 ₽</td>
+          </tr>
+          <tr>
+            <td>Дизайн с нуля</td>
+            <td>Рисуем макет по вашей задаче</td>
+            <td class="num">от 1 000 ₽</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="callout"><b>Файл присылайте почтой.</b> Мессенджеры сжимают картинки, и в печати это видно — пятна и рваные края. В чат можно прислать для просмотра, а оригинал ждём на <b>gulnaravibecoder999@yandex.ru</b>, в теме письма — ваше имя.</p>
+  </section>
+
+  <section>
+    <h2>Как мы считаем</h2>
+    <ul class="terms">
+      <li><b>Срок</b><span>Стандартный — 3–5 рабочих дней с момента, когда макет утверждён.</span></li>
+      <li><b>Срочно</b><span>«День в день» при технической возможности — плюс 30% к стоимости заказа.</span></li>
+      <li><b>Предоплата</b><span>50%. Заказ уходит в работу после её поступления.</span></li>
+      <li><b>Минимальный заказ</b><span>Копирование и распечатка — от 50 ₽. Полиграфия — от 300 ₽. Приглашения и открытки — от 700 ₽.</span></li>
+      <li><b>Отдельные строки</b><span>Плотная бумага, отделка, резка и подготовка макета считаются отдельно — так видно, за что платите.</span></li>
+      <li><b>Большие тиражи</b><span>От 1000 штук и корпоративные заказы считаем индивидуально: часто выходит выгоднее прайса.</span></li>
+      <li><b>Документы</b><span>Работаем с юрлицами и ИП, предоставляем закрывающие документы.</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p class="cta">Пришлите макет — рассчитаем точную стоимость в день обращения.</p>
+    <p class="note">Точная стоимость подтверждается после проверки макета и тиража: на цену влияют бумага, отделка и срок.</p>
+    <p class="fine">Прайс действует с августа 2026 года. Цены указаны с учётом бумаги и печати. Не является публичной офертой.</p>
+  </footer>
+
+</div>

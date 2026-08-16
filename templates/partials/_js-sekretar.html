@@ -299,7 +299,14 @@
         var b = document.createElement('button');
         b.type = 'button';
         b.innerHTML = '<span>' + v.t + '</span>' + (v.i ? '<i>' + v.i + '</i>' : '');
-        b.addEventListener('click', function () { obrabotchik(v); });
+        b.addEventListener('click', function () {
+          // Кнопки гаснут сразу после нажатия. Без этого клиент может
+          // нажать «Да, оформляем» несколько раз, и в заявку уедет
+          // «Цену подтвердил» столько же раз — так и вышло 16.08.2026
+          // на первой же проверке живого сайта.
+          knopki.innerHTML = '';
+          obrabotchik(v);
+        });
         knopki.appendChild(b);
       });
     }

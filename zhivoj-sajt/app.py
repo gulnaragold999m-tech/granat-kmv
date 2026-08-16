@@ -1,12 +1,13 @@
 import os
 import json
+import re
 import smtplib
 import socket
 import ssl
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timedelta
 from email.message import EmailMessage
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -358,6 +359,79 @@ def deliver(subject, text):
 def redirect_old_domain():
     if request.host.lower() == OLD_HOST:
         return redirect(NEW_DOMAIN + request.full_path.rstrip("?"), code=301)
+
+
+# ── Отзывы с Яндекс Карт ────────────────────────────────────────────────
+# ЗАЧЕМ. Отзывы клиенты уже написали, но видит их только тот, кто дошёл до
+# Яндекс Карт. На сайте они работают как доказательство: человек читает их
+# там же, где решает, заказывать или нет.
+#
+# Показываем официальным виджетом Яндекса, а не своим списком. Свой список
+# — это слова студии о самой себе: написать в нём можно что угодно, и цена
+# такому ноль. Виджет рисует Яндекс из своей базы: и оценка, и число
+# отзывов там те же, что в справочнике, подделать их нельзя.
+#
+# ЧТО СЮДА КЛАСТЬ. В кабинете Яндекс Бизнеса: Отзывы → Виджет отзывов →
+# «Скопировать код». Годится и весь код целиком, и один номер карточки
+# из него — разберём оба варианта.
+#
+# ГДЕ ЗАДАТЬ. Проще всего переменной приложения в Amvera: granat-site →
+# Переменные окружения → YANDEX_REVIEWS. Тогда файл заново загружать
+# не нужно, хватит перезапуска. Можно и прямо в строке ниже.
+YANDEX_REVIEWS_CODE = ""
+YANDEX_REVIEWS = os.getenv("YANDEX_REVIEWS", "").strip() or YANDEX_REVIEWS_CODE.strip()
+
+
+def yandex_reviews():
+    """Адреса виджета и ссылок на карточку. None — если номер не задан.
+
+    Пока номера нет, блок отзывов на страницах не рисуется вовсе: пустая
+    рамка посреди страницы — это дырка в вёрстке и лишний запрос к чужому
+    домену.
+
+    Чужой код в страницу как есть не вставляем: вместе с ним приезжают
+    чужие размеры, от которых вёрстка разъезжается на телефоне. Берём
+    из него только номер карточки, остальное собираем сами.
+    """
+    raw = YANDEX_REVIEWS
+    if not raw:
+        return None
+
+    found_src = re.search(r"""src\s*=\s*["']([^"']+)["']""", raw)
+    src = (found_src.group(1) if found_src else raw).strip()
+
+    if src.isdigit():
+        org = src
+    else:
+        if src.startswith("//"):
+            src = "https:" + src
+        try:
+            parts = urlparse(src)
+        except ValueError:
+            return None
+        host = (parts.hostname or "").lower()
+        # Только https и только Яндекс: в рамке посреди страницы не должно
+        # оказаться неизвестно что, если код скопировали не оттуда.
+        if parts.scheme != "https":
+            return None
+        if host != "yandex.ru" and not host.endswith(".yandex.ru"):
+            return None
+        found_id = re.search(r"\bid=(\d+)", parts.query) or re.search(r"/(\d+)", parts.path)
+        if not found_id:
+            return None
+        org = found_id.group(1)
+
+    return {
+        "frame": f"https://yandex.ru/maps-reviews-widget/?id={org}",
+        "page": f"https://yandex.ru/maps/org/{org}/reviews/",
+        "add": f"https://yandex.ru/maps/org/{org}/reviews/?add-review=true",
+    }
+
+
+@app.context_processor
+def inject_reviews():
+    """Отзывы нужны и на главной, и в контактах — разбираем номер один раз."""
+    return {"reviews": yandex_reviews()}
 
 
 # ── Страницы сайта ──────────────────────────────────────────────────────

@@ -109,9 +109,14 @@
           { id: 'format', vopros: 'Какой формат?', varianty: [
             { t: 'А6', i: '105×148 мм', v: 'А6' },
             { t: 'Евро', i: '210×97 мм', v: 'Евро' },
-            { t: 'А5', i: '148×210 мм', v: 'А5' }
+            { t: 'А5', i: '148×210 мм', v: 'А5' },
+            { t: 'А4', i: '210×297 мм', v: 'А4' }
           ] },
+          // Штучные заказы бывают, и часто срочные: «бывает срочно
+          // и только одна открытка нужна». Раньше тираж начинался
+          // с десяти, и такому клиенту секретарь ответить не мог.
           { id: 'kolvo', vopros: 'Какой тираж?', varianty: [
+            { t: '1 штука', v: 1 }, { t: '2–9', v: 5 },
             { t: '10–20', v: 15 }, { t: '50', v: 50 },
             { t: '100', v: 100 }, { t: '200 и больше', v: 200 }
           ] },
@@ -119,11 +124,25 @@
         ],
         schet: function (o) {
           var tabl = o.vid === 'priglasheniya' ? C.priglasheniya : C.otkrytki;
-          var zaShtuku = poTirazhu(tabl, o.format, o.kolvo);
-          var summa = zaShtuku * o.kolvo, zametki = [];
-          if (summa < C.minimalki.otkrytki) {
-            summa = C.minimalki.otkrytki;
-            zametki.push('Минимальный заказ по этому разделу — ' + rub(C.minimalki.otkrytki) + '.');
+          var zametki = [], zaShtuku;
+
+          // А4 штучно считается как сертификат: у листа картона нет
+          // «половинки», поэтому цена своя и минимальный заказ выше.
+          if (o.format === 'А4' && o.kolvo < 10) {
+            zaShtuku = C.shtuchnayaA4;
+          } else {
+            zaShtuku = poTirazhu(tabl, o.format, o.kolvo);
+          }
+
+          var summa = zaShtuku * o.kolvo;
+          var minimum = (o.format === 'А4')
+            ? C.minimalki.otkrytkaA4
+            : C.minimalki.otkrytki;
+          if (summa < minimum) {
+            summa = minimum;
+            zametki.push('Минимальный заказ по этому разделу — ' + rub(minimum) +
+                         '. Печать одной штуки занимает столько же времени, ' +
+                         'сколько печать десяти: приёмка файла, приладка, резка.');
           }
           return {
             summa: summa,

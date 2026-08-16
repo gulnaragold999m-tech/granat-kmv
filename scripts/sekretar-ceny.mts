@@ -31,11 +31,28 @@ import {
   FOTO_NA_DOKUMENTY,
   NET_V_PRAJSE,
   AKCII,
+  OPLATA,
   type TirazhTablica,
   type Yacheyka,
 } from '../data/prices.ts';
 
 import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+
+/** QR-код ссылки в виде SVG. Рисуется здесь, при сборке, а не в браузере:
+    так на странице нет ни внешних библиотек, ни запросов на чужие сервисы,
+    и картинка не может «отвалиться» вместе с чужим сайтом. */
+function qrSvg(ssylka: string): string {
+  const code = `
+import segno, io, sys
+qr = segno.make(sys.argv[1], error='m')
+buf = io.BytesIO()
+qr.save(buf, kind='svg', scale=4, border=2,
+        dark='#4A0E17', light='#ffffff', xmldecl=False, svgns=True)
+sys.stdout.write(buf.getvalue().decode('utf-8'))
+`;
+  return execFileSync('python3', ['-c', code, ssylka], { encoding: 'utf8' });
+}
 
 /** Число из ячейки. Строка «по запросу» и прочерк — это не цена. */
 function chislo(y: Yacheyka): number | null {
@@ -101,6 +118,15 @@ const CENY = {
   /* Действующие акции. Заводятся в data/prices.ts и попадают сюда сами:
      объявили скидку в рекламе — секретарь о ней знает. */
   akcii: AKCII.filter((a) => a.aktivna),
+
+  /* Предоплата: процент, номер для перевода и — когда появится —
+     ссылка на оплату вместе с нарисованным по ней QR-кодом. */
+  oplata: {
+    procent: OPLATA.predoplataProcent,
+    nomer: OPLATA.nomer,
+    ssylka: OPLATA.ssylka,
+    qr: OPLATA.ssylka ? qrSvg(OPLATA.ssylka) : '',
+  },
 };
 
 const html = `<!-- Цены секретаря. СГЕНЕРИРОВАНО, руками не править.

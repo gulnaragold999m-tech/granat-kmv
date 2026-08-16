@@ -635,15 +635,56 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) {
-            msgEl.style.color = '#4A0E17';
-            msgEl.textContent = 'Заявка принята. Позвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00.';
-            forma.querySelector('input[type="tel"]').disabled = true;
+            zakonchitZayavku(j.lead);
           } else {
             zapasnojPut(tel);
           }
         })
         .catch(function () { zapasnojPut(tel); });
     });
+
+    /* Конец разговора. Требование владелицы: «на сайте мы должны
+       закончить заявку» — человек не должен уходить со страницы,
+       не понимая, что дальше. Поэтому здесь номер заявки, что будет
+       происходить, и как внести предоплату. */
+    function zakonchitZayavku(nomerZayavki) {
+      forma.hidden = true;
+      knopki.innerHTML = '';
+      msgEl.textContent = '';
+
+      var o = C.oplata || {};
+      var itogo = itog && itog.summa ? itog.summa : null;
+      var predoplata = itogo ? Math.round(itogo * (o.procent || 50) / 100) : null;
+
+      var text = '<b>Заявка' + (nomerZayavki ? ' №' + nomerZayavki : '') + ' принята.</b><br>' +
+                 'Перезвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00. ' +
+                 'Подтвердим срок и проверим макет до печати.';
+      skazat('bot', text);
+
+      if (predoplata) {
+        var oplataText = 'Предоплата ' + (o.procent || 50) + '% — ' +
+          '<span class="sek-cifra">' + rub(predoplata) + '</span>' +
+          'Печать запускаем после поступления.<br>' +
+          'Перевод по номеру <b>' + (o.nomer || '') + '</b>' +
+          ' или наличными в студии: г. Лермонтов, ул. Нагорная 2/1, этаж 2.';
+
+        // QR и кнопка появляются, только если в прайсе задана ссылка
+        // на оплату. Нет ссылки — остаётся перевод по номеру, и это
+        // тоже рабочий путь: эквайринг мы сознательно не подключали.
+        if (o.ssylka) {
+          oplataText += '<br><a class="btn-gold sek-oplatit" href="' + o.ssylka +
+            '" target="_blank" rel="noopener">Оплатить ' + rub(predoplata) + '</a>';
+          if (o.qr) {
+            oplataText += '<div class="sek-qr">' + o.qr +
+              '<span>наведите камеру телефона</span></div>';
+          }
+        }
+        skazat('bot', oplataText);
+      }
+
+      podpisEl.textContent = 'заявка отправлена';
+      zanovoB.textContent = 'Посчитать ещё один заказ';
+    }
 
     /* Заявка не ушла — клиента не теряем: даём написать самому,
        текст уже собран. Тот же приём, что у формы заявки на сайте. */

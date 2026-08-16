@@ -334,6 +334,13 @@
           obnovitChek();
           skazat('ya', v.t);
           skazat('bot', scen.privet);
+          // Про акцию говорим сразу, а не в конце: человек должен узнать
+          // о скидке до того, как услышит цену, — иначе она не работает.
+          var akciya = dejstvuyushchayaAkciya();
+          if (akciya) {
+            skazat('bot', '🎁 Сейчас действует акция «' + akciya.nazvanie + '»: ' +
+                          akciya.uslovie + '. ' + akciya.do_ + ' — посчитаю уже со скидкой.');
+          }
           zanovoB.hidden = false;
           shagIndex = 0;
           sleduyushchijShag();
@@ -379,7 +386,28 @@
         r.summa = r.summa * C.koefficienty.srochno;
         r.zametki.push('Срочно, день в день — плюс 30% ко всему заказу.');
       }
+      // Акция применяется последней, к итогу: клиент видит ту же скидку,
+      // что была обещана в объявлении. Акции заводятся в data/prices.ts —
+      // объявили в рекламе, значит секретарь о ней знает.
+      var akciya = dejstvuyushchayaAkciya();
+      if (r.summa != null && akciya && akciya.procent > 0) {
+        r.summa = r.summa * (1 - akciya.procent / 100);
+        r.zametki.push('Акция «' + akciya.nazvanie + '»: ' + akciya.uslovie +
+                       ' — учтено в цене. Действует ' + akciya.do_ + '.');
+      }
       return r;
+    }
+
+    /** Акция для текущей услуги, если она сейчас идёт. */
+    function dejstvuyushchayaAkciya() {
+      var spisok = C.akcii || [];
+      var kod = null;
+      for (var k in SCENARII) { if (SCENARII[k] === scen) kod = k; }
+      for (var i = 0; i < spisok.length; i++) {
+        var a = spisok[i];
+        if (!a.gde || !a.gde.length || a.gde.indexOf(kod) !== -1) return a;
+      }
+      return null;
     }
 
     function finish() {
@@ -477,16 +505,33 @@
         }
 
         // Дорого — собираем то, чем реально можно удешевить ЭТОТ заказ.
+        // К каждому варианту сразу считаем итог и показываем его в подписи:
+        // человек должен видеть выгоду ДО нажатия, а не после. Скидок мы
+        // не выдумываем — дешевле выходит по тиражным ценам прайса.
         var varianty = [];
         if (vybor.srok === 'srochno') {
-          varianty.push({ t: 'Убрать срочность', i: 'минус 30%, срок 3–5 дней', v: 'ne_srochno' });
+          varianty.push({
+            t: 'Убрать срочность',
+            i: 'станет ' + rub(probnyj({ srok: 'obychno' }).summa) + ', срок 3–5 дней',
+            v: 'ne_srochno'
+          });
         }
         if (vybor.material === 'karton') {
-          varianty.push({ t: 'Фотобумага вместо картона', i: '230 г/м², плотная', v: 'foto' });
+          varianty.push({
+            t: 'Фотобумага вместо картона',
+            i: 'станет ' + rub(probnyj({ material: 'foto' }).summa) + ', 230 г/м²',
+            v: 'foto'
+          });
         }
         var bolshe = sleduyushchijTirazh();
         if (bolshe) {
-          varianty.push({ t: 'Посчитать ' + bolshe + ' шт.', i: 'за штуку выйдет дешевле', v: 'tirazh' });
+          var probaT = probnyj({ kolvo: bolshe });
+          varianty.push({
+            t: 'Посчитать ' + bolshe + ' шт.',
+            i: rub(probaT.summa / bolshe) + ' за штуку вместо ' +
+               rub(itog.summa / vybor.kolvo) + ' — по тиражной цене прайса',
+            v: 'tirazh'
+          });
         }
 
         if (!varianty.length) {
@@ -517,6 +562,20 @@
           pereschitat('Посчитал на ' + bolshe + ' штук.');
         });
       });
+    }
+
+    /** Пробный счёт «а что если»: считаем с изменёнными ответами, но
+        сами ответы не трогаем. Нужен, чтобы показать цену варианта
+        в подписи кнопки до того, как клиент её нажал. */
+    function probnyj(izmeneniya) {
+      var bylo = vybor;
+      var kopiya = {};
+      for (var k in bylo) { if (bylo.hasOwnProperty(k)) kopiya[k] = bylo[k]; }
+      for (var i in izmeneniya) { if (izmeneniya.hasOwnProperty(i)) kopiya[i] = izmeneniya[i]; }
+      vybor = kopiya;
+      var r = poschitat();
+      vybor = bylo;
+      return r;
     }
 
     /** Следующая ступень тиража из того же шага сценария — чтобы

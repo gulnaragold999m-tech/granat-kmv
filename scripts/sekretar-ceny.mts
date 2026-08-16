@@ -30,6 +30,7 @@ import {
   LAMINACIYA,
   FOTO_NA_DOKUMENTY,
   NET_V_PRAJSE,
+  AKCII,
   type TirazhTablica,
   type Yacheyka,
 } from '../data/prices.ts';
@@ -96,6 +97,10 @@ const CENY = {
   },
 
   netVPrajse: NET_V_PRAJSE,
+
+  /* Действующие акции. Заводятся в data/prices.ts и попадают сюда сами:
+     объявили скидку в рекламе — секретарь о ней знает. */
+  akcii: AKCII.filter((a) => a.aktivna),
 };
 
 const html = `<!-- Цены секретаря. СГЕНЕРИРОВАНО, руками не править.

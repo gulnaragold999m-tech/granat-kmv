@@ -1,0 +1,18 @@
+{
+  "_komment": "Данные визитки. Меняются здесь, макет пересобирается командой python3 scripts/vizitka.py scripts/vizitki/ambaryan.json",
+  "organizaciya": "Автошкола «Старт»",
+  "nadpis_sverhu": "Автошкола «Старт» · категории A B C D",
+  "imya": ["Амбарян", "Беглар", "Севанович"],
+  "dolzhnost": "VIP-инструктор",
+  "slogan": "Контраварийная подготовка и премиальное обучение",
+  "kontakty": [
+    "8 (962) 000 47-66",
+    "8 (999) 000 40-08",
+    "beglar.ambaryan@bk.ru"
+  ],
+  "sajt": "Мы не готовим к экзаменам — мы готовим к реальным дорогам",
+  "fon": "#2A1013",
+  "cvet_glavny": "#FFFFFF",
+  "cvet_akcent": "#D4AF37",
+  "cvet_dopolnitelny": "#C9A9A9"
+}

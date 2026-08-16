@@ -334,6 +334,13 @@
           obnovitChek();
           skazat('ya', v.t);
           skazat('bot', scen.privet);
+          // Про акцию говорим сразу, а не в конце: человек должен узнать
+          // о скидке до того, как услышит цену, — иначе она не работает.
+          var akciya = dejstvuyushchayaAkciya();
+          if (akciya) {
+            skazat('bot', '🎁 Сейчас действует акция «' + akciya.nazvanie + '»: ' +
+                          akciya.uslovie + '. ' + akciya.do_ + ' — посчитаю уже со скидкой.');
+          }
           zanovoB.hidden = false;
           shagIndex = 0;
           sleduyushchijShag();
@@ -369,16 +376,45 @@
       pokazatKnopki(shag.varianty, otvet);
     }
 
+    /** Счёт по текущим ответам. Вынесен отдельно, потому что считать
+        приходится не один раз: секретарь пересчитывает заказ прямо
+        в разговоре, когда клиенту дорого или нужно быстрее. */
+    function poschitat() {
+      var r = scen.schet(vybor);
+      // Срочность множит весь заказ — одна ставка на весь прайс, как у бота.
+      if (r.summa != null && vybor.srok === 'srochno') {
+        r.summa = r.summa * C.koefficienty.srochno;
+        r.zametki.push('Срочно, день в день — плюс 30% ко всему заказу.');
+      }
+      // Акция применяется последней, к итогу: клиент видит ту же скидку,
+      // что была обещана в объявлении. Акции заводятся в data/prices.ts —
+      // объявили в рекламе, значит секретарь о ней знает.
+      var akciya = dejstvuyushchayaAkciya();
+      if (r.summa != null && akciya && akciya.procent > 0) {
+        r.summa = r.summa * (1 - akciya.procent / 100);
+        r.zametki.push('Акция «' + akciya.nazvanie + '»: ' + akciya.uslovie +
+                       ' — учтено в цене. Действует ' + akciya.do_ + '.');
+      }
+      return r;
+    }
+
+    /** Акция для текущей услуги, если она сейчас идёт. */
+    function dejstvuyushchayaAkciya() {
+      var spisok = C.akcii || [];
+      var kod = null;
+      for (var k in SCENARII) { if (SCENARII[k] === scen) kod = k; }
+      for (var i = 0; i < spisok.length; i++) {
+        var a = spisok[i];
+        if (!a.gde || !a.gde.length || a.gde.indexOf(kod) !== -1) return a;
+      }
+      return null;
+    }
+
     function finish() {
       knopki.innerHTML = '';
-      itog = scen.schet(vybor);
+      itog = poschitat();
 
       if (itog.summa != null) {
-        // Срочность множит весь заказ — одна ставка на весь прайс, как у бота.
-        if (vybor.srok === 'srochno') {
-          itog.summa = itog.summa * C.koefficienty.srochno;
-          itog.zametki.push('Срочно, день в день — плюс 30% ко всему заказу.');
-        }
         var text = '<span class="sek-cifra">' + rub(itog.summa) + '</span>';
         itog.stroki.forEach(function (s) { text += s + '<br>'; });
         skazat('bot', text);
@@ -391,9 +427,177 @@
       }
 
       if (itog.zametki.length) skazat('bot', itog.zametki.join('<br>'));
-      skazat('bot', 'Оставьте телефон — передам заявку в студию, и мы подтвердим срок. Предоплата 50%, макет проверяем до печати.');
-      forma.hidden = false;
-      document.getElementById('sekTel').focus();
+      soglasieSCenoj();
+    }
+
+    /* Подтверждение цены — отдельный шаг, и он обязателен.
+       Требование владелицы, 16.08.2026: «вышла цена, например 290 рублей.
+       Если устраивает цена — тогда формировать заявку. Мне просто так
+       не надо: я распечатала, а мне говорят — я передумала».
+       Телефон просим только после «да»: заявка без согласия с ценой —
+       это не заказ, а работа на удачу. */
+    function soglasieSCenoj() {
+      if (itog.summa == null) {          // «другая задача» — считаем вручную
+        skazat('bot', 'Оставьте телефон — перезвоним и посчитаем вместе.');
+        forma.hidden = false;
+        document.getElementById('sekTel').focus();
+        return;
+      }
+
+      skazat('bot', '<b>Оформляем по этой цене?</b><br>Печать запускаем после предоплаты 50%.');
+
+      // Ровно два ответа. Требование владелицы: «зачем пустая переписка,
+      // она для себя всё узнала — или да, или нет». Уговоров нет: человек,
+      // которому дорого, и так это понял, а лишние вопросы отнимают время
+      // у обоих.
+      pokazatKnopki([
+        { t: 'Да, оформляем', v: 'da' },
+        { t: 'Нет', v: 'net' }
+      ], function (v) {
+        skazat('ya', v.t);
+
+        if (v.v === 'net') { return pochemuNet(); }
+
+        // Согласие с ценой уезжает в заявку: по нему видно, что человек
+        // цену видел и принял, — и разговора «я передумала» после печати
+        // уже не будет.
+        put.push('Цену подтвердил: ' + rub(itog.summa));
+        obnovitChek();
+        podpisEl.textContent = 'цена подтверждена';
+        skazat('bot', 'Принято. Оставьте телефон — передам заявку в студию, и мы подтвердим срок. Макет проверяем до печати.');
+        forma.hidden = false;
+        document.getElementById('sekTel').focus();
+      });
+    }
+
+    /* Отказ — не конец разговора. Требование владелицы, 16.08.2026:
+       «не надо меня звать, сам секретарь доведёт диалог, спросит».
+       Поэтому он не передаёт человека менеджеру, а пересчитывает заказ
+       прямо здесь: убирает срочность, меняет бумагу, считает больший
+       тираж — и снова называет цену. Звонок остаётся крайним вариантом,
+       когда удешевлять больше нечем. */
+    function pochemuNet() {
+      skazat('bot', 'Понял. Что именно не подошло?');
+      pokazatKnopki([
+        { t: 'Дорого', v: 'dorogo' },
+        { t: 'Нужно быстрее', v: 'srok' },
+        { t: 'Просто смотрю', v: 'smotryu' }
+      ], function (p) {
+        skazat('ya', p.t);
+
+        if (p.v === 'smotryu') {
+          skazat('bot', 'Хорошо, никаких обязательств. Цена по прайсу и не изменится — будет нужно, возвращайтесь.<br>+7 (999) 244-99-99, Пн–Сб 09:00–20:00, Вс 10:00–19:00.');
+          knopki.innerHTML = '';
+          podpisEl.textContent = 'заказ не оформлен';
+          return;
+        }
+
+        if (p.v === 'srok') {
+          if (vybor.srok !== 'srochno' && scen.shagi.some(function (s) { return s.id === 'srok'; })) {
+            vybor.srok = 'srochno';
+            put.push('Изменили: срочно, день в день');
+            pereschitat('Тогда делаем день в день. Успеваем, если техника свободна — подтвердим при приёме заказа.');
+          } else {
+            skazat('bot', 'Быстрее уже не выйдет — это наш самый короткий срок, печать в день обращения.');
+            soglasieSCenoj();
+          }
+          return;
+        }
+
+        // Дорого — собираем то, чем реально можно удешевить ЭТОТ заказ.
+        // К каждому варианту сразу считаем итог и показываем его в подписи:
+        // человек должен видеть выгоду ДО нажатия, а не после. Скидок мы
+        // не выдумываем — дешевле выходит по тиражным ценам прайса.
+        var varianty = [];
+        if (vybor.srok === 'srochno') {
+          varianty.push({
+            t: 'Убрать срочность',
+            i: 'станет ' + rub(probnyj({ srok: 'obychno' }).summa) + ', срок 3–5 дней',
+            v: 'ne_srochno'
+          });
+        }
+        if (vybor.material === 'karton') {
+          varianty.push({
+            t: 'Фотобумага вместо картона',
+            i: 'станет ' + rub(probnyj({ material: 'foto' }).summa) + ', 230 г/м²',
+            v: 'foto'
+          });
+        }
+        var bolshe = sleduyushchijTirazh();
+        if (bolshe) {
+          var probaT = probnyj({ kolvo: bolshe });
+          varianty.push({
+            t: 'Посчитать ' + bolshe + ' шт.',
+            i: rub(probaT.summa / bolshe) + ' за штуку вместо ' +
+               rub(itog.summa / vybor.kolvo) + ' — по тиражной цене прайса',
+            v: 'tirazh'
+          });
+        }
+
+        if (!varianty.length) {
+          skazat('bot', 'Дешевле уже не сделать — это минимальная цена по прайсу для такого заказа.');
+          soglasieSCenoj();
+          return;
+        }
+
+        skazat('bot', 'Смотрите, что можно изменить:');
+        varianty.push({ t: 'Оставить как есть', v: 'kak_est' });
+
+        pokazatKnopki(varianty, function (v2) {
+          skazat('ya', v2.t);
+          if (v2.v === 'kak_est') return soglasieSCenoj();
+
+          if (v2.v === 'ne_srochno') {
+            vybor.srok = 'obychno';
+            put.push('Изменили: без срочности, 3–5 дней');
+            return pereschitat('Убрал срочность — срок 3–5 рабочих дней.');
+          }
+          if (v2.v === 'foto') {
+            vybor.material = 'foto';
+            put.push('Изменили: фотобумага 230 г/м²');
+            return pereschitat('Переставил на матовую фотобумагу 230 г/м².');
+          }
+          vybor.kolvo = bolshe;
+          put.push('Изменили: тираж ' + bolshe + ' шт.');
+          pereschitat('Посчитал на ' + bolshe + ' штук.');
+        });
+      });
+    }
+
+    /** Пробный счёт «а что если»: считаем с изменёнными ответами, но
+        сами ответы не трогаем. Нужен, чтобы показать цену варианта
+        в подписи кнопки до того, как клиент её нажал. */
+    function probnyj(izmeneniya) {
+      var bylo = vybor;
+      var kopiya = {};
+      for (var k in bylo) { if (bylo.hasOwnProperty(k)) kopiya[k] = bylo[k]; }
+      for (var i in izmeneniya) { if (izmeneniya.hasOwnProperty(i)) kopiya[i] = izmeneniya[i]; }
+      vybor = kopiya;
+      var r = poschitat();
+      vybor = bylo;
+      return r;
+    }
+
+    /** Следующая ступень тиража из того же шага сценария — чтобы
+        предложение «взять больше» шло от прайса, а не от фантазии. */
+    function sleduyushchijTirazh() {
+      var shag = scen.shagi.filter(function (s) { return s.id === 'kolvo'; })[0];
+      if (!shag || !vybor.kolvo) return null;
+      var bolshie = shag.varianty
+        .map(function (v) { return v.v; })
+        .filter(function (n) { return typeof n === 'number' && n > vybor.kolvo; });
+      return bolshie.length ? bolshie[0] : null;
+    }
+
+    /** Пересчёт после изменения параметров: новая цена и снова вопрос. */
+    function pereschitat(chto) {
+      obnovitChek();
+      itog = poschitat();
+      var text = chto + '<span class="sek-cifra">' + rub(itog.summa) + '</span>';
+      itog.stroki.forEach(function (s) { text += s + '<br>'; });
+      skazat('bot', text);
+      summaEl.textContent = rub(itog.summa);
+      soglasieSCenoj();
     }
 
     /* ── Отправка заявки ───────────────────────────────────────────── */

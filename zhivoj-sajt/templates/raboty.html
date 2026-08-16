@@ -5,5 +5,8 @@
 {% set crumb = "Работы" %}
 {% block content %}
 {% include "partials/raboty.html" %}
+{# Портфолио показывает работы, отзывы — что о них сказали клиенты.
+   Вместе они закрывают вопрос «а не подведут ли» лучше, чем поодиночке. #}
+{% include "partials/otzyvy.html" %}
 {% include "partials/zayavka.html" %}
 {% endblock %}

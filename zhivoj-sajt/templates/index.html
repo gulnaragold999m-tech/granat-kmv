@@ -6,5 +6,9 @@
 {% include "partials/cifry.html" %}
 {% include "partials/pechat-kod.html" %}
 {% include "partials/pochemu-ya.html" %}
+{# Отзывы стоят прямо перед формой: человек читает чужой опыт и тут же
+   видит, где оставить заявку. Блок сам себя прячет, пока в app.py не
+   задан номер карточки Яндекса. #}
+{% include "partials/otzyvy.html" %}
 {% include "partials/zayavka.html" %}
 {% endblock %}

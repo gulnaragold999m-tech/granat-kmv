@@ -1,15 +1,9 @@
-    <!-- Выгода в цифрах -->
-    <section class="py-20" style="background:#F9F3EB;">
-      <div class="max-w-5xl mx-auto px-6">
-        <div class="text-center max-w-2xl mx-auto reveal">
-          <p class="kicker mb-3" style="color:#4A0E17;">Выгода в цифрах</p>
-          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Что вы получаете на деле</h2>
-        </div>
-        <div class="grid md:grid-cols-4 gap-8 mt-12 text-center">
-          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">2 сек.</div><p class="text-sm opacity-70 mt-2">столько нужно клиенту, чтобы решить — доверять вам или нет</p></div>
-          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">350 г/м²</div><p class="text-sm opacity-70 mt-2">плотная дизайнерская бумага — премиум чувствуется в руке</p></div>
-          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">5–7 дней</div><p class="text-sm opacity-70 mt-2">от идеи до готового изделия или запущенного сайта</p></div>
-          <div class="reveal"><div class="serif text-4xl font-bold gold-grad">1 студия</div><p class="text-sm opacity-70 mt-2">вместо пяти подрядчиков — печать и код в одном месте</p></div>
-        </div>
-      </div>
-    </section>
+{% extends "base.html" %}
+{% block title %}Наши работы — приглашения, меню, этикетки, флаеры · Студия Гранат, Лермонтов{% endblock %}
+{% block description %}Портфолио студии «Гранат»: свадебные приглашения, меню для кафе, этикетки, флаеры, сертификаты. Реальные заказы клиентов из Лермонтова, Пятигорска, Ессентуков и всего КМВ.{% endblock %}
+{% block path %}/raboty{% endblock %}
+{% set crumb = "Работы" %}
+{% block content %}
+{% include "partials/raboty.html" %}
+{% include "partials/zayavka.html" %}
+{% endblock %}

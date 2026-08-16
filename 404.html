@@ -1,10 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Печать и полиграфия в Лермонтове — приглашения, сертификаты, визитки от 200 ₽ · Гранат{% endblock %}
-{% block description %}Печать приглашений, сертификатов, визиток и меню от 200 ₽. Тиснение золотом, плоттерная резка, дизайнерская бумага 350 г/м². Лермонтов, Пятигорск, Ессентуки, Кисловодск, Минеральные Воды.{% endblock %}
-{% block path %}/pechat{% endblock %}
-{% set crumb = "Печать и полиграфия" %}
+{% block title %}Страница не найдена — Студия Гранат{% endblock %}
+{% block description %}Такой страницы на сайте нет. Печать и полиграфия, сайты и Telegram-боты, работы и контакты студии «Гранат» в Лермонтове.{% endblock %}
 {% block content %}
-{% include "partials/pechat.html" %}
-{% include "partials/ceny.html" %}
-{% include "partials/zayavka.html" %}
+    <section class="py-20" style="background:#4A0E17;">
+      <div class="max-w-3xl mx-auto px-6 text-center">
+        <p class="kicker mb-3">Ошибка 404</p>
+        <h1 class="text-3xl md:text-4xl font-bold text-white">Такой страницы у нас нет</h1>
+        <p class="text-white/70 mt-4">
+          Возможно, адрес набран с опечаткой или страница переехала. Вот куда можно пойти:
+        </p>
+        <div class="flex flex-wrap gap-4 justify-center mt-8">
+          <a href="/pechat" class="btn-gold">Печать и полиграфия</a>
+          <a href="/cifra" class="btn-gold">Сайты и боты</a>
+          <a href="/raboty" class="btn-outline">Работы</a>
+          <a href="/kontakty" class="btn-outline">Контакты</a>
+        </div>
+        <p class="text-white/50 text-sm mt-8">
+          Не нашли нужное — напишите: <a href="tel:+79992449999" class="gold-grad">+7 999 244-99-99</a>
+        </p>
+      </div>
+    </section>
 {% endblock %}

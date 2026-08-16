@@ -12,3 +12,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 next-env.d.ts
+
+# Готовые макеты визиток пересобираются из JSON командой
+# python3 scripts/vizitka.py — в репозитории хранятся данные, а не PDF.
+scripts/vizitki/*.pdf

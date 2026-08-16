@@ -131,6 +131,11 @@
       }
 
       .sek-forma { padding: 0 18px 20px; display: grid; gap: 10px; }
+      /* Без этой строки форма НЕ скрывается: display:grid из правила выше
+         перебивает атрибут hidden, и поле телефона торчит с самого начала
+         диалога. 16.08.2026 из-за этого заявку отправили, не дойдя до цены,
+         и блок оплаты не показался — выглядело как «оплата не работает». */
+      .sek-forma[hidden] { display: none; }
       .sek-pole span { font-size: 13px; font-weight: 600; color: #4A0E17; }
       .sek-pole input {
         width: 100%; margin-top: 5px; padding: 12px 14px; font-size: 15px;

@@ -32,6 +32,7 @@ import {
   NET_V_PRAJSE,
   AKCII,
   OPLATA,
+  OTDELKA,
   type TirazhTablica,
   type Yacheyka,
 } from '../data/prices.ts';
@@ -104,6 +105,9 @@ const CENY = {
 
   /* Штучная А4 на картоне: цена за экземпляр при 1–9 штуках. */
   shtuchnayaA4: SHTUCHNAYA_A4.cena,
+
+  /* Отделка — за штуку, добавляется к базовой цене. */
+  otdelka: OTDELKA,
 
   /* Множители. Срочность одна на весь прайс — как у бота. */
   koefficienty: {

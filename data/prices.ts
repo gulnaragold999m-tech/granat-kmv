@@ -80,6 +80,15 @@ export const OPLATA = {
   ssylka: 'https://s.multipay.ru/244b8d2f-ab0e-4ef8-b220-3e6931c9c862',
 };
 
+/** Отделка числами — её считает не только человек, но и секретарь
+ *  на сайте. В таблице ниже те же значения подставляются текстом,
+ *  чтобы цифра жила в одном месте. */
+export const OTDELKA = {
+  skruglenieUglov: 5,
+  bigovkaSgib: 7,
+  upakovka: 10,
+};
+
 export const ISTOCHNIK = {
   data: '09.08.2026',
   fajl: 'pricegranat.html',
@@ -283,7 +292,7 @@ export const PRIGLASHENIYA: TirazhTablica = {
   ],
   primechaniya: [
     'Картон 300–350 г/м², полноцветная печать с двух сторон.',
-    'Приглашение со сгибом: цена открытки нужного формата плюс биговка и сгиб от 7 ₽ за штуку.',
+    `Приглашение со сгибом: цена открытки нужного формата плюс биговка и сгиб от ${OTDELKA.bigovkaSgib} ₽ за штуку.`,
     'Минимальный заказ по разделу — 700 ₽.',
   ],
 };
@@ -311,9 +320,9 @@ export const MATERIAL_I_OTDELKA = {
     { nazvanie: 'Картон 300 г/м²', znachenie: 'базовая цена' },
     { nazvanie: 'Картон 350 г/м²', znachenie: '+10%' },
     { nazvanie: 'Фактурная дизайнерская бумага', znachenie: '+20–40%' },
-    { nazvanie: 'Скругление углов', znachenie: 'от 5 ₽/шт' },
-    { nazvanie: 'Биговка, сгиб', znachenie: 'от 7 ₽/шт' },
-    { nazvanie: 'Индивидуальная упаковка', znachenie: 'от 10 ₽/шт' },
+    { nazvanie: 'Скругление углов', znachenie: `от ${OTDELKA.skruglenieUglov} ₽/шт` },
+    { nazvanie: 'Биговка, сгиб', znachenie: `от ${OTDELKA.bigovkaSgib} ₽/шт` },
+    { nazvanie: 'Индивидуальная упаковка', znachenie: `от ${OTDELKA.upakovka} ₽/шт` },
   ],
   primechaniya: [] as string[],
 };

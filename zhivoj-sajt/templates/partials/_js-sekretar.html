@@ -120,6 +120,13 @@
             { t: '10–20', v: 15 }, { t: '50', v: 50 },
             { t: '100', v: 100 }, { t: '200 и больше', v: 200 }
           ] },
+          // Разворот и биговка — отдельные деньги, а печать с двух
+          // сторон уже входит в цену. Клиенту это неочевидно, поэтому
+          // спрашиваем прямо и пишем в подсказке, что уже включено.
+          { id: 'sgib', vopros: 'Складывается пополам?', varianty: [
+            { t: 'Нет, плоская', i: 'печать с двух сторон уже в цене', v: 'net' },
+            { t: 'Да, с разворотом', i: 'биговка и сгиб', v: 'da' }
+          ] },
           { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
         schet: function (o) {
@@ -134,6 +141,17 @@
             zaShtuku = poTirazhu(tabl, o.format, o.kolvo);
           }
 
+          var stroki = [o.format + ', картон 300 г/м², полноцвет с двух сторон — ' +
+                        rub(zaShtuku) + ' за штуку'];
+
+          // Биговка со сгибом идёт за штуку и считается ДО минимального
+          // заказа: это работа, а не наценка на итог.
+          if (o.sgib === 'da') {
+            var sgib = (C.otdelka && C.otdelka.bigovkaSgib) || 0;
+            zaShtuku += sgib;
+            stroki.push('Биговка и сгиб — ' + rub(sgib) + ' за штуку');
+          }
+
           var summa = zaShtuku * o.kolvo;
           var minimum = (o.format === 'А4')
             ? C.minimalki.otkrytkaA4
@@ -144,11 +162,7 @@
                          '. Печать одной штуки занимает столько же времени, ' +
                          'сколько печать десяти: приёмка файла, приладка, резка.');
           }
-          return {
-            summa: summa,
-            stroki: [o.format + ', картон 300 г/м² — ' + rub(zaShtuku) + ' за штуку'],
-            zametki: zametki
-          };
+          return { summa: summa, stroki: stroki, zametki: zametki };
         }
       },
 

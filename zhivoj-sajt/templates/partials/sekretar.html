@@ -1,0 +1,172 @@
+    <!-- ═══ СЕКРЕТАРЬ НА САЙТЕ ═══════════════════════════════════════════
+         Тот же разговор, что ведёт бот во ВКонтакте, только прямо здесь.
+
+         ЗАЧЕМ. 16.08.2026 клиентка прислала почтой макет сертификата и
+         больше ничего: ни тиража, ни бумаги, ни срока, ни телефона. Пока
+         считали руками, заказ ушёл. Владелица сказала точно: «сайт ничего
+         не спрашивает, там некому спрашивать».
+
+         Бот во ВКонтакте спрашивает и считает — но до ВК доходят не все.
+         Здесь тот же секретарь встречает человека на сайте.
+
+         Цены НЕ вписаны в разметку: их подставляет _js-sekretar-ceny.html,
+         собранный из data/prices.ts командой `npm run sekretar`. -->
+    <section id="sekretar" class="py-20" style="background:#F9F3EB;">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-2xl reveal">
+          <p class="kicker mb-3" style="color:#4A0E17;">Считаем сразу</p>
+          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Узнайте цену, не дожидаясь ответа</h2>
+          <p class="text-lg mt-4" style="color:rgba(74,14,23,.72);">
+            Джарвис спросит то же, что спросили бы мы у стойки, и назовёт стоимость по прайсу.
+            Круглосуточно, без ожидания — даже когда мы у печатных машин.
+          </p>
+        </div>
+
+        <div class="sek reveal">
+          <div class="sek-chat">
+            <div class="sek-head">
+              <div class="sek-ava">Д</div>
+              <div>
+                <div class="sek-name">Джарвис · секретарь студии</div>
+                <div class="sek-st">отвечает сразу</div>
+              </div>
+            </div>
+
+            <div class="sek-feed" id="sekFeed" aria-live="polite"></div>
+
+            <div class="sek-knopki" id="sekKnopki"></div>
+
+            <!-- Форма контакта. Показывается только в конце, когда цена
+                 названа: просить телефон до расчёта — значит терять тех,
+                 кто пришёл просто узнать стоимость. -->
+            <form class="sek-forma" id="sekForma" hidden>
+              <label class="sek-pole">
+                <span>Ваш телефон</span>
+                <input type="tel" id="sekTel" inputmode="tel" autocomplete="tel"
+                       placeholder="+7 928 000-00-00" class="ym-disable-keys" required />
+              </label>
+              <!-- Формулировка и адреса — те же, что в форме заявки. Две
+                   разные формулировки согласия на одном сайте — это спор
+                   с клиентом о том, на что он соглашался. -->
+              <label class="sek-soglasie">
+                <input type="checkbox" id="sekSoglasie" required />
+                <span>Даю <a href="/consent.html" target="_blank" rel="noopener">согласие на обработку
+                  персональных данных</a> и принимаю
+                  <a href="/privacy.html" target="_blank" rel="noopener">Политику конфиденциальности</a>.</span>
+              </label>
+              <button type="submit" class="btn-gold sek-otpravit" id="sekOtpravit">Отправить заявку</button>
+              <p class="sek-msg" id="sekMsg" role="status"></p>
+            </form>
+          </div>
+
+          <aside class="sek-itog">
+            <div class="sek-itog-t">Ваш заказ</div>
+            <ul class="sek-put" id="sekPut"></ul>
+            <div class="sek-summa">
+              <span>Примерная стоимость</span>
+              <b id="sekSumma">—</b>
+              <em id="sekPodpis">ответьте на несколько вопросов</em>
+            </div>
+            <button type="button" class="sek-zanovo" id="sekZanovo" hidden>Начать заново</button>
+            <p class="sek-hint">
+              Цена по прайсу студии. Точную сумму подтверждаем после проверки макета:
+              на неё влияют бумага, отделка и срок.
+            </p>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <style>
+      .sek {
+        display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 32px;
+      }
+      @media (min-width: 900px) { .sek { grid-template-columns: 1.4fr .9fr; } }
+
+      .sek-chat {
+        background: #fff; border-radius: 18px; overflow: hidden;
+        box-shadow: 0 14px 40px rgba(74,14,23,.10); display: flex; flex-direction: column;
+      }
+      .sek-head {
+        display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+        background: #4A0E17; color: #F9F3EB;
+      }
+      .sek-ava {
+        width: 38px; height: 38px; border-radius: 50%; flex: none;
+        background: linear-gradient(135deg,#D4AF37,#A8862A);
+        color: #4A0E17; font-weight: 800; display: grid; place-items: center;
+      }
+      .sek-name { font-weight: 700; font-size: 15px; }
+      .sek-st { font-size: 12px; opacity: .75; }
+
+      .sek-feed {
+        padding: 18px; display: flex; flex-direction: column; gap: 10px;
+        min-height: 260px; max-height: 420px; overflow-y: auto;
+      }
+      .sek-msg-bot, .sek-msg-ya {
+        max-width: 85%; padding: 10px 14px; border-radius: 14px;
+        font-size: 15px; line-height: 1.45;
+      }
+      .sek-msg-bot { background: #F4EEE6; color: #2A1013; border-bottom-left-radius: 4px; }
+      .sek-msg-ya {
+        background: #4A0E17; color: #F9F3EB; align-self: flex-end;
+        border-bottom-right-radius: 4px;
+      }
+      .sek-msg-bot b { color: #4A0E17; }
+      .sek-msg-bot .sek-cifra { font-size: 19px; font-weight: 800; display: block; margin: 4px 0; }
+
+      .sek-knopki {
+        display: flex; flex-wrap: wrap; gap: 8px; padding: 0 18px 18px;
+      }
+      .sek-knopki button {
+        border: 1.5px solid rgba(74,14,23,.22); background: #fff; color: #4A0E17;
+        border-radius: 999px; padding: 9px 16px; font-size: 14px; font-weight: 600;
+        cursor: pointer; transition: .15s; text-align: left;
+      }
+      .sek-knopki button:hover, .sek-knopki button:focus-visible {
+        border-color: #D4AF37; background: #FFFBF2; outline: none;
+      }
+      .sek-knopki button i {
+        display: block; font-style: normal; font-size: 12px; font-weight: 400; opacity: .65;
+      }
+
+      .sek-forma { padding: 0 18px 20px; display: grid; gap: 10px; }
+      .sek-pole span { font-size: 13px; font-weight: 600; color: #4A0E17; }
+      .sek-pole input {
+        width: 100%; margin-top: 5px; padding: 12px 14px; font-size: 15px;
+        border: 1.5px solid rgba(74,14,23,.2); border-radius: 10px;
+      }
+      .sek-pole input:focus-visible { outline: 2px solid #D4AF37; outline-offset: 1px; }
+      .sek-soglasie { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; opacity: .8; }
+      .sek-otpravit { width: 100%; padding: 13px; font-size: 15px; }
+      .sek-msg { font-size: 13.5px; margin: 0; min-height: 18px; }
+
+      .sek-itog {
+        background: #fff; border-radius: 18px; padding: 20px;
+        box-shadow: 0 14px 40px rgba(74,14,23,.10); align-self: start;
+      }
+      .sek-itog-t { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
+      .sek-put { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 6px; }
+      .sek-put li {
+        font-size: 14px; padding-left: 18px; position: relative; color: #2A1013;
+      }
+      .sek-put li::before {
+        content: "✓"; position: absolute; left: 0; color: #D4AF37; font-weight: 700;
+      }
+      .sek-summa { border-top: 1px solid rgba(74,14,23,.12); padding-top: 14px; margin-top: 14px; }
+      .sek-summa span { font-size: 12.5px; opacity: .65; display: block; }
+      .sek-summa b { font-size: 30px; color: #4A0E17; display: block; line-height: 1.15; }
+      .sek-summa em { font-size: 12.5px; opacity: .7; font-style: normal; }
+      .sek-zanovo {
+        margin-top: 14px; width: 100%; padding: 10px; border-radius: 10px; cursor: pointer;
+        border: 1.5px solid rgba(74,14,23,.2); background: #fff; color: #4A0E17; font-weight: 600;
+      }
+      .sek-hint { font-size: 12px; opacity: .6; margin-top: 14px; line-height: 1.5; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .sek-knopki button { transition: none; }
+      }
+    </style>
+
+{% include "partials/_js-sekretar-ceny.html" %}
+{% include "partials/_js-sekretar.html" %}

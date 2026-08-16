@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "ceny": "node --experimental-strip-types scripts/ceny.mts",
-    "shpargalka": "node --experimental-strip-types scripts/shpargalka.mts"
+    "shpargalka": "node --experimental-strip-types scripts/shpargalka.mts",
+    "sekretar": "node --experimental-strip-types scripts/sekretar-ceny.mts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

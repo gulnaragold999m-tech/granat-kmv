@@ -102,6 +102,7 @@ const CENY = {
     poligrafiya: 300,
     otkrytki: 700,
     otkrytkaA4: SHTUCHNAYA_A4.minZakaz,
+    sertifikat: SHTUCHNAYA_A4.roznicaSertifikat,
   },
 
   /* Штучная А4 на картоне: цена за экземпляр при 1–9 штуках. */

@@ -114,6 +114,15 @@
       }
       .sek-msg-bot b { color: #4A0E17; }
       .sek-msg-bot .sek-cifra { font-size: 19px; font-weight: 800; display: block; margin: 4px 0; }
+      /* Разбор итога: откуда взялась разница между базовой ценой
+         и крупной цифрой сверху. Без него «293 ₽» и «225 ₽ за штуку»
+         в соседних строках читались как ошибка. */
+      .sek-razbor { display: block; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(74,14,23,.15); }
+      .sek-razbor > span { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 2px 0; }
+      .sek-razbor i { font-style: normal; opacity: .75; }
+      .sek-razbor b { font-weight: 600; white-space: nowrap; }
+      .sek-razbor .itogo { border-top: 1px solid rgba(74,14,23,.15); margin-top: 5px; padding-top: 6px; font-weight: 700; }
+      .sek-razbor .itogo i { opacity: 1; font-weight: 700; }
 
       .sek-knopki {
         display: flex; flex-wrap: wrap; gap: 8px; padding: 0 18px 18px;

@@ -71,6 +71,7 @@ def _getaddrinfo_ipv4_only(*args, **kwargs):
 socket.getaddrinfo = _getaddrinfo_ipv4_only
 
 app = Flask(__name__, static_folder=".", static_url_path="")
+app.config["MAX_CONTENT_LENGTH"] = MAX_MAKET + 1024 * 1024  # запас на поля формы
 
 # Картинки, логотип и скрипты браузер держит у себя сутки и не запрашивает
 # заново на каждой странице. По умолчанию Flask ставит 12 часов и при каждом
@@ -84,6 +85,25 @@ app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 
 # Постоянное хранилище Amvera: заявка ложится сюда, даже если Telegram молчит.
 ORDERS_FILE = "/data/orders.jsonl"
+
+# Макеты, приложенные к заявке из секретаря. Лежат на диске рядом с журналом
+# заявок: письмо может не уйти, а файл клиента терять нельзя ни при каких
+# обстоятельствах — он единственный экземпляр.
+MAKETY_DIR = "/data/makety"
+
+# Предел на весь запрос. Больше 20 МБ через форму на сайте не принимаем:
+# такие файлы и почтой не уходят, а Flask без этого предела читает тело
+# целиком в память и кладёт контейнер.
+MAX_MAKET = 20 * 1024 * 1024
+
+# Расширения, которые принимаем от клиента. Список белый, а не чёрный:
+# запрещать по одному бесполезно, разрешать по одному — надёжно.
+# .html и .svg сюда НЕ входят намеренно: они исполняются в браузере,
+# а файлы лежат на том же домене.
+MAKET_RASSHIRENIYA = {
+    ".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".heic",
+    ".ai", ".eps", ".psd", ".cdr", ".zip", ".rar", ".doc", ".docx",
+}
 
 # Контейнер живёт по Гринвичу, а смотреть на заявки нам по-московски.
 TZ = ZoneInfo("Europe/Moscow")
@@ -272,8 +292,14 @@ def auth_reason(err):
     )
 
 
-def send_to_mail(subject, text):
+def send_to_mail(subject, text, vlozhenie=None):
     """Дубль заявки письмом. Возвращает (ok, причина).
+
+    `vlozhenie` — кортеж (имя_файла, байты) с макетом клиента, если он его
+    приложил. Заведено 17.08.2026: до этого человек доходил до конца
+    диалога, оставлял телефон — и упирался в вопрос «а куда макет».
+    Файл уходил отдельным письмом без параметров заказа, и связать их
+    было нечем. Ровно так потерялся заказ 16.08.
 
     Наружу не падает никогда: это ещё один параллельный канал, и его отказ
     не должен ронять обработку заявки. Пароль в причину не попадает —
@@ -288,6 +314,13 @@ def send_to_mail(subject, text):
     msg["From"] = MAIL_LOGIN
     msg["To"] = MAIL_TO
     msg.set_content(text)
+
+    if vlozhenie:
+        imya, bajty = vlozhenie
+        # Тип не разбираем: почтовым клиентам хватает octet-stream, а угадывать
+        # по расширению — лишний повод ошибиться на .cdr и .psd.
+        msg.add_attachment(bajty, maintype="application", subtype="octet-stream",
+                           filename=imya)
 
     try:
         with smtplib.SMTP_SSL(MAIL_HOST, MAIL_PORT,
@@ -338,7 +371,7 @@ NOTIFY_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="notify")
 NOTIFY_WAIT = 6
 
 
-def deliver(subject, text):
+def deliver(subject, text, vlozhenie=None):
     """Разослать заявку по обоим каналам сразу. Возвращает две пары (ok, причина).
 
     Каналы независимы, поэтому ждать их по очереди незачем: одновременно
@@ -350,7 +383,10 @@ def deliver(subject, text):
     """
     with ThreadPoolExecutor(max_workers=2) as pool:
         vk = pool.submit(send_to_vk, text)
-        mail = pool.submit(send_to_mail, subject, text)
+        # ВКонтакте вложение не отправляем: там для этого нужна отдельная
+        # загрузка на их сервер, а канал этот запасной. Про файл в тексте
+        # сказано, и он лежит на диске — не потеряется.
+        mail = pool.submit(send_to_mail, subject, text, vlozhenie)
         return vk.result(), mail.result()
 
 
@@ -774,9 +810,44 @@ def bot_lead():
         return jsonify(ok=False, error="Укажите номер телефона"), 400
 
     path = data.get("path") or []
+    # Из формы с файлом путь приходит строкой JSON: FormData массивы не умеет.
     if isinstance(path, str):
-        path = [path]
+        try:
+            razobrano = json.loads(path)
+            path = razobrano if isinstance(razobrano, list) else [path]
+        except (ValueError, TypeError):
+            path = [path]
     route_text = " → ".join(str(p) for p in path if str(p).strip())
+
+    # ── Макет, если клиент его приложил ──────────────────────────────────
+    #
+    # Сохраняем на диск ДО всякой отправки — тем же правилом, что и заявку:
+    # почта может молчать, а файл клиента единственный, второй раз он его
+    # не пришлёт.
+    maket_imya, maket_bajty, maket_zametka = "", None, ""
+    fajl = request.files.get("maket")
+    if fajl and fajl.filename:
+        # Браузеры на Windows иногда шлют полный путь с обратными слешами,
+        # а os.path.basename на Linux их за разделитель не считает — имя
+        # выходило вроде «CUsersАняграмота.jpg».
+        ish = os.path.basename(fajl.filename.replace("\\", "/"))
+        rasshirenie = os.path.splitext(ish)[1].lower()
+        if rasshirenie not in MAKET_RASSHIRENIYA:
+            maket_zametka = f"файл {ish} не принят: расширение {rasshirenie or 'без расширения'}"
+        else:
+            bajty = fajl.read(MAX_MAKET + 1)
+            if len(bajty) > MAX_MAKET:
+                maket_zametka = f"файл {ish} не принят: больше {MAX_MAKET // 1024 // 1024} МБ"
+            else:
+                # Имя клиента в имя файла на диске не берём: там бывает что
+                # угодно, вплоть до путей. Своё имя, а клиентское — в письме.
+                bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
+                maket_imya = bezopasnoe or ("maket" + rasshirenie)
+                maket_bajty = bajty
+                try:
+                    os.makedirs(MAKETY_DIR, exist_ok=True)
+                except OSError as e:
+                    print(f"[maket] не создать папку: {e}", flush=True)
 
     try:
         total = int(data.get("total") or 0)
@@ -795,6 +866,21 @@ def bot_lead():
 
     lead_id = leads.next_id()
     payload["lead"] = lead_id
+
+    # Кладём файл на диск под номером заявки: так его находят по заявке,
+    # не разбирая, кто из клиентов какой «scan1.pdf» прислал.
+    if maket_bajty is not None:
+        put_na_diske = os.path.join(MAKETY_DIR, f"{lead_id}_{maket_imya}")
+        try:
+            with open(put_na_diske, "wb") as f:
+                f.write(maket_bajty)
+            payload["maket"] = put_na_diske
+        except OSError as e:
+            maket_zametka = f"файл {maket_imya} не сохранён на диск: {e}"
+            print(f"[maket] {maket_zametka}", flush=True)
+    if maket_zametka:
+        payload["maket_zametka"] = maket_zametka
+
     leads.log(lead_id, "created", **payload)
 
     # ── ГЕНЕРАЛ докладывает ──────────────────────────────────────────────
@@ -803,6 +889,10 @@ def bot_lead():
         lines.append(f"🧭 Собрал: {route_text}")
     if total:
         lines.append("💰 На сумму: {:,} ₽".format(total).replace(",", " "))
+    if maket_bajty is not None:
+        lines.append(f"📎 Макет приложен к письму: {maket_imya}")
+    elif maket_zametka:
+        lines.append(f"⚠️ {maket_zametka} — попросите прислать другим способом")
     lines.append("")
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
@@ -812,7 +902,8 @@ def bot_lead():
 
     def notify():
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка из симулятора №{lead_id}", text
+            f"Заявка из симулятора №{lead_id}", text,
+            vlozhenie=(maket_imya, maket_bajty) if maket_bajty is not None else None
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,

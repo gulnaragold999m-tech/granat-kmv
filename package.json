@@ -10,6 +10,7 @@
     "ceny": "node --experimental-strip-types scripts/ceny.mts",
     "shpargalka": "node --experimental-strip-types scripts/shpargalka.mts",
     "brief": "node --experimental-strip-types scripts/brief-analitiku.mts",
+    "proverka": "node --experimental-strip-types scripts/proverka-tekstov.mts",
     "sekretar": "node --experimental-strip-types scripts/sekretar-ceny.mts"
   },
   "dependencies": {

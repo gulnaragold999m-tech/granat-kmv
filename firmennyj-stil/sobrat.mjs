@@ -50,7 +50,7 @@ const KEGL_SLOGANA = 54;   // подобран под длину: 24 знака 
    в точках. Поэтому переводим: 0.18 × размер шрифта. */
 const razryadka = (kegl, em) => Math.round(kegl * em);
 
-export function svg({ sVenzelem, slogan, keglSlogana = 46, sajt }) {
+export function svg({ sVenzelem, slogan, keglSlogana = 46, sajt, bezVerhnejDugi }) {
   /* С вензелем название меньше: втроём — дуга, вензель и слово — они
      не помещаются, если каждому дать полный размер.
      17.08.2026 поднято со 168 до 196: владелица выбрала вариант
@@ -116,10 +116,11 @@ export function svg({ sVenzelem, slogan, keglSlogana = 46, sajt }) {
   <circle cx="750" cy="750" r="688" fill="none" stroke="url(#zoloto)" stroke-width="26"/>
   <circle cx="750" cy="750" r="645" fill="none" stroke="url(#zolotoTonkoe)" stroke-width="6"/>
 
+${bezVerhnejDugi ? '' : `
   <text font-family="Montserrat" font-size="70" font-weight="600"
         letter-spacing="${razryadka(70, 0.22)}" fill="url(#zolotoTonkoe)">
     <textPath href="#dugaVerh" startOffset="50%" text-anchor="middle">ДИЗАЙНЕРСКАЯ СТУДИЯ</textPath>
-  </text>
+  </text>`}
 ${sVenzelem ? `
   <image x="${750 - Math.round(venzelW / 2)}" y="${venzelY}" width="${venzelW}" height="${venzelH}" href="data:image/png;base64,${VENZEL}"/>
 ` : ''}
@@ -191,6 +192,14 @@ const SBORKI = [
   { imya: 'granat-logo-dlya-pechati', proba: 'proba-dlya-pechati',
     opts: { sVenzelem: true, slogan: 'GRANAT-KMV.RU', keglSlogana: 66 },
     zachem: 'ПЕЧАТЬ — только адрес, без слогана' },
+
+  /* Версия под самый мелкий показ. Ярусов два вместо пяти, и это
+     не упрощение ради красоты: в кружке 200 точек на каждый ярус
+     остаётся около 6 точек высоты — меньше толщины буквы. Убрали
+     дуги — название стало вчетверо крупнее и читается резко. */
+  { imya: 'granat-logo-krupnyj', proba: 'proba-krupnyj',
+    opts: { sVenzelem: true, bezVerhnejDugi: true },
+    zachem: 'КРУПНЫЕ БУКВЫ — когда знак показывают мелко: 2ГИС, аватарки' },
 
   { imya: 'granat-logo-2gis', proba: 'proba-bez-venzelya',
     opts: { sVenzelem: false, slogan: SLOGAN, keglSlogana: KEGL_SLOGANA },

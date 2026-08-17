@@ -40,6 +40,7 @@
   <circle cx="750" cy="750" r="688" fill="none" stroke="url(#zoloto)" stroke-width="26"/>
   <circle cx="750" cy="750" r="645" fill="none" stroke="url(#zolotoTonkoe)" stroke-width="6"/>
 
+
   <text font-family="Montserrat" font-size="70" font-weight="600"
         letter-spacing="15" fill="url(#zolotoTonkoe)">
     <textPath href="#dugaVerh" startOffset="50%" text-anchor="middle">ДИЗАЙНЕРСКАЯ СТУДИЯ</textPath>

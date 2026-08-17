@@ -298,6 +298,27 @@
           // Разворот и биговка — отдельные деньги, а печать с двух
           // сторон уже входит в цену. Клиенту это неочевидно, поэтому
           // спрашиваем прямо и пишем в подсказке, что уже включено.
+          // Материал спрашиваем ВСЕГДА. Правило владелицы 17.08.2026:
+          // «Там хоть открытка, хоть сертификат, хоть фотография —
+          // всегда надо спрашивать». До этого дня открытки печатались
+          // по одной жёстко зашитой бумаге, и ни скидка за более тонкую,
+          // ни наценка за дизайнерскую в счёт не попадали.
+          //
+          // Коэффициенты — из раздела «Материал и отделка» прайса:
+          // плотная 200–230 дешевле на 10%, матовая 250–260 базовая,
+          // фактурная дизайнерская дороже на 20–40% (берём нижнюю
+          // границу, точную назовём после выбора бумаги).
+          { id: 'material', vopros: 'На какой бумаге печатаем?', varianty: function (v) {
+            var tabl = v.vid === 'priglasheniya' ? C.priglasheniya : C.otkrytki;
+            var baza = (v.format === 'А4' && v.kolvo < 10)
+              ? C.shtuchnayaA4
+              : poTirazhu(tabl, v.format, v.kolvo);
+            return [
+              { t: 'Плотная 200–230 г/м²', i: rub(baza * 0.9) + ' за штуку, тоньше и дешевле', v: 0.9 },
+              { t: 'Плотная матовая 250–260 г/м²', i: rub(baza) + ' за штуку, наш обычный выбор', v: 1 },
+              { t: 'Фактурная дизайнерская', i: 'от ' + rub(baza * 1.2) + ' за штуку, лён, вельвет', v: 1.2 }
+            ];
+          } },
           { id: 'sgib', vopros: 'Складывается пополам?', varianty: [
             { t: 'Нет, плоская', i: 'печать с двух сторон уже в цене', v: 'net' },
             { t: 'Да, с разворотом', i: 'биговка и сгиб', v: 'da' }
@@ -318,8 +339,17 @@
             zaShtuku = poTirazhu(tabl, o.format, o.kolvo);
           }
 
-          var stroki = [o.format + ', плотная матовая бумага 250–260 г/м², полноцвет с двух сторон — ' +
+          var koef = Number(o.material) || 1;
+          zaShtuku = zaShtuku * koef;
+          var nazvanieBumagi = koef === 0.9 ? 'плотная бумага 200–230 г/м²'
+                             : koef === 1.2 ? 'фактурная дизайнерская бумага'
+                             : 'плотная матовая бумага 250–260 г/м²';
+          var stroki = [o.format + ', ' + nazvanieBumagi + ', полноцвет с двух сторон — ' +
                         rub(zaShtuku) + ' за штуку'];
+          if (koef === 1.2) {
+            zametki.push('Фактурная бумага идёт с наценкой 20–40%. В расчёте нижняя ' +
+                         'граница: точную назовём, когда выберете фактуру.');
+          }
 
           // Биговка со сгибом идёт за штуку и считается ДО минимального
           // заказа: это работа, а не наценка на итог.
@@ -363,13 +393,29 @@
             { t: '1–9', v: 5 }, { t: '10–49', v: 20 },
             { t: '50–99', v: 60 }, { t: '100 и больше', v: 100 }
           ] },
+          // И у фотографий тоже. Премиальная плотная фотобумага стоит
+          // на 15–25% дороже, это записано в прайсе с самого начала —
+          // и до 17.08.2026 ни разу не попало в счёт, потому что бот
+          // про бумагу не спрашивал.
+          { id: 'bumaga', vopros: 'На какой фотобумаге?', varianty: function (v) {
+            var baza = poTirazhu(C.foto, v.format, v.kolvo);
+            var plotnaya = C.koefficienty.fotobumagaPlotnaya;
+            return [
+              { t: 'Обычная, глянец или мат', i: rub(baza) + ' за штуку', v: 1 },
+              { t: 'Премиальная плотная', i: rub(baza * plotnaya) + ' за штуку, плотнее и сочнее', v: plotnaya }
+            ];
+          } },
           { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
         schet: function (o) {
           var zaShtuku = poTirazhu(C.foto, o.format, o.kolvo);
+          var koef = Number(o.bumaga) || 1;
+          zaShtuku = zaShtuku * koef;
+          var bumaga = koef > 1 ? 'премиальная плотная' : 'обычная, глянец или мат';
           return {
             summa: zaShtuku * o.kolvo,
-            stroki: ['Фото ' + o.format + ' — ' + rub(zaShtuku) + ' за штуку'],
+            stroki: ['Фото ' + o.format + ', фотобумага ' + bumaga + ' — ' +
+                     rub(zaShtuku) + ' за штуку'],
             zametki: ['Коррекция яркости и цвета — от 30 ₽ за фото, базовая ретушь — от 100 ₽.']
           };
         }
@@ -448,18 +494,51 @@
             { t: '50–100', v: 100 }, { t: '200–300', v: 200 },
             { t: '500', v: 500 }, { t: '1000', v: 1000 }
           ] },
+          // Плотность — ВОПРОС, а не сноска. До 17.08.2026 наценка
+          // за плотную бумагу была в прайсе, но секретарь про неё
+          // не спрашивал: печатал строчку «плотнее бумага плюс 10%»,
+          // клиент её не выбирал, и в счёт она не попадала никогда.
+          // На живом заказе 17.08 это стоило бы 1 200–1 800 ₽.
+          //
+          // Цена каждой плотности считается сразу и стоит на кнопке:
+          // человек видит не «плюс 12%», а «13 440 ₽ за тираж».
+          { id: 'plotnost', vopros: 'На какой бумаге печатаем?', varianty: function (v) {
+            var spisok = C.plotnosti || [];
+            var baza = poTirazhu(C.flaery, v.format, v.kolvo);
+            return spisok.map(function (p) {
+              var zaShtuku = baza * (1 + p.nacenka / 100);
+              return {
+                t: p.bumaga,
+                i: rub(zaShtuku) + ' за штуку, ' + rub(zaShtuku * v.kolvo) + ' за тираж',
+                v: p.nacenka
+              };
+            });
+          } },
           { id: 'maket', vopros: 'Макет уже есть?', varianty: MAKET },
           { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
         schet: function (o) {
           var zaShtuku = poTirazhu(C.flaery, o.format, o.kolvo);
-          var summa = zaShtuku * o.kolvo, zametki = [];
+          var stroki = [], zametki = [];
+
+          // Наценка за плотность в СЧЁТЕ, а не в примечании.
+          var nacenka = Number(o.plotnost) || 0;
+          var bumaga = '';
+          (C.plotnosti || []).forEach(function (p) {
+            if (p.nacenka === nacenka) bumaga = p.bumaga;
+          });
+          if (nacenka) { zaShtuku = zaShtuku * (1 + nacenka / 100); }
+
+          stroki.push(o.format + (bumaga ? ', мелованная ' + bumaga : '') +
+                      ' — ' + rub(zaShtuku) + ' за штуку');
+
+          var summa = zaShtuku * o.kolvo;
           if (summa < C.minimalki.poligrafiya) {
             summa = C.minimalki.poligrafiya;
             zametki.push('Минимальный заказ по полиграфии — ' + rub(C.minimalki.poligrafiya) + '.');
           }
-          zametki.push('Цена при готовом макете. Плотнее бумага — 150 г/м² плюс 10%, 170 плюс 15%, 200 плюс 25%.');
-          return { summa: summa, stroki: [o.format + ' — ' + rub(zaShtuku) + ' за штуку'], zametki: zametki };
+          zametki.push('Цена при готовом макете, полноцвет с двух сторон, с резкой.');
+          return { summa: summa, stroki: stroki, zametki: zametki };
         }
       },
 

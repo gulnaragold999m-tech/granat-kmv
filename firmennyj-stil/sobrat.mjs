@@ -30,6 +30,17 @@ const PLAYFAIR = shrift('playfair-display-700.woff2');
 const MONTSERRAT = shrift('montserrat-600.woff2');
 const VENZEL = readFileSync(join(TUT, 'venzel-g.png')).toString('base64');
 
+/* СЛОГАН. Выбран владелицей 17.08.2026 из четырёх вариантов:
+   «лучше написать Печать Лермонтов КМВ». Верхняя дуга говорит, КТО мы,
+   нижняя — ЧТО делаем и ГДЕ. В картах география работает лучше
+   красивых слов: человек ищет «печать Лермонтов», а не «запомнят
+   с первого взгляда».
+
+   Точки-разделители — не запятые: строка идёт по дуге, и запятая
+   на изгибе читается как грязь. */
+const SLOGAN = 'ПЕЧАТЬ · ЛЕРМОНТОВ · КМВ';
+const KEGL_SLOGANA = 54;   // подобран под длину: 24 знака на дуге радиуса 545
+
 /* Разрядка на сайте задана как .18em, а в SVG letter-spacing считается
    в точках. Поэтому переводим: 0.18 × размер шрифта. */
 const razryadka = (kegl, em) => Math.round(kegl * em);
@@ -141,7 +152,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url))
 for (const sVenzelem of [false, true]) {
   const hvost = sVenzelem ? '-s-venzelem' : '';
   const imyaSvg = `granat-logo-2gis${hvost}.svg`;
-  writeFileSync(join(TUT, imyaSvg), svg({ sVenzelem }));
+  writeFileSync(join(TUT, imyaSvg), svg({ sVenzelem, slogan: SLOGAN, keglSlogana: KEGL_SLOGANA }));
   console.log(sVenzelem ? 'С вензелем:' : 'Без вензеля:');
   console.log(`  ${imyaSvg}`);
   risovat(imyaSvg, 1500, `granat-logo-2gis${hvost}-1500.png`, false);

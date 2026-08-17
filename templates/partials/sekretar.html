@@ -54,6 +54,19 @@
                   персональных данных</a> и принимаю
                   <a href="/privacy.html" target="_blank" rel="noopener">Политику конфиденциальности</a>.</span>
               </label>
+              <!-- Приложить макет прямо здесь. Требование владелицы 17.08.2026:
+                   «Здесь нет возможности приложить документ. Он уже согласен,
+                   у него в голове всё решилось. Осталось приложить документ
+                   и оплатить предоплату».
+                   Ровно так был потерян заказ 16.08: файл пришёл почтой
+                   ОТДЕЛЬНО, без тиража, бумаги и срока. Здесь наоборот —
+                   параметры собраны, цена принята, не хватало только файла. -->
+              <label class="sek-pole sek-fajl">
+                <span>Макет, если есть — приложите сразу</span>
+                <input type="file" id="sekMaket"
+                       accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,.ai,.eps,.psd,.cdr" />
+                <em id="sekFajlPodpis">PDF, JPG, PNG и другие. До 20 МБ. Необязательно.</em>
+              </label>
               <button type="submit" class="btn-gold sek-otpravit" id="sekOtpravit">Отправить заявку</button>
               <p class="sek-msg" id="sekMsg" role="status"></p>
             </form>
@@ -153,6 +166,12 @@
       .sek-pole input:focus-visible { outline: 2px solid #D4AF37; outline-offset: 1px; }
       .sek-soglasie { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; opacity: .8; }
       .sek-otpravit { width: 100%; padding: 13px; font-size: 15px; }
+      .sek-fajl input[type=file] {
+        width: 100%; margin-top: 5px; padding: 10px 12px; font-size: 13.5px;
+        border: 1.5px dashed rgba(74,14,23,.3); border-radius: 10px; background: #fff;
+      }
+      .sek-fajl em { display: block; margin-top: 5px; font-size: 12px; font-style: normal; opacity: .65; }
+      .sek-fajl em.est { opacity: 1; color: #4A0E17; font-weight: 600; }
       .sek-msg { font-size: 13.5px; margin: 0; min-height: 18px; }
 
       .sek-itog {

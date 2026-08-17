@@ -937,6 +937,27 @@
 
     /* ── Отправка заявки ───────────────────────────────────────────── */
 
+    /* Подпись под полем файла меняется на имя выбранного макета.
+       Без этого человек не уверен, что файл вообще прикрепился, — а он
+       и так на последнем шаге, где терять его нельзя. */
+    (function () {
+      var pole = document.getElementById('sekMaket');
+      var podpis = document.getElementById('sekFajlPodpis');
+      if (!pole || !podpis) return;
+      pole.addEventListener('change', function () {
+        var f = pole.files && pole.files[0];
+        if (!f) {
+          podpis.textContent = 'PDF, JPG, PNG и другие. До 20 МБ. Необязательно.';
+          podpis.className = '';
+          return;
+        }
+        var mb = f.size / 1024 / 1024;
+        podpis.textContent = 'Приложен: ' + f.name + ' · ' +
+          (mb < 1 ? Math.round(f.size / 1024) + ' КБ' : mb.toFixed(1) + ' МБ');
+        podpis.className = 'est';
+      });
+    })();
+
     forma.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var tel = document.getElementById('sekTel').value.trim();
@@ -951,24 +972,55 @@
         msgEl.textContent = 'Отметьте согласие на обработку персональных данных — без него мы не вправе принять заявку.';
         return;
       }
+      // Макет, если человек его приложил. Файл берём ДО блокировки кнопки:
+      // после disabled браузер поле не трогает, но порядок важен для чтения.
+      var poleFajl = document.getElementById('sekMaket');
+      var fajl = poleFajl && poleFajl.files && poleFajl.files[0];
+
+      if (fajl && fajl.size > 20 * 1024 * 1024) {
+        msgEl.style.color = '#8B1A1A';
+        msgEl.textContent = 'Файл больше 20 МБ. Отправьте заявку без него — ' +
+                            'мы напишем, куда прислать макет.';
+        return;
+      }
+
       knopka.disabled = true; knopka.style.opacity = '.6';
       msgEl.style.color = '#4A0E17';
-      msgEl.textContent = 'Отправляем...';
+      msgEl.textContent = fajl ? 'Отправляем заявку и макет...' : 'Отправляем...';
 
-      fetch('/api/bot-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contact: tel,
-          // Факт согласия уезжает вместе с заявкой и ложится в журнал:
-          // по 152-ФЗ мы должны уметь показать, что человек его давал.
-          path: put.concat(stroCkiOplaty()).concat(
-            ['Согласие на обработку персональных данных получено']
-          ),
-          total: itog && itog.summa ? Math.round(itog.summa) : 0,
-          scenario: 'Секретарь на сайте'
-        })
-      })
+      var polya = {
+        contact: tel,
+        // Факт согласия уезжает вместе с заявкой и ложится в журнал:
+        // по 152-ФЗ мы должны уметь показать, что человек его давал.
+        path: put.concat(stroCkiOplaty()).concat(
+          [fajl ? 'Макет приложен к заявке: ' + fajl.name : 'Макет к заявке не приложен',
+           'Согласие на обработку персональных данных получено']
+        ),
+        total: itog && itog.summa ? Math.round(itog.summa) : 0,
+        scenario: 'Секретарь на сайте'
+      };
+
+      // С файлом отправляем формой, без файла — как раньше, JSON.
+      // Сервер понимает оба вида: у него стоит
+      // `request.get_json(silent=True) or request.form`.
+      var zapros;
+      if (fajl) {
+        var fd = new FormData();
+        fd.append('contact', polya.contact);
+        fd.append('path', JSON.stringify(polya.path));
+        fd.append('total', String(polya.total));
+        fd.append('scenario', polya.scenario);
+        fd.append('maket', fajl, fajl.name);
+        zapros = fetch('/api/bot-lead', { method: 'POST', body: fd });
+      } else {
+        zapros = fetch('/api/bot-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(polya)
+        });
+      }
+
+      zapros
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) {

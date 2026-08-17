@@ -67,6 +67,71 @@
       return cena;
     }
 
+    /** Цена ламинации одного листа по формату и тиражу, плёнка 80–100 мкм.
+     *
+     *  Ламинация давно есть в прайсе отдельной услугой, но как ДОБАВКА
+     *  к сертификату или открытке её никто не предлагал: человек должен
+     *  был сам догадаться заказать её вторым заходом. Владелица попросила
+     *  17.08.2026 спрашивать прямо в диалоге. */
+    function cenaLaminacii(format, kolvo) {
+      // Берём ту же таблицу, по которой считается ламинация отдельной
+      // услугой, — не копию. Иначе добавка и услуга разъедутся в ценах.
+      var t = C.laminaciya;
+      if (!t) return null;
+      var stroka = ({
+        'А6': 'А6 и меньше, 80–100 мкм',
+        'Евро': 'А6 и меньше, 80–100 мкм',
+        'А5': 'А5, 80–100 мкм',
+        'А4': 'А4, 80–100 мкм',
+        'А3': 'А3, 80–100 мкм'
+      })[format];
+      if (!stroka) return null;
+      return poTirazhu(t, stroka, kolvo);
+    }
+
+    /** Шаг «отделка»: ламинация и фольгирование одним вопросом.
+     *
+     *  Фольгирование появляется, ТОЛЬКО если в прайсе задана цена.
+     *  Пока `folgirovanie.cena` равна null, спрашивать про него нельзя:
+     *  назвать цену нечем, а «посчитаем позже» — это ровно та пауза,
+     *  на которой ушёл клиент 16.08. Появится число в прайсе — появится
+     *  и кнопка, править код не придётся. */
+    function shagOtdelka(format) {
+      return { id: 'otdelka', vopros: 'Добавим отделку?', varianty: function (v) {
+        var f = v.format || format;
+        var spisok = [{ t: 'Без отделки', v: 'net' }];
+        var lam = cenaLaminacii(f, v.kolvo || 1);
+        if (lam) {
+          spisok.push({ t: 'Заламинировать', i: rub(lam) + ' за штуку, плёнка 80–100 мкм', v: 'laminaciya' });
+        }
+        var folga = C.folgirovanie && C.folgirovanie.cena;
+        if (folga) {
+          spisok.push({ t: 'Фольгирование', i: rub(folga) + ' за лист, ' + C.folgirovanie.opisanie, v: 'folga' });
+        }
+        if (lam && folga) {
+          spisok.push({ t: 'И то, и другое', v: 'oba' });
+        }
+        return spisok;
+      } };
+    }
+
+    /** Отделка в счёт: возвращает прибавку к цене ЗА ШТУКУ и строчки. */
+    function schetOtdelki(o, stroki) {
+      var pribavka = 0;
+      if (!o.otdelka || o.otdelka === 'net') return 0;
+      var lam = cenaLaminacii(o.format, o.kolvo || 1);
+      var folga = C.folgirovanie && C.folgirovanie.cena;
+      if ((o.otdelka === 'laminaciya' || o.otdelka === 'oba') && lam) {
+        pribavka += lam;
+        stroki.push('Ламинация 80–100 мкм — ' + rub(lam) + ' за штуку');
+      }
+      if ((o.otdelka === 'folga' || o.otdelka === 'oba') && folga) {
+        pribavka += folga;
+        stroki.push('Фольгирование — ' + rub(folga) + ' за штуку');
+      }
+      return pribavka;
+    }
+
     /* ── Сценарии ──────────────────────────────────────────────────── */
 
     var TIRAZH_MALYJ = [
@@ -142,6 +207,7 @@
             spisok.push({ t: 'Не знаю, посоветуйте', v: 'sovet' });
             return spisok;
           } },
+          shagOtdelka('А4'),
           { id: 'maket', vopros: 'Макет уже есть?', varianty: MAKET },
           { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
@@ -192,6 +258,7 @@
           // Единственный порог — розничный минимум в 150 ₽: столько стоит
           // грамота от одной штуки по прайсу. Он не про тираж, а про то,
           // что дешевле этого печатать нечего.
+          zaShtuku += schetOtdelki(o, stroki);
           var summa = zaShtuku * kolvo;
           var roznica = (C.minimalki && C.minimalki.sertifikat) || 0;
           if (summa < roznica) {
@@ -235,6 +302,7 @@
             { t: 'Нет, плоская', i: 'печать с двух сторон уже в цене', v: 'net' },
             { t: 'Да, с разворотом', i: 'биговка и сгиб', v: 'da' }
           ] },
+          shagOtdelka('А6'),
           { id: 'maket', vopros: 'Макет уже есть?', varianty: MAKET },
           { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
@@ -266,6 +334,8 @@
             stroki.push('Биговка и сгиб — ' + rub(sgib) + ' за биг' +
                         (o.kolvo >= 100 ? ', цена тиража' : ''));
           }
+
+          zaShtuku += schetOtdelki(o, stroki);
 
           var summa = zaShtuku * o.kolvo;
           var minimum = (o.format === 'А4')
@@ -345,7 +415,12 @@
           { id: 'kolvo', vopros: 'Сколько листов?', varianty: [
             { t: '1–5', v: 3 }, { t: '10', v: 10 }, { t: '50', v: 50 },
             { t: '100 и больше', v: 100 }
-          ] }
+          ] },
+          // Срочность спрашиваем и здесь. До 17.08.2026 её не было
+          // у копий и ламинации — а именно за ними чаще всего и бегут
+          // «прямо сейчас». Владелица: «услуга срочно должна
+          // присутствовать».
+          { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
         schet: function (o) {
           var zaList = poTirazhu(C.kopii, o.stroka, o.kolvo);
@@ -401,7 +476,8 @@
           ] },
           { id: 'kolvo', vopros: 'Сколько листов?', varianty: [
             { t: '1–10', v: 5 }, { t: '11–50', v: 30 }, { t: '51 и больше', v: 60 }
-          ] }
+          ] },
+          { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
         schet: function (o) {
           var zaList = poTirazhu(C.laminaciya, o.stroka, o.kolvo);

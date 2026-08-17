@@ -56,17 +56,23 @@ export function svg({ sVenzelem, slogan, keglSlogana = 46, sajt }) {
      17.08.2026 поднято со 168 до 196: владелица выбрала вариант
      с вензелем основным, а в кружке 2ГИС из трёх ярусов читается только
      название. Больше 196 слово упирается в кольцо. */
-  const kegl = sVenzelem ? (slogan ? 180 : 196) : 232;
+  const kegl = sVenzelem ? (slogan && sajt ? 172 : slogan ? 180 : 196) : 232;
 
   /* СО СЛОГАНОМ ВСЁ ПОДНИМАЕТСЯ ВВЕРХ. Нижняя дуга — не прямая строка:
      краями она загибается вверх, к названию. При первой сборке слоган
      прошёл прямо сквозь «ГРАНАТ» — на глаз это было видно сразу,
      арифметикой не проверялось. Поэтому вензель и название сдвинуты
      выше, а внизу оставлена свободная полоса под дугу. */
-  const venzelY = slogan ? 310 : 372;
-  const venzelH = slogan ? 450 : 540;
+  /* Когда внизу И слоган по дуге, И адрес строкой — ярусов становится
+     пять, и каждому надо ужаться. Иначе низ забивается: адрес
+     притирается к названию, а концы дуги лезут к адресу. */
+  const vsyoSrazu = slogan && sajt;
+  const venzelY = vsyoSrazu ? 300 : (slogan ? 310 : 372);
+  const venzelH = vsyoSrazu ? 420 : (slogan ? 450 : 540);
   const venzelW = Math.round(venzelH * 299 / 400);   // пропорции картинки
-  const nazvanieY = sVenzelem ? (slogan ? 940 : 1120) : 872;
+  const nazvanieY = sVenzelem ? (slogan && sajt ? 900 : slogan ? 940 : 1120) : 872;
+  const sajtY = slogan ? 990 : 1035;
+  const keglSajta = slogan ? 42 : 46;
 
   return `<!-- Логотип студии «Гранат»${sVenzelem ? ' с вензелем' : ''}.
      Собран скриптом firmennyj-stil/sobrat.mjs — руками не править,
@@ -132,9 +138,9 @@ ${sajt ? `
   <!-- Адрес сайта — прямой строкой под названием, а не по дуге.
        По дуге латиница с точками и дефисом читается плохо: точка
        на изгибе теряется, и адрес переписывают с ошибкой. -->
-  <text x="750" y="1035" text-anchor="middle"
-        font-family="Montserrat Lat" font-size="46" font-weight="600"
-        letter-spacing="${razryadka(46, 0.12)}" fill="url(#zolotoTonkoe)">${sajt}</text>` : ''}
+  <text x="750" y="${sajtY}" text-anchor="middle"
+        font-family="Montserrat Lat" font-size="${keglSajta}" font-weight="600"
+        letter-spacing="${razryadka(keglSajta, 0.12)}" fill="url(#zolotoTonkoe)">${sajt}</text>` : ''}
 ${sVenzelem ? '' : `
   <!-- Три ромба уравновешивают надпись по дуге сверху и не добавляют
        ни одной буквы, которую пришлось бы читать в размере ногтя. -->
@@ -178,9 +184,13 @@ const SBORKI = [
     opts: { sVenzelem: true, slogan: SLOGAN, keglSlogana: KEGL_SLOGANA },
     zachem: 'ОСНОВНОЙ — карточки 2ГИС, Яндекс Бизнес, аватарка ВК' },
 
+  { imya: 'granat-logo-polnyj', proba: 'proba-polnyj',
+    opts: { sVenzelem: true, slogan: SLOGAN, keglSlogana: 50, sajt: 'GRANAT-KMV.RU' },
+    zachem: 'ПОЛНЫЙ — слоган И адрес. Выбор владелицы 17.08.2026' },
+
   { imya: 'granat-logo-dlya-pechati', proba: 'proba-dlya-pechati',
     opts: { sVenzelem: true, slogan: 'GRANAT-KMV.RU', keglSlogana: 66 },
-    zachem: 'ПЕЧАТЬ — визитки, флаеры, бланки, наклейки, вывеска' },
+    zachem: 'ПЕЧАТЬ — только адрес, без слогана' },
 
   { imya: 'granat-logo-2gis', proba: 'proba-bez-venzelya',
     opts: { sVenzelem: false, slogan: SLOGAN, keglSlogana: KEGL_SLOGANA },

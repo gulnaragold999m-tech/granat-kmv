@@ -498,19 +498,46 @@
         в разговоре, когда клиенту дорого или нужно быстрее. */
     function poschitat() {
       var r = scen.schet(vybor);
-      // Срочность множит весь заказ — одна ставка на весь прайс, как у бота.
-      if (r.summa != null && vybor.srok === 'srochno') {
-        r.summa = r.summa * C.koefficienty.srochno;
-        r.zametki.push('Срочно, день в день — плюс 30% ко всему заказу.');
-      }
-      // Акция применяется последней, к итогу: клиент видит ту же скидку,
-      // что была обещана в объявлении. Акции заводятся в data/prices.ts —
-      // объявили в рекламе, значит секретарь о ней знает.
-      var akciya = dejstvuyushchayaAkciya();
-      if (r.summa != null && akciya && akciya.procent > 0) {
-        r.summa = r.summa * (1 - akciya.procent / 100);
-        r.zametki.push('Акция «' + akciya.nazvanie + '»: ' + akciya.uslovie +
-                       ' — учтено в цене. Действует ' + akciya.do_ + '.');
+
+      // Разбор итога по строчкам. Заведён 17.08.2026: на экране крупно
+      // стояло «293 ₽», а под ним «225 ₽ за штуку», и это читалось как
+      // противоречие — цифры разные, откуда взялась разница, не сказано.
+      // Теперь наценка и скидка показаны рублями, а не только процентом.
+      r.razbor = [];
+
+      if (r.summa != null) {
+        var baza = r.summa;
+
+        // Срочность множит ВЕСЬ заказ, включая биговку и другую работу
+        // после печати: она уже сидит в summa к этому месту. Считать
+        // её от одной печати нельзя — срочной становится вся смена.
+        if (vybor.srok === 'srochno') {
+          var doplata = baza * (C.koefficienty.srochno - 1);
+          r.summa = baza + doplata;
+          r.razbor.push({ t: 'Стоимость заказа', v: baza });
+          r.razbor.push({
+            t: 'Срочность: сегодня, день в день — +' +
+               Math.round((C.koefficienty.srochno - 1) * 100) + '%',
+            v: doplata
+          });
+        }
+
+        // Акция применяется последней, к итогу: клиент видит ту же скидку,
+        // что была обещана в объявлении. Акции заводятся в data/prices.ts —
+        // объявили в рекламе, значит секретарь о ней знает.
+        var akciya = dejstvuyushchayaAkciya();
+        if (akciya && akciya.procent > 0) {
+          if (!r.razbor.length) { r.razbor.push({ t: 'Стоимость заказа', v: r.summa }); }
+          var skidka = r.summa * akciya.procent / 100;
+          r.summa = r.summa - skidka;
+          r.razbor.push({ t: 'Акция «' + akciya.nazvanie + '» — −' + akciya.procent + '%', v: -skidka });
+          r.zametki.push('Акция «' + akciya.nazvanie + '»: ' + akciya.uslovie +
+                         '. Действует ' + akciya.do_ + '.');
+        }
+
+        // Разбор из одной строчки не нужен: он повторил бы итог.
+        if (r.razbor.length) { r.razbor.push({ t: 'Итого', v: r.summa, itogo: true }); }
+        else { r.razbor = []; }
       }
       return r;
     }
@@ -534,6 +561,17 @@
       if (itog.summa != null) {
         var text = '<span class="sek-cifra">' + rub(itog.summa) + '</span>';
         itog.stroki.forEach(function (s) { text += s + '<br>'; });
+        if (itog.razbor && itog.razbor.length) {
+          text += '<span class="sek-razbor">';
+          itog.razbor.forEach(function (r, i) {
+            // Плюс ставим только у надбавок. У первой строки (это база)
+            // и у итога знака нет — иначе читается как «прибавить к чему-то».
+            var znak = r.v < 0 ? '−' : (i === 0 || r.itogo ? '' : '+');
+            text += '<span' + (r.itogo ? ' class="itogo"' : '') + '><i>' + r.t + '</i>' +
+                    '<b>' + znak + rub(Math.abs(r.v)) + '</b></span>';
+          });
+          text += '</span>';
+        }
         skazat('bot', text);
         summaEl.textContent = rub(itog.summa);
         podpisEl.textContent = 'по прайсу студии';

@@ -1,0 +1,69 @@
+<!-- Логотип «Граната» для карточки в 2ГИС и Яндекс Картах.
+
+     ПОЧЕМУ ОН УПРОЩЁН по сравнению с основным логотипом.
+     2ГИС вписывает логотип В КРУГ и показывает его размером около
+     200×200 точек — это ноготь большого пальца. Монограмма в рамке
+     и три яруса текста на таком размере сливаются в пятно. Здесь
+     оставлено то, что читается: кольцо, название и подпись студии.
+
+     Всё содержимое держится внутри радиуса 700 от центра, чтобы
+     круглая обрезка ничего не срезала. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500" width="1500" height="1500">
+  <defs>
+    <radialGradient id="fon" cx="50%" cy="40%" r="75%">
+      <stop offset="0%"   stop-color="#71142A"/>
+      <stop offset="62%"  stop-color="#5A1020"/>
+      <stop offset="100%" stop-color="#420C15"/>
+    </radialGradient>
+
+    <!-- Золото делается не одним цветом, а переходом светлое-тёмное-светлое:
+         так металл читается металлом, а не жёлтой заливкой. -->
+    <linearGradient id="zoloto" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0%"   stop-color="#F7E9B0"/>
+      <stop offset="24%"  stop-color="#DDB95B"/>
+      <stop offset="48%"  stop-color="#B3801F"/>
+      <stop offset="72%"  stop-color="#EBD285"/>
+      <stop offset="100%" stop-color="#9E6F17"/>
+    </linearGradient>
+
+    <linearGradient id="zolotoTonkoe" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#F2DFA0"/>
+      <stop offset="50%"  stop-color="#C79A34"/>
+      <stop offset="100%" stop-color="#EFD98F"/>
+    </linearGradient>
+
+    <!-- Дуга для верхней надписи. Идёт от левой точки через верх к правой:
+         начало в 9 часов, sweep=1 — по часовой стрелке. -->
+    <path id="dugaVerh" fill="none" d="M 200,750 A 550,550 0 0 1 1300,750"/>
+  </defs>
+
+  <rect width="1500" height="1500" fill="url(#fon)"/>
+
+  <!-- Кольца. Толстое внешнее и тонкое внутреннее — как в исходном знаке. -->
+  <circle cx="750" cy="750" r="688" fill="none" stroke="url(#zoloto)" stroke-width="26"/>
+  <circle cx="750" cy="750" r="645" fill="none" stroke="url(#zolotoTonkoe)" stroke-width="6"/>
+
+  <!-- Верхняя надпись. Крупнее, чем в исходнике, и с разрядкой:
+       мелкий текст по дуге — первое, что пропадает при уменьшении. -->
+  <text font-family="DejaVu Sans, Liberation Sans, sans-serif"
+        font-size="78" font-weight="600" letter-spacing="18"
+        fill="url(#zolotoTonkoe)">
+    <textPath href="#dugaVerh" startOffset="50%" text-anchor="middle">ДИЗАЙНЕРСКАЯ СТУДИЯ</textPath>
+  </text>
+
+  <!-- Название. Главный элемент: на карте человек узнаёт студию по слову.
+       Размер подобран так, чтобы слово НЕ КАСАЛОСЬ внутреннего кольца:
+       при 268 буквы Г и Т упирались в золото и читались как обрезанные. -->
+  <text x="750" y="872" text-anchor="middle"
+        font-family="DejaVu Serif, Liberation Serif, serif"
+        font-size="232" font-weight="bold" letter-spacing="10"
+        fill="url(#zoloto)">ГРАНАТ</text>
+
+  <!-- Орнамент снизу: три ромба. Уравновешивает надпись по дуге сверху
+       и не добавляет ни одной буквы, которую пришлось бы читать. -->
+  <g fill="url(#zolotoTonkoe)">
+    <rect x="655" y="945" width="34" height="34" transform="rotate(45 672 962)"/>
+    <rect x="733" y="938" width="48" height="48" transform="rotate(45 757 962)"/>
+    <rect x="811" y="945" width="34" height="34" transform="rotate(45 828 962)"/>
+  </g>
+</svg>

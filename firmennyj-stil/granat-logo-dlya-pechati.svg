@@ -51,9 +51,9 @@
   <!-- Слоган по нижней дуге. Кегль подбирается под длину строки:
        длинная фраза мельче, короткая крупнее. Слишком крупная упрётся
        концами в кольцо и обрежется без предупреждения. -->
-  <text font-family="Montserrat" font-size="54" font-weight="600"
-        letter-spacing="9" fill="url(#zolotoTonkoe)">
-    <textPath href="#dugaNiz" startOffset="50%" text-anchor="middle">ПЕЧАТЬ · ЛЕРМОНТОВ · КМВ</textPath>
+  <text font-family="Montserrat" font-size="66" font-weight="600"
+        letter-spacing="11" fill="url(#zolotoTonkoe)">
+    <textPath href="#dugaNiz" startOffset="50%" text-anchor="middle">GRANAT-KMV.RU</textPath>
   </text>
   <text x="750" y="940" text-anchor="middle"
         font-family="Playfair Display" font-size="180" font-weight="700"

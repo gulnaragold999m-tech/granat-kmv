@@ -28,6 +28,11 @@ const shrift = (imya) =>
 
 const PLAYFAIR = shrift('playfair-display-700.woff2');
 const MONTSERRAT = shrift('montserrat-600.woff2');
+/* Латиница отдельным шрифтом и под ДРУГИМ именем семейства.
+   Причина: кириллическое подмножество Montserrat латинских букв
+   не содержит вовсе, и адрес сайта набрался бы системным шрифтом —
+   на глаз это чужие буквы посреди фирменного знака. */
+const MONTSERRAT_LAT = shrift('montserrat-600-latin.woff2');
 const VENZEL = readFileSync(join(TUT, 'venzel-g.png')).toString('base64');
 
 /* СЛОГАН. Выбран владелицей 17.08.2026 из четырёх вариантов:
@@ -45,7 +50,7 @@ const KEGL_SLOGANA = 54;   // подобран под длину: 24 знака 
    в точках. Поэтому переводим: 0.18 × размер шрифта. */
 const razryadka = (kegl, em) => Math.round(kegl * em);
 
-export function svg({ sVenzelem, slogan, keglSlogana = 46 }) {
+export function svg({ sVenzelem, slogan, keglSlogana = 46, sajt }) {
   /* С вензелем название меньше: втроём — дуга, вензель и слово — они
      не помещаются, если каждому дать полный размер.
      17.08.2026 поднято со 168 до 196: владелица выбрала вариант
@@ -74,6 +79,8 @@ export function svg({ sVenzelem, slogan, keglSlogana = 46 }) {
         src:url(data:font/woff2;base64,${PLAYFAIR}) format('woff2')}
       @font-face{font-family:'Montserrat';font-weight:600;
         src:url(data:font/woff2;base64,${MONTSERRAT}) format('woff2')}
+      @font-face{font-family:'Montserrat Lat';font-weight:600;
+        src:url(data:font/woff2;base64,${MONTSERRAT_LAT}) format('woff2')}
     </style>
     <radialGradient id="fon" cx="50%" cy="40%" r="75%">
       <stop offset="0%"   stop-color="#71142A"/>
@@ -121,6 +128,13 @@ ${slogan ? `
   <text x="750" y="${nazvanieY}" text-anchor="middle"
         font-family="Playfair Display" font-size="${kegl}" font-weight="700"
         letter-spacing="${razryadka(kegl, 0.18)}" fill="url(#zoloto)">ГРАНАТ</text>
+${sajt ? `
+  <!-- Адрес сайта — прямой строкой под названием, а не по дуге.
+       По дуге латиница с точками и дефисом читается плохо: точка
+       на изгибе теряется, и адрес переписывают с ошибкой. -->
+  <text x="750" y="1035" text-anchor="middle"
+        font-family="Montserrat Lat" font-size="46" font-weight="600"
+        letter-spacing="${razryadka(46, 0.12)}" fill="url(#zolotoTonkoe)">${sajt}</text>` : ''}
 ${sVenzelem ? '' : `
   <!-- Три ромба уравновешивают надпись по дуге сверху и не добавляют
        ни одной буквы, которую пришлось бы читать в размере ногтя. -->
@@ -148,13 +162,36 @@ img{display:block;width:${storona}px;height:${storona}px;${krug ? 'border-radius
 
 /* Запущен напрямую — собираем. Импортирован (сравнение вариантов) —
    отдаём только функции, чтобы не перезаписать готовые файлы. */
-if (process.argv[1] === fileURLToPath(import.meta.url))
-for (const sVenzelem of [false, true]) {
-  const hvost = sVenzelem ? '-s-venzelem' : '';
-  const imyaSvg = `granat-logo-2gis${hvost}.svg`;
-  writeFileSync(join(TUT, imyaSvg), svg({ sVenzelem, slogan: SLOGAN, keglSlogana: KEGL_SLOGANA }));
-  console.log(sVenzelem ? 'С вензелем:' : 'Без вензеля:');
-  console.log(`  ${imyaSvg}`);
-  risovat(imyaSvg, 1500, `granat-logo-2gis${hvost}-1500.png`, false);
-  risovat(imyaSvg, 200, `proba${hvost || '-bez-venzelya'}-200.png`, true);
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+/* ТРИ ФАЙЛА, И У КАЖДОГО СВОЁ МЕСТО. Разница не в красоте, а в том,
+   что человек видит рядом со знаком.
+
+   Карточка 2ГИС и Яндекса: ссылка на сайт там уже стоит кнопкой,
+   писать адрес внутри знака — тратить место дважды. Зато слоган
+   говорит, что мы делаем и где.
+
+   Печатная продукция: рядом нет ни кнопки, ни карточки. Адрес внутри
+   знака — единственный способ довести человека до сайта, поэтому
+   он занимает место слогана. */
+const SBORKI = [
+  { imya: 'granat-logo-2gis-s-venzelem', proba: 'proba-s-venzelem',
+    opts: { sVenzelem: true, slogan: SLOGAN, keglSlogana: KEGL_SLOGANA },
+    zachem: 'ОСНОВНОЙ — карточки 2ГИС, Яндекс Бизнес, аватарка ВК' },
+
+  { imya: 'granat-logo-dlya-pechati', proba: 'proba-dlya-pechati',
+    opts: { sVenzelem: true, slogan: 'GRANAT-KMV.RU', keglSlogana: 66 },
+    zachem: 'ПЕЧАТЬ — визитки, флаеры, бланки, наклейки, вывеска' },
+
+  { imya: 'granat-logo-2gis', proba: 'proba-bez-venzelya',
+    opts: { sVenzelem: false, slogan: SLOGAN, keglSlogana: KEGL_SLOGANA },
+    zachem: 'МЕЛКИЙ РАЗМЕР — значок вкладки, аватарка в переписке' },
+];
+
+for (const { imya, proba, opts, zachem } of SBORKI) {
+  const imyaSvg = `${imya}.svg`;
+  writeFileSync(join(TUT, imyaSvg), svg(opts));
+  console.log(`${zachem}\n  ${imyaSvg}`);
+  risovat(imyaSvg, 1500, `${imya}-1500.png`, false);
+  risovat(imyaSvg, 200, `${proba}-200.png`, true);
+}
 }

@@ -34,13 +34,23 @@ const VENZEL = readFileSync(join(TUT, 'venzel-g.png')).toString('base64');
    в точках. Поэтому переводим: 0.18 × размер шрифта. */
 const razryadka = (kegl, em) => Math.round(kegl * em);
 
-function svg({ sVenzelem }) {
+export function svg({ sVenzelem, slogan, keglSlogana = 46 }) {
   /* С вензелем название меньше: втроём — дуга, вензель и слово — они
      не помещаются, если каждому дать полный размер.
      17.08.2026 поднято со 168 до 196: владелица выбрала вариант
      с вензелем основным, а в кружке 2ГИС из трёх ярусов читается только
      название. Больше 196 слово упирается в кольцо. */
-  const kegl = sVenzelem ? 196 : 232;
+  const kegl = sVenzelem ? (slogan ? 180 : 196) : 232;
+
+  /* СО СЛОГАНОМ ВСЁ ПОДНИМАЕТСЯ ВВЕРХ. Нижняя дуга — не прямая строка:
+     краями она загибается вверх, к названию. При первой сборке слоган
+     прошёл прямо сквозь «ГРАНАТ» — на глаз это было видно сразу,
+     арифметикой не проверялось. Поэтому вензель и название сдвинуты
+     выше, а внизу оставлена свободная полоса под дугу. */
+  const venzelY = slogan ? 310 : 372;
+  const venzelH = slogan ? 450 : 540;
+  const venzelW = Math.round(venzelH * 299 / 400);   // пропорции картинки
+  const nazvanieY = sVenzelem ? (slogan ? 940 : 1120) : 872;
 
   return `<!-- Логотип студии «Гранат»${sVenzelem ? ' с вензелем' : ''}.
      Собран скриптом firmennyj-stil/sobrat.mjs — руками не править,
@@ -72,6 +82,10 @@ function svg({ sVenzelem }) {
       <stop offset="100%" stop-color="#EFD98F"/>
     </linearGradient>
     <path id="dugaVerh" fill="none" d="M 200,750 A 550,550 0 0 1 1300,750"/>
+    <!-- Нижняя дуга идёт в обратную сторону — от левой точки через НИЗ
+         к правой (sweep=0). Только так буквы стоят головой вверх;
+         с sweep=1 слоган читался бы вверх ногами. -->
+    <path id="dugaNiz" fill="none" d="M 205,750 A 545,545 0 0 0 1295,750"/>
   </defs>
 
   <rect width="1500" height="1500" fill="url(#fon)"/>
@@ -83,9 +97,17 @@ function svg({ sVenzelem }) {
     <textPath href="#dugaVerh" startOffset="50%" text-anchor="middle">ДИЗАЙНЕРСКАЯ СТУДИЯ</textPath>
   </text>
 ${sVenzelem ? `
-  <image x="548" y="372" width="404" height="540" href="data:image/png;base64,${VENZEL}"/>
+  <image x="${750 - Math.round(venzelW / 2)}" y="${venzelY}" width="${venzelW}" height="${venzelH}" href="data:image/png;base64,${VENZEL}"/>
 ` : ''}
-  <text x="750" y="${sVenzelem ? 1120 : 872}" text-anchor="middle"
+${slogan ? `
+  <!-- Слоган по нижней дуге. Кегль подбирается под длину строки:
+       длинная фраза мельче, короткая крупнее. Слишком крупная упрётся
+       концами в кольцо и обрежется без предупреждения. -->
+  <text font-family="Montserrat" font-size="${keglSlogana}" font-weight="600"
+        letter-spacing="${razryadka(keglSlogana, 0.16)}" fill="url(#zolotoTonkoe)">
+    <textPath href="#dugaNiz" startOffset="50%" text-anchor="middle">${slogan}</textPath>
+  </text>` : ''}
+  <text x="750" y="${nazvanieY}" text-anchor="middle"
         font-family="Playfair Display" font-size="${kegl}" font-weight="700"
         letter-spacing="${razryadka(kegl, 0.18)}" fill="url(#zoloto)">ГРАНАТ</text>
 ${sVenzelem ? '' : `
@@ -100,7 +122,7 @@ ${sVenzelem ? '' : `
 `;
 }
 
-function risovat(imyaSvg, storona, vyhod, krug) {
+export function risovat(imyaSvg, storona, vyhod, krug) {
   const html = join(TUT, '_r.html');
   writeFileSync(html, `<!doctype html><meta charset="utf-8">
 <style>html,body{margin:0;padding:0;width:${storona}px;height:${storona}px;overflow:hidden}
@@ -113,6 +135,9 @@ img{display:block;width:${storona}px;height:${storona}px;${krug ? 'border-radius
   console.log(`  ${vyhod} — ${storona}×${storona}`);
 }
 
+/* Запущен напрямую — собираем. Импортирован (сравнение вариантов) —
+   отдаём только функции, чтобы не перезаписать готовые файлы. */
+if (process.argv[1] === fileURLToPath(import.meta.url))
 for (const sVenzelem of [false, true]) {
   const hvost = sVenzelem ? '-s-venzelem' : '';
   const imyaSvg = `granat-logo-2gis${hvost}.svg`;

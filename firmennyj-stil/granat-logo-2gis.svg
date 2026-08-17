@@ -28,6 +28,10 @@
       <stop offset="100%" stop-color="#EFD98F"/>
     </linearGradient>
     <path id="dugaVerh" fill="none" d="M 200,750 A 550,550 0 0 1 1300,750"/>
+    <!-- Нижняя дуга идёт в обратную сторону — от левой точки через НИЗ
+         к правой (sweep=0). Только так буквы стоят головой вверх;
+         с sweep=1 слоган читался бы вверх ногами. -->
+    <path id="dugaNiz" fill="none" d="M 205,750 A 545,545 0 0 0 1295,750"/>
   </defs>
 
   <rect width="1500" height="1500" fill="url(#fon)"/>
@@ -38,6 +42,7 @@
         letter-spacing="15" fill="url(#zolotoTonkoe)">
     <textPath href="#dugaVerh" startOffset="50%" text-anchor="middle">ДИЗАЙНЕРСКАЯ СТУДИЯ</textPath>
   </text>
+
 
   <text x="750" y="872" text-anchor="middle"
         font-family="Playfair Display" font-size="232" font-weight="700"

@@ -33,6 +33,7 @@ import {
   AKCII,
   OPLATA,
   OTDELKA,
+  BIGOVKA,
   type TirazhTablica,
   type Yacheyka,
 } from '../data/prices.ts';
@@ -108,6 +109,7 @@ const CENY = {
 
   /* Отделка — за штуку, добавляется к базовой цене. */
   otdelka: OTDELKA,
+  bigovka: BIGOVKA,
 
   /* Множители. Срочность одна на весь прайс — как у бота. */
   koefficienty: {

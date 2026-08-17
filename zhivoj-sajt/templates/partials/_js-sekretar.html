@@ -50,6 +50,23 @@
       return Math.round(n).toLocaleString('ru-RU') + ' ₽';
     }
 
+    /** Цена одного бига по числу бигов в заказе.
+     *
+     *  sPechatyu = true, когда биговка идёт вместе с печатью и печать
+     *  уже в счёте: приёмки файла и отдельной приладки нет, поэтому
+     *  на тираже дешевле. Запасные числа стоят на случай, если прайс
+     *  не отдал таблицу, — молча считать по нулю нельзя. */
+    function cenaBigovki(kolvo, sPechatyu) {
+      var b = C.bigovka;
+      if (!b) { return (C.otdelka && C.otdelka.bigovkaSgib) || 7; }
+      var ceny = sPechatyu ? b.sPechatyu : b.otdelno;
+      var cena = ceny[0];
+      for (var k = 0; k < b.porogi.length; k++) {
+        if (kolvo >= b.porogi[k] && ceny[k] != null) cena = ceny[k];
+      }
+      return cena;
+    }
+
     /* ── Сценарии ──────────────────────────────────────────────────── */
 
     var TIRAZH_MALYJ = [
@@ -188,10 +205,16 @@
 
           // Биговка со сгибом идёт за штуку и считается ДО минимального
           // заказа: это работа, а не наценка на итог.
+          //
+          // Цена ступенчатая. На штуке 7 ₽ — время уходит на приладку.
+          // На тираже приладка одна на всё, и держать 7 ₽ значит брать
+          // 700 ₽ за пятнадцать минут работы. Здесь биговка всегда идёт
+          // вместе с печатью, поэтому берём столбец sPechatyu.
           if (o.sgib === 'da') {
-            var sgib = (C.otdelka && C.otdelka.bigovkaSgib) || 0;
+            var sgib = cenaBigovki(o.kolvo, true);
             zaShtuku += sgib;
-            stroki.push('Биговка и сгиб — ' + rub(sgib) + ' за штуку');
+            stroki.push('Биговка и сгиб — ' + rub(sgib) + ' за биг' +
+                        (o.kolvo >= 100 ? ', цена тиража' : ''));
           }
 
           var summa = zaShtuku * o.kolvo;

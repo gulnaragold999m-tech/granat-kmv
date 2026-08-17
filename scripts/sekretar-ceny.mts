@@ -35,6 +35,7 @@ import {
   OTDELKA,
   BIGOVKA,
   FOLGIROVANIE,
+  NACENKA_ZA_PLOTNOST,
   type TirazhTablica,
   type Yacheyka,
 } from '../data/prices.ts';
@@ -124,6 +125,7 @@ const CENY = {
   otdelka: OTDELKA,
   bigovka: BIGOVKA,
   folgirovanie: FOLGIROVANIE,
+  plotnosti: NACENKA_ZA_PLOTNOST.stroki,
 
   /* Множители. Срочность одна на весь прайс — как у бота. */
   koefficienty: {

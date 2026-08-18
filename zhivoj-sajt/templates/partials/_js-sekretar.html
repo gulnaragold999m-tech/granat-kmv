@@ -1145,7 +1145,7 @@
       var podpis = document.getElementById('sekFajlPodpis');
       if (!pole || !podpis) return;
       var PUSTO = 'Можно выбрать несколько файлов — лицо и оборот. ' +
-                  'PDF, JPG, PNG и другие. До 20 МБ каждый. Необязательно.';
+                  'Целую папку — архивом ZIP. До 20 МБ каждый файл. Необязательно.';
 
       pole.addEventListener('change', function () {
         var fajly = pole.files ? Array.prototype.slice.call(pole.files, 0, MAX_MAKETOV) : [];

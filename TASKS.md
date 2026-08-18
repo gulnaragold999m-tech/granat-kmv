@@ -1984,4 +1984,4 @@ Epson — «Ошибка», Canon Generic Plus — «Отключен», ска�
   а на фотоколлаже разница в цвете видна сразу.
 
 **Сделано:**
-- [x] `bb61c4f` пересчёт по цене 6 002 ₽ в `docs/sebestoimost-pechati.md`
+- [x] `bc5b92f` пересчёт по цене 6 002 ₽ в `docs/sebestoimost-pechati.md`

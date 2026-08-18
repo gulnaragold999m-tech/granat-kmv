@@ -540,8 +540,12 @@
             var baza = poTirazhu(C.flaery, v.format, v.kolvo) * (Number(v.zapolnenie) || 1);
             return spisok.map(function (p) {
               var zaShtuku = baza * (1 + p.nacenka / 100);
+              /* Подсказка «на ощупь» рядом с граммами. Клиент не знает,
+                 чем 130 г/м² отличается от 170, и выбирает наугад либо
+                 самое дешёвое. Сравнение с журналом и открыткой он
+                 понимает без объяснений. Заведено 18.08.2026. */
               return {
-                t: p.bumaga,
+                t: p.bumaga + (p.naOschup ? ' — ' + p.naOschup : ''),
                 i: rub(zaShtuku) + ' за штуку, ' + rub(zaShtuku * v.kolvo) + ' за тираж',
                 v: p.nacenka
               };
@@ -1062,6 +1066,60 @@
 
     /* ── Отправка заявки ───────────────────────────────────────────── */
 
+    /* ── Замер заливки по самому макету ────────────────────────────
+
+       Указание владелицы 18.08.2026: «научи его определять количество
+       краски». До этого категорию заполнения называл клиент кнопкой,
+       а он её на глаз не знает — и занижает, потому что дешевле.
+
+       КАК СЧИТАЕМ. Браузер рисует картинку на холсте 240 точек шириной
+       и смотрит каждую точку: насколько она темнее белого. Белый лист —
+       ноль краски, чёрная плашка — единица. Среднее по всем точкам и есть
+       доля краски.
+
+       Это оценка «на глаз машины», а не типографский расчёт покрытия:
+       жёлтая заливка тратит одну краску, но выглядит светлой. Поэтому
+       результат — повод пересчитать и проверить файлом, а не приговор.
+
+       ЧЕГО НЕ УМЕЕМ. PDF, CDR, AI, EPS браузер не откроет — там честно
+       говорим, что посмотрим руками. Границы 20% и 60% взяты из прайса,
+       ZAPOLNENIE_MAKETA. */
+    var zamerMaketa = null;
+
+    function zamerZalivki(fajl, gotovo) {
+      if (!/^image\/(jpeg|png|webp)$/.test(fajl.type)) { gotovo(null); return; }
+      var url = URL.createObjectURL(fajl);
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var w = 240, h = Math.max(1, Math.round(img.height * w / img.width));
+          var c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          var ctx = c.getContext('2d');
+          /* Белая подложка: у PNG с прозрачностью пустота иначе считается
+             чёрной, и белый макет с прозрачным фоном показал бы 100% краски. */
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          var d = ctx.getImageData(0, 0, w, h).data, sum = 0, n = 0;
+          for (var i = 0; i < d.length; i += 4) {
+            sum += 1 - (d[i] + d[i + 1] + d[i + 2]) / 765;
+            n++;
+          }
+          var dolya = n ? sum / n : 0;
+          var kat = dolya > 0.6 ? 2 : dolya > 0.2 ? 1 : 0;
+          var spisok = C.zapolnenie || [];
+          gotovo({
+            procent: Math.round(dolya * 100),
+            nazvanie: spisok[kat] ? spisok[kat].nazvanie.split(':')[0] : '',
+            koef: spisok[kat] ? spisok[kat].koef : 1
+          });
+        } catch (e) { gotovo(null); }
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = function () { gotovo(null); URL.revokeObjectURL(url); };
+      img.src = url;
+    }
+
     /* Подпись под полем файла меняется на имя выбранного макета.
        Без этого человек не уверен, что файл вообще прикрепился, — а он
        и так на последнем шаге, где терять его нельзя. */
@@ -1077,9 +1135,24 @@
           return;
         }
         var mb = f.size / 1024 / 1024;
-        podpis.textContent = 'Приложен: ' + f.name + ' · ' +
+        var opisanie = 'Приложен: ' + f.name + ' · ' +
           (mb < 1 ? Math.round(f.size / 1024) + ' КБ' : mb.toFixed(1) + ' МБ');
+        podpis.textContent = opisanie;
         podpis.className = 'est';
+
+        /* Считаем краску сразу, как только файл выбран. Результат
+           показываем человеку — он должен видеть, на чём основана цена. */
+        zamerMaketa = null;
+        zamerZalivki(f, function (z) {
+          zamerMaketa = z;
+          if (!z) {
+            podpis.textContent = opisanie + ' · заливку посмотрим глазами: ' +
+              'этот формат браузер не читает';
+            return;
+          }
+          podpis.textContent = opisanie + ' · краски на макете ' + z.procent + '% — ' +
+            z.nazvanie.toLowerCase() + ' заполнение';
+        });
       });
     })();
 
@@ -1118,8 +1191,13 @@
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
         // по 152-ФЗ мы должны уметь показать, что человек его давал.
         path: put.concat(stroCkiOplaty()).concat(
-          [fajl ? 'Макет приложен к заявке: ' + fajl.name : 'Макет к заявке не приложен',
-           'Согласие на обработку персональных данных получено']
+          [fajl ? 'Макет приложен к заявке: ' + fajl.name : 'Макет к заявке не приложен']
+            .concat(zamerMaketa
+              ? ['Замер по файлу: краски ' + zamerMaketa.procent + '%, ' +
+                 zamerMaketa.nazvanie.toLowerCase() + ' заполнение (коэффициент ' +
+                 zamerMaketa.koef + ')']
+              : [])
+            .concat(['Согласие на обработку персональных данных получено'])
         ),
         total: itog && itog.summa ? Math.round(itog.summa) : 0,
         scenario: 'Секретарь на сайте'

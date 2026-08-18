@@ -544,11 +544,11 @@ export const FLAERY: TirazhTablica = {
 export const NACENKA_ZA_PLOTNOST = {
   zagolovok: 'Наценка за плотность бумаги',
   stroki: [
-    { bumaga: '115–130 г/м²', nacenka: 0, tekst: 'без наценки' },
-    { bumaga: '150 г/м²', nacenka: 10, tekst: '+10%' },
-    { bumaga: '160 г/м²', nacenka: 12, tekst: '+12%' },
-    { bumaga: '170 г/м²', nacenka: 15, tekst: '+15%' },
-    { bumaga: '200 г/м²', nacenka: 25, tekst: '+25%' },
+    { bumaga: '115–130 г/м²', nacenka: 0, tekst: 'без наценки', naOschup: 'как страница глянцевого журнала' },
+    { bumaga: '150 г/м²', nacenka: 10, tekst: '+10%', naOschup: 'плотнее журнала, чуть держит форму' },
+    { bumaga: '160 г/м²', nacenka: 12, tekst: '+12%', naOschup: 'как хорошая рекламная листовка' },
+    { bumaga: '170 г/м²', nacenka: 15, tekst: '+15%', naOschup: 'как обложка тонкой тетради' },
+    { bumaga: '200 г/м²', nacenka: 25, tekst: '+25%', naOschup: 'как открытка из магазина' },
   ],
   primechaniya: [
     'Бумага плотнее 250 г/м² считается по разделу «Открытки и приглашения».',

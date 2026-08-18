@@ -2820,5 +2820,5 @@ VseListovki. Час работы.
       если придёт заказ на листовки через ВК, цену перепроверять руками.
 
 **Сделано:**
-- [x] `1f6d4b8` `scripts/bot-ceny.mts` и команда `npm run bot-ceny`
-- [x] `1f6d4b8` `bot/ceny_iz_prajsa.py` — сгенерирован и проверен
+- [x] `06b2653` `scripts/bot-ceny.mts` и команда `npm run bot-ceny`
+- [x] `06b2653` `bot/ceny_iz_prajsa.py` — сгенерирован и проверен

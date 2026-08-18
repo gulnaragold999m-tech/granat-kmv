@@ -1135,35 +1135,68 @@
     /* Подпись под полем файла меняется на имя выбранного макета.
        Без этого человек не уверен, что файл вообще прикрепился, — а он
        и так на последнем шаге, где терять его нельзя. */
+    /* Сколько файлов берём. Столько же стоит на сервере (MAX_MAKETOV
+       в app.py) — предел должен быть один, иначе браузер разрешит
+       выбрать пять, а доедут четыре, и никто не поймёт почему. */
+    var MAX_MAKETOV = 4;
+
     (function () {
       var pole = document.getElementById('sekMaket');
       var podpis = document.getElementById('sekFajlPodpis');
       if (!pole || !podpis) return;
+      var PUSTO = 'Можно выбрать несколько файлов — лицо и оборот. ' +
+                  'PDF, JPG, PNG и другие. До 20 МБ каждый. Необязательно.';
+
       pole.addEventListener('change', function () {
-        var f = pole.files && pole.files[0];
-        if (!f) {
-          podpis.textContent = 'PDF, JPG, PNG и другие. До 20 МБ. Необязательно.';
+        var fajly = pole.files ? Array.prototype.slice.call(pole.files, 0, MAX_MAKETOV) : [];
+        if (!fajly.length) {
+          podpis.textContent = PUSTO;
           podpis.className = '';
           return;
         }
-        var mb = f.size / 1024 / 1024;
-        var opisanie = 'Приложен: ' + f.name + ' · ' +
-          (mb < 1 ? Math.round(f.size / 1024) + ' КБ' : mb.toFixed(1) + ' МБ');
+        var vsego = 0;
+        fajly.forEach(function (f) { vsego += f.size; });
+        var mb = vsego / 1024 / 1024;
+        var razmer = mb < 1 ? Math.round(vsego / 1024) + ' КБ' : mb.toFixed(1) + ' МБ';
+        var opisanie = (fajly.length === 1 ? 'Приложен: ' : 'Приложено ' + fajly.length + ': ') +
+          fajly.map(function (f) { return f.name; }).join(', ') + ' · ' + razmer;
         podpis.textContent = opisanie;
         podpis.className = 'est';
 
-        /* Считаем краску сразу, как только файл выбран. Результат
-           показываем человеку — он должен видеть, на чём основана цена. */
+        /* Считаем краску сразу, как только файлы выбраны. Результат
+           показываем человеку — он должен видеть, на чём основана цена.
+
+           Стороны усредняем, а не берём худшую: чернила тратятся на
+           каждую сторону отдельно, а цена в прайсе — за обе сразу.
+           Белый оборот при плотном лице действительно дешевле, и
+           считать весь заказ по лицу было бы завышением. */
         zamerMaketa = null;
-        zamerZalivki(f, function (z) {
-          zamerMaketa = z;
-          if (!z) {
-            podpis.textContent = opisanie + ' · заливку посмотрим глазами: ' +
-              'этот формат браузер не читает';
-            return;
-          }
-          podpis.textContent = opisanie + ' · краски на макете ' + z.procent + '% — ' +
-            z.nazvanie.toLowerCase() + ' заполнение';
+        var zamery = [], zhdem = fajly.length;
+        fajly.forEach(function (f) {
+          zamerZalivki(f, function (z) {
+            if (z) zamery.push(z);
+            if (--zhdem) return;
+
+            if (!zamery.length) {
+              podpis.textContent = opisanie + ' · заливку посмотрим глазами: ' +
+                'этот формат браузер не читает';
+              return;
+            }
+            var sum = 0;
+            zamery.forEach(function (z) { sum += z.procent; });
+            var srednee = Math.round(sum / zamery.length);
+            var spisok = C.zapolnenie || [];
+            var kat = srednee > 60 ? 2 : srednee > 20 ? 1 : 0;
+            zamerMaketa = {
+              procent: srednee,
+              nazvanie: spisok[kat] ? spisok[kat].nazvanie.split(':')[0] : '',
+              koef: spisok[kat] ? spisok[kat].koef : 1,
+              storon: zamery.length
+            };
+            podpis.textContent = opisanie + ' · краски на макете ' + srednee + '% — ' +
+              zamerMaketa.nazvanie.toLowerCase() + ' заполнение' +
+              (zamery.length > 1 ? ' (среднее по ' + zamery.length + ' сторонам)' : '');
+          });
         });
       });
     })();
@@ -1185,29 +1218,38 @@
       // Макет, если человек его приложил. Файл берём ДО блокировки кнопки:
       // после disabled браузер поле не трогает, но порядок важен для чтения.
       var poleFajl = document.getElementById('sekMaket');
-      var fajl = poleFajl && poleFajl.files && poleFajl.files[0];
+      var fajly = poleFajl && poleFajl.files
+        ? Array.prototype.slice.call(poleFajl.files, 0, MAX_MAKETOV) : [];
 
-      if (fajl && fajl.size > 20 * 1024 * 1024) {
+      var tyazhelyj = fajly.filter(function (f) { return f.size > 20 * 1024 * 1024; });
+      if (tyazhelyj.length) {
         msgEl.style.color = '#8B1A1A';
-        msgEl.textContent = 'Файл больше 20 МБ. Отправьте заявку без него — ' +
-                            'мы напишем, куда прислать макет.';
+        msgEl.textContent = 'Файл ' + tyazhelyj[0].name + ' больше 20 МБ. ' +
+                            'Отправьте заявку без него — мы напишем, куда прислать макет.';
         return;
       }
 
       knopka.disabled = true; knopka.style.opacity = '.6';
       msgEl.style.color = '#4A0E17';
-      msgEl.textContent = fajl ? 'Отправляем заявку и макет...' : 'Отправляем...';
+      msgEl.textContent = fajly.length
+        ? (fajly.length === 1 ? 'Отправляем заявку и макет...'
+                              : 'Отправляем заявку и макеты...')
+        : 'Отправляем...';
 
       var polya = {
         contact: tel,
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
         // по 152-ФЗ мы должны уметь показать, что человек его давал.
         path: put.concat(stroCkiOplaty()).concat(
-          [fajl ? 'Макет приложен к заявке: ' + fajl.name : 'Макет к заявке не приложен']
+          [fajly.length
+            ? (fajly.length === 1 ? 'Макет приложен к заявке: ' : 'Макетов приложено ' +
+               fajly.length + ': ') + fajly.map(function (f) { return f.name; }).join(', ')
+            : 'Макет к заявке не приложен']
             .concat(zamerMaketa
               ? ['Замер по файлу: краски ' + zamerMaketa.procent + '%, ' +
                  zamerMaketa.nazvanie.toLowerCase() + ' заполнение (коэффициент ' +
-                 zamerMaketa.koef + ')']
+                 zamerMaketa.koef + ')' +
+                 (zamerMaketa.storon > 1 ? ' — среднее по ' + zamerMaketa.storon + ' сторонам' : '')]
               : [])
             .concat(['Согласие на обработку персональных данных получено'])
         ),
@@ -1219,13 +1261,15 @@
       // Сервер понимает оба вида: у него стоит
       // `request.get_json(silent=True) or request.form`.
       var zapros;
-      if (fajl) {
+      if (fajly.length) {
         var fd = new FormData();
         fd.append('contact', polya.contact);
         fd.append('path', JSON.stringify(polya.path));
         fd.append('total', String(polya.total));
         fd.append('scenario', polya.scenario);
-        fd.append('maket', fajl, fajl.name);
+        // Все файлы под одним именем поля: сервер читает их getlist('maket')
+        // и сохраняет по порядку, в котором клиент их выбрал.
+        fajly.forEach(function (f) { fd.append('maket', f, f.name); });
         zapros = fetch('/api/bot-lead', { method: 'POST', body: fd });
       } else {
         zapros = fetch('/api/bot-lead', {

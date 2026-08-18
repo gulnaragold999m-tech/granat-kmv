@@ -12,7 +12,8 @@
     "brief": "node --experimental-strip-types scripts/brief-analitiku.mts",
     "proverka": "node --experimental-strip-types scripts/proverka-tekstov.mts",
     "sekretar": "node --experimental-strip-types scripts/sekretar-ceny.mts",
-    "sebestoimost": "node --experimental-strip-types scripts/sebestoimost.mts"
+    "sebestoimost": "node --experimental-strip-types scripts/sebestoimost.mts",
+    "sebestoimost-prajs": "node --experimental-strip-types scripts/proverka-sebestoimosti.mts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

@@ -13,7 +13,7 @@
    там другой расходник — тонер, плёнка, рулон плоттера, — и его цену
    мы не знаем. Не считает время работы: только материалы. */
 
-import { SEBESTOIMOST_RASHODNIKOV as R, POSTOYANNYE_RASHODY as P } from '../data/prices.ts';
+import { SEBESTOIMOST_RASHODNIKOV as R, POSTOYANNYE_RASHODY as P, ZAPOLNENIE_MAKETA as Z } from '../data/prices.ts';
 import * as PRAJS from '../data/prices.ts';
 
 const rub = (n: number) => n.toFixed(1).replace('.', ',') + ' ₽';
@@ -65,13 +65,23 @@ for (const { klyuch, shtukVStupeni } of RAZDELY) {
     const g = GEOMETRIYA[stroka.nazvanie];
     if (!g) { console.log(`  ${stroka.nazvanie}: геометрия не задана, пропуск`); continue; }
     const sebes = scenarii.map((s) => materialyNaShtuku(g, s));
+    /* БАЗОВАЯ ЦЕНА В ПРАЙСЕ — ЗА ЛЁГКУЮ ЗАЛИВКУ. Плотная продаётся
+       с коэффициентом из ZAPOLNENIE_MAKETA, поэтому сравнивать надо
+       цену×коэффициент с себестоимостью ТОЙ ЖЕ категории, а не базовую
+       цену с плотной себестоимостью. Первая версия скрипта сравнивала
+       напрямую и давала ложные минусы — по ним чуть не «починили»
+       только что переписанные цены. */
+    const koef = Z.stroki.map((s: any) => s.koef);
     const strokaVyvoda = stroka.ceny.map((c: unknown, i: number) => {
       const p = cena(c);
       if (p == null) return `${t.kolonki[i]}: —`;
       const zaShtuku = klyuch === 'VIZITKI' ? p / shtukVStupeni[i] : p;
-      const marker = zaShtuku < sebes[2] ? (zaShtuku < sebes[1] ? (zaShtuku < sebes[0] ? '✖✖✖' : '✖✖') : '✖') : '  ';
-      if (zaShtuku < sebes[2]) minusy.push(`${t.zagolovok} · ${stroka.nazvanie} · ${t.kolonki[i]}`);
-      return `${t.kolonki[i]}: ${rub(zaShtuku)} ${marker}`;
+      /* Проверяем все три категории: цена за категорию против её же
+         себестоимости. Минус хотя бы в одной — позиция под вопросом. */
+      const vMinuse = sebes.map((s, k) => zaShtuku * koef[k] < s);
+      const marker = vMinuse[2] ? '✖ плотная' : vMinuse[1] ? '✖ средняя' : vMinuse[0] ? '✖ лёгкая' : '  ';
+      if (vMinuse.some(Boolean)) minusy.push(`${t.zagolovok} · ${stroka.nazvanie} · ${t.kolonki[i]}`);
+      return `${t.kolonki[i]}: ${rub(zaShtuku)}${vMinuse.some(Boolean) ? ' ' + marker : ''}`;
     });
     console.log(`  ${stroka.nazvanie}`);
     console.log(`    себестоимость: лёгкая ${rub(sebes[0])} · средняя ${rub(sebes[1])} · плотная ${rub(sebes[2])}`);
@@ -79,8 +89,9 @@ for (const { klyuch, shtukVStupeni } of RAZDELY) {
   }
 }
 
-console.log('\n\nОБОЗНАЧЕНИЯ: ✖ ниже плотной заливки · ✖✖ ниже средней · ✖✖✖ ниже даже лёгкой');
-console.log(`\nПОЗИЦИЙ НИЖЕ СЕБЕСТОИМОСТИ при плотной заливке: ${minusy.length}`);
+console.log('\n\nБазовая цена сравнивается с себестоимостью по каждой категории заливки,');
+console.log('с учётом коэффициентов ' + Z.stroki.map((s: any) => s.koef).join(' / ') + '.');
+console.log(`\nПОЗИЦИЙ НИЖЕ СЕБЕСТОИМОСТИ: ${minusy.length}`);
 for (const m of minusy) console.log('  · ' + m);
 
 console.log('\nЧТО НЕ ПОСЧИТАНО:');

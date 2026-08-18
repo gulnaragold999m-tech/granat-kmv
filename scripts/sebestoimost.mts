@@ -39,18 +39,30 @@ console.log(`  бумага    ${rub(bumagaNaList * ZAKAZ.listov)}  (с запа
 console.log(`  налог     ${rub(nalog)}  (${P.nalogProcent}% с выручки)`);
 console.log(`  банк      ${rub(bank)}  (${P.ekvajringProcent}% эквайринг)`);
 
-const postoyannye = [P.arenda, P.svet, P.internet, P.iiModeli, P.prochee];
-const zapolneny = postoyannye.every((v) => v != null) && P.zakazovVMesyac != null;
+/* Постоянные расходы считаем по тем строкам, что названы. Незаполненные
+   пропускаем и говорим об этом вслух — молчаливый ноль хуже пробела. */
+const stroki: [string, number | null][] = [
+  ['аренда', P.arenda], ['свет', P.svet], ['интернет', P.internet],
+  ['телефон', P.telefon], ['ИИ-модели', P.iiModeli], ['прочее', P.prochee],
+];
+const nazvany = stroki.filter(([, v]) => v != null);
+const netu = stroki.filter(([, v]) => v == null).map(([k]) => k);
+const vMesyac = nazvany.reduce((s, [, v]) => s + (v as number), 0);
+
+console.log(`\nПОСТОЯННЫЕ РАСХОДЫ: ${rub(vMesyac)} в месяц`);
+console.log('  ' + nazvany.map(([k, v]) => `${k} ${rub(v as number)}`).join(' · '));
+if (netu.length) console.log(`  НЕ НАЗВАНО: ${netu.join(', ')} — значит сумма занижена`);
 
 let dolyaPostoyannyh = 0;
-if (zapolneny) {
-  const vMesyac = postoyannye.reduce((s, v) => s + (v as number), 0);
-  dolyaPostoyannyh = vMesyac / (P.zakazovVMesyac as number);
-  console.log(`  аренда и прочее  ${rub(dolyaPostoyannyh)}  (${rub(vMesyac)} в месяц ÷ ${P.zakazovVMesyac} заказов)`);
+if (P.zakazovVMesyac != null) {
+  dolyaPostoyannyh = vMesyac / P.zakazovVMesyac;
+  console.log(`  на один заказ: ${rub(dolyaPostoyannyh)} (÷ ${P.zakazovVMesyac} заказов)`);
 } else {
-  console.log('  аренда, свет, интернет, ИИ — НЕ ПОСЧИТАНЫ');
-  console.log('     Заполнить POSTOYANNYE_RASHODY в data/prices.ts.');
-  console.log('     Пока они пустые, ответ ниже ЗАВЫШЕН: реальный минус больше.');
+  console.log('  Сколько заказов в месяц — НЕ НАЗВАНО. Вилка:');
+  for (const n of [10, 20, 30, 50]) {
+    console.log(`     ${String(n).padStart(2)} заказов -> ${rub(vMesyac / n)} на заказ`);
+  }
+  console.log('  В расчёте ниже доля постоянных расходов НЕ учтена.');
 }
 
 const itog = ZAKAZ.cena - materialy - nalog - bank - dolyaPostoyannyh;

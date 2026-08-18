@@ -1023,6 +1023,71 @@ def bot_lead():
     return jsonify(ok=True, lead=lead_id, next=follow_up("", lead_id, ""))
 
 
+@app.route("/api/sbros-schetchika")
+def sbros_schetchika():
+    """Начать нумерацию заявок заново — но НИЧЕГО НЕ ПОТЕРЯВ.
+
+    Просьба владелицы 18.08.2026: «у нас уже 27-я заявка, а по сути
+    только одна, надо обнулить счётчик». Проверки секретаря сожгли
+    двадцать шесть номеров, и по номеру нельзя понять, сколько людей
+    обратилось на самом деле.
+
+    ПОЧЕМУ НЕЛЬЗЯ ПРОСТО ЗАПИСАТЬ НОЛЬ В СЧЁТЧИК. Номера уже стоят
+    в журнале `/data/leads.jsonl` и в именах файлов с макетами. Начни
+    счёт заново — и новая заявка №5 совпадёт со старой: `leads.find(5)`
+    вернёт чужую запись, а макет одного клиента ляжет к заказу другого.
+    Разобрать это потом будет нечем.
+
+    ПОЭТОМУ СНАЧАЛА УБИРАЕМ СТАРОЕ В АРХИВ, а потом обнуляем. Ничего
+    не удаляется: журнал и макеты переименовываются с датой и остаются
+    на диске. Старую заявку можно будет найти руками, а новая нумерация
+    ни на что не наложится.
+
+    Делается один раз и вручную:
+        https://granat-kmv.ru/api/sbros-schetchika?token=ТОКЕН
+    Токен — тот же WATCH_TOKEN из переменных Amvera.
+    """
+    token = os.getenv("WATCH_TOKEN", "").strip()
+    if not token or request.args.get("token", "") != token:
+        return jsonify(ok=False, error="forbidden"), 403
+
+    metka = now_msk().strftime("%Y-%m-%d-%H%M")
+    sdelano, oshibki = [], []
+
+    zhurnal = os.path.join("/data", "leads.jsonl")
+    arhiv = os.path.join("/data", f"leads-arhiv-{metka}.jsonl")
+    try:
+        if os.path.exists(zhurnal):
+            os.rename(zhurnal, arhiv)
+            sdelano.append(f"журнал заявок убран в {os.path.basename(arhiv)}")
+    except OSError as e:
+        oshibki.append(f"журнал не переименован: {e}")
+
+    makety_arhiv = f"{MAKETY_DIR}-arhiv-{metka}"
+    try:
+        if os.path.isdir(MAKETY_DIR):
+            os.rename(MAKETY_DIR, makety_arhiv)
+            sdelano.append(f"макеты убраны в {os.path.basename(makety_arhiv)}")
+    except OSError as e:
+        oshibki.append(f"макеты не перенесены: {e}")
+
+    # Счётчик обнуляем ПОСЛЕДНИМ: если архивация не удалась, старые
+    # номера остаются в деле, и новая нумерация их не затрёт.
+    if oshibki:
+        return jsonify(ok=False, sdelano=sdelano, oshibki=oshibki,
+                       schetchik="не тронут — сначала разберитесь с архивом"), 500
+
+    try:
+        with open(os.path.join("/data", "lead_counter"), "w", encoding="utf-8") as f:
+            f.write("0")
+        sdelano.append("счётчик обнулён, следующая заявка будет №1")
+    except OSError as e:
+        return jsonify(ok=False, sdelano=sdelano, oshibki=[f"счётчик: {e}"]), 500
+
+    print(f"[sbros] {'; '.join(sdelano)}", flush=True)
+    return jsonify(ok=True, sdelano=sdelano)
+
+
 @app.route("/api/watch")
 def watch():
     """Сторож тишины. Дёргается по расписанию — Amvera → Cron Jobs.

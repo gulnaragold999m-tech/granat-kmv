@@ -213,7 +213,7 @@ function stranica(p: Palitra, edinica: string): string {
   .list{position:absolute;inset:6.2rem 7.5rem 6.6rem;display:flex;flex-direction:column;
     align-items:center;text-align:center}
 
-  .logotip{width:18rem;height:18rem;border-radius:50%;display:block}
+  .logotip{width:15.4rem;height:15.4rem;border-radius:50%;display:block}
 
   h1{font-family:'Playfair Display',serif;font-weight:700;font-size:11rem;
     line-height:.94;letter-spacing:.06em;text-indent:.06em;color:${p.tekst};margin-top:2rem}
@@ -251,10 +251,14 @@ function stranica(p: Palitra, edinica: string): string {
   .niz{margin-top:auto;width:100%;display:flex;align-items:center;gap:3rem;text-align:left}
   .qr{width:14rem;height:14rem;flex:none;background:${p.qrSvetlyj};padding:.6rem;border-radius:.6rem}
   .qr svg{width:100%;height:100%;display:block}
+  .qr-stolbec{flex:none;display:flex;flex-direction:column;align-items:center}
+  .qr-podpis{font-size:1.9rem;line-height:1.25;color:${p.tekstTihij};margin-top:.9rem;
+    text-align:center;max-width:23rem}
   .telefon{font-family:'Playfair Display',serif;font-weight:700;font-size:6.1rem;
     line-height:1;letter-spacing:.02em;color:${p.tekst};white-space:nowrap}
   .adres{font-size:2.6rem;line-height:1.4;color:${p.tekstTihij};margin-top:1rem}
-  .sajt{font-size:2.7rem;letter-spacing:.12em;color:${p.zoloto};margin-top:.7rem}
+  .sajt{font-size:4.2rem;letter-spacing:.1em;color:${p.zoloto};margin-top:1rem;
+    font-family:'Montserrat',sans-serif}
 </style>
 <body>
   <div class="ramka"></div>
@@ -278,7 +282,10 @@ function stranica(p: Palitra, edinica: string): string {
       плакаты · чертежи · ламинация · брошюровка</div>
 
     <div class="niz">
-      <div class="qr">${qr}</div>
+      <div class="qr-stolbec">
+        <div class="qr">${qr}</div>
+        <div class="qr-podpis">Наведите камеру —<br>весь прайс на сайте</div>
+      </div>
       <div>
         <div class="telefon">${STUDIYA.telefon}</div>
         <div class="adres">${STUDIYA.adres.replace('г. ', '')}<br>${STUDIYA.chasy}</div>

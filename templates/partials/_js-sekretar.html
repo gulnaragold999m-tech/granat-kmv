@@ -46,6 +46,12 @@
       return ceny[i];
     }
 
+    /** Коэффициент заливки словами: 1.3 -> «+30%». Клиенту процент
+        понятнее множителя. */
+    function z_procent(koef) {
+      return '+' + Math.round((koef - 1) * 100) + '%';
+    }
+
     function rub(n) {
       return Math.round(n).toLocaleString('ru-RU') + ' ₽';
     }
@@ -482,14 +488,39 @@
 
       flaery: {
         imya: 'Листовки и флаеры',
-        privet: 'Мелованная бумага 130 г/м², полноцвет с двух сторон, с резкой.',
+        privet: 'Мелованная бумага 130 г/м², полноцвет с двух сторон, с резкой. ' +
+                'Берём от 50 штук, печатаем за день и смотрим каждый лист.',
         shagi: [
+          // МАКЕТ — ПЕРВЫМ ВОПРОСОМ. Указание владелицы 18.08.2026:
+          // «теперь при подсчёте цены макет надо просить раньше, чем
+          // обговаривать цену». Причина в новом прайсе: цена зависит
+          // от заполнения макета, а его без файла не определить.
+          // Раньше про макет спрашивали предпоследним, когда цена
+          // в голове клиента уже сложилась.
+          { id: 'maket', vopros: 'Макет уже есть?', varianty: MAKET },
+          // ЗАПОЛНЕНИЕ — второй вопрос и главный для цены. Струйник
+          // тратит чернила по площади краски: белая листовка с текстом
+          // и фотоколлаж с тёмным фоном стоят студии по-разному в разы.
+          // До 18.08.2026 они стоили клиенту одинаково, и на плотных
+          // макетах студия работала в убыток.
+          { id: 'zapolnenie', vopros: 'Что на макете?', varianty: function () {
+            return (C.zapolnenie || []).map(function (z) {
+              return { t: z.nazvanie.split(':')[0], i: z.nazvanie.split(': ')[1] || z.znachenie, v: z.koef };
+            });
+          } },
           { id: 'format', vopros: 'Какой формат?', varianty: [
             { t: 'А6', i: '105×148 мм, для раздачи', v: 'А6, 105×148 мм' },
             { t: 'Евро', i: '210×97 мм, узкие', v: 'Евро, 210×97 мм' },
             { t: 'А5', i: '148×210 мм, золотая середина', v: 'А5, 148×210 мм' },
             { t: 'А4', i: '210×297 мм, много текста', v: 'А4, 210×297 мм' }
           ] },
+          // 500 и 1000 ВЕРНУЛИСЬ 18.08.2026: владелица отказалась
+          // от партнёрской печати — «я лучше откажусь». Значит большие
+          // тиражи печатаем сами и по честной цене, а решает клиент.
+          //
+          // Скидка за объём тут маленькая, и это не жадность: у струйника
+          // чернила и бумага тратятся на каждый лист одинаково, экономится
+          // только приладка. Обещать офсетную скидку значит обещать убыток.
           { id: 'kolvo', vopros: 'Какой тираж?', varianty: [
             { t: '50–100', v: 100 }, { t: '200–300', v: 200 },
             { t: '500', v: 500 }, { t: '1000', v: 1000 }
@@ -504,11 +535,15 @@
           // человек видит не «плюс 12%», а «13 440 ₽ за тираж».
           { id: 'plotnost', vopros: 'На какой бумаге печатаем?', varianty: function (v) {
             var spisok = C.plotnosti || [];
-            var baza = poTirazhu(C.flaery, v.format, v.kolvo);
+            var baza = poTirazhu(C.flaery, v.format, v.kolvo) * (Number(v.zapolnenie) || 1);
             return spisok.map(function (p) {
               var zaShtuku = baza * (1 + p.nacenka / 100);
+              /* Подсказка «на ощупь» рядом с граммами. Клиент не знает,
+                 чем 130 г/м² отличается от 170, и выбирает наугад либо
+                 самое дешёвое. Сравнение с журналом и открыткой он
+                 понимает без объяснений. Заведено 18.08.2026. */
               return {
-                t: p.bumaga,
+                t: p.bumaga + (p.naOschup ? ' — ' + p.naOschup : ''),
                 i: rub(zaShtuku) + ' за штуку, ' + rub(zaShtuku * v.kolvo) + ' за тираж',
                 v: p.nacenka
               };
@@ -520,6 +555,19 @@
         schet: function (o) {
           var zaShtuku = poTirazhu(C.flaery, o.format, o.kolvo);
           var stroki = [], zametki = [];
+
+          // Заполнение макета — в СЧЁТЕ отдельной строкой, а не сноской.
+          // Правило от 17.08: наценка, которую не показали, не существует.
+          var koefZal = Number(o.zapolnenie) || 1;
+          if (koefZal !== 1) {
+            var nazvanieZal = '';
+            (C.zapolnenie || []).forEach(function (z) {
+              if (z.koef === koefZal) nazvanieZal = z.nazvanie.split(':')[0].toLowerCase();
+            });
+            zaShtuku = zaShtuku * koefZal;
+            zametki.push('Заполнение макета — ' + nazvanieZal + ', ' + z_procent(koefZal) +
+                         ' к базовой цене. Категорию подтвердим, когда посмотрим файл.');
+          }
 
           // Наценка за плотность в СЧЁТЕ, а не в примечании.
           var nacenka = Number(o.plotnost) || 0;
@@ -1016,6 +1064,60 @@
 
     /* ── Отправка заявки ───────────────────────────────────────────── */
 
+    /* ── Замер заливки по самому макету ────────────────────────────
+
+       Указание владелицы 18.08.2026: «научи его определять количество
+       краски». До этого категорию заполнения называл клиент кнопкой,
+       а он её на глаз не знает — и занижает, потому что дешевле.
+
+       КАК СЧИТАЕМ. Браузер рисует картинку на холсте 240 точек шириной
+       и смотрит каждую точку: насколько она темнее белого. Белый лист —
+       ноль краски, чёрная плашка — единица. Среднее по всем точкам и есть
+       доля краски.
+
+       Это оценка «на глаз машины», а не типографский расчёт покрытия:
+       жёлтая заливка тратит одну краску, но выглядит светлой. Поэтому
+       результат — повод пересчитать и проверить файлом, а не приговор.
+
+       ЧЕГО НЕ УМЕЕМ. PDF, CDR, AI, EPS браузер не откроет — там честно
+       говорим, что посмотрим руками. Границы 20% и 60% взяты из прайса,
+       ZAPOLNENIE_MAKETA. */
+    var zamerMaketa = null;
+
+    function zamerZalivki(fajl, gotovo) {
+      if (!/^image\/(jpeg|png|webp)$/.test(fajl.type)) { gotovo(null); return; }
+      var url = URL.createObjectURL(fajl);
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var w = 240, h = Math.max(1, Math.round(img.height * w / img.width));
+          var c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          var ctx = c.getContext('2d');
+          /* Белая подложка: у PNG с прозрачностью пустота иначе считается
+             чёрной, и белый макет с прозрачным фоном показал бы 100% краски. */
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          var d = ctx.getImageData(0, 0, w, h).data, sum = 0, n = 0;
+          for (var i = 0; i < d.length; i += 4) {
+            sum += 1 - (d[i] + d[i + 1] + d[i + 2]) / 765;
+            n++;
+          }
+          var dolya = n ? sum / n : 0;
+          var kat = dolya > 0.6 ? 2 : dolya > 0.2 ? 1 : 0;
+          var spisok = C.zapolnenie || [];
+          gotovo({
+            procent: Math.round(dolya * 100),
+            nazvanie: spisok[kat] ? spisok[kat].nazvanie.split(':')[0] : '',
+            koef: spisok[kat] ? spisok[kat].koef : 1
+          });
+        } catch (e) { gotovo(null); }
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = function () { gotovo(null); URL.revokeObjectURL(url); };
+      img.src = url;
+    }
+
     /* Подпись под полем файла меняется на имя выбранного макета.
        Без этого человек не уверен, что файл вообще прикрепился, — а он
        и так на последнем шаге, где терять его нельзя. */
@@ -1031,9 +1133,24 @@
           return;
         }
         var mb = f.size / 1024 / 1024;
-        podpis.textContent = 'Приложен: ' + f.name + ' · ' +
+        var opisanie = 'Приложен: ' + f.name + ' · ' +
           (mb < 1 ? Math.round(f.size / 1024) + ' КБ' : mb.toFixed(1) + ' МБ');
+        podpis.textContent = opisanie;
         podpis.className = 'est';
+
+        /* Считаем краску сразу, как только файл выбран. Результат
+           показываем человеку — он должен видеть, на чём основана цена. */
+        zamerMaketa = null;
+        zamerZalivki(f, function (z) {
+          zamerMaketa = z;
+          if (!z) {
+            podpis.textContent = opisanie + ' · заливку посмотрим глазами: ' +
+              'этот формат браузер не читает';
+            return;
+          }
+          podpis.textContent = opisanie + ' · краски на макете ' + z.procent + '% — ' +
+            z.nazvanie.toLowerCase() + ' заполнение';
+        });
       });
     })();
 
@@ -1072,8 +1189,13 @@
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
         // по 152-ФЗ мы должны уметь показать, что человек его давал.
         path: put.concat(stroCkiOplaty()).concat(
-          [fajl ? 'Макет приложен к заявке: ' + fajl.name : 'Макет к заявке не приложен',
-           'Согласие на обработку персональных данных получено']
+          [fajl ? 'Макет приложен к заявке: ' + fajl.name : 'Макет к заявке не приложен']
+            .concat(zamerMaketa
+              ? ['Замер по файлу: краски ' + zamerMaketa.procent + '%, ' +
+                 zamerMaketa.nazvanie.toLowerCase() + ' заполнение (коэффициент ' +
+                 zamerMaketa.koef + ')']
+              : [])
+            .concat(['Согласие на обработку персональных данных получено'])
         ),
         total: itog && itog.summa ? Math.round(itog.summa) : 0,
         scenario: 'Секретарь на сайте'
@@ -1123,11 +1245,25 @@
       var o = C.oplata || {};
       var procent = o.procent;
       if (!itog || itog.summa == null || !procent) return [];
-      return [
+
+      /* На больших тиражах предоплата выше: 30% не покрывают материалы,
+         а купить их надо ДО печати. Оборотных денег у студии нет, и
+         начать тираж, не собрав на бумагу и чернила, физически нельзя.
+         Заведено 18.08.2026. */
+      var kolvo = Number(vybor && vybor.kolvo) || 0;
+      var bolshoj = o.bolshojOt && kolvo >= o.bolshojOt;
+      if (bolshoj && o.procentBolshoj) procent = o.procentBolshoj;
+
+      var stroki = [
         'Итого по расчёту: ' + rub(itog.summa),
         'Предоплата ' + procent + '%: ' + rub(Math.round(itog.summa * procent / 100)),
         'Оплата на момент заявки: не внесена'
       ];
+      if (bolshoj) {
+        stroki.splice(2, 0, 'Тираж от ' + o.bolshojOt + ' штук — предоплата половина: ' +
+          'бумагу и чернила на такой объём закупаем до печати');
+      }
+      return stroki;
     }
 
     /* Конец разговора. Требование владелицы: «на сайте мы должны

@@ -100,6 +100,7 @@ MAX_MAKET = 20 * 1024 * 1024
 # поднимался двадцать минут — NameError на 74-й строке, gunicorn падал
 # в цикле. Ошибка не ловится ни глазами, ни `python -c "import ast"`:
 # синтаксис верный, порядок неверный.
+#
 # Сколько файлов берём за одну заявку. Четыре — это лицо и оборот
 # листовки, три панели буклета или обложка с разворотом. Предел нужен
 # не для порядка, а чтобы папка со свадебными фотографиями не приехала
@@ -116,6 +117,34 @@ MAKET_RASSHIRENIYA = {
     ".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".heic",
     ".ai", ".eps", ".psd", ".cdr", ".zip", ".rar", ".doc", ".docx",
 }
+
+# ── Свой номер в заявке — это проверка, а не клиент ──────────────────────
+#
+# 18.08.2026 владелица сказала: «у нас уже 27-я заявка, а по сути только
+# одна». Каждая проверка секретаря забирала номер, и по номеру заявки
+# нельзя было понять, сколько людей на самом деле обратилось.
+#
+# Обнулять счётчик нельзя: номера уже стоят в журнале и в именах файлов
+# с макетами на диске, повтор номера склеит два разных заказа. Поэтому
+# не обнуляем, а перестаём тратить: заявка со СВОЕГО телефона номера
+# не получает и в журнал заявок не ложится. Письмо приходит с пометкой,
+# чтобы проверку было видно сразу.
+TEST_PHONES = {"79992449999"}
+_dop_test = os.getenv("TEST_PHONES", "")
+for _t in _dop_test.split(","):
+    _cifry = "".join(c for c in _t if c.isdigit())
+    if _cifry:
+        TEST_PHONES.add(_cifry)
+
+
+def eto_proverka(stroka) -> bool:
+    """Заявка со своего номера. Восьмёрку приводим к семёрке: в форму
+    вводят и так, и так, а телефон это один и тот же."""
+    cifry = "".join(c for c in str(stroka or "") if c.isdigit())
+    if len(cifry) == 11 and cifry.startswith("8"):
+        cifry = "7" + cifry[1:]
+    return cifry in TEST_PHONES
+
 
 # Контейнер живёт по Гринвичу, а смотреть на заявки нам по-московски.
 TZ = ZoneInfo("Europe/Moscow")
@@ -652,12 +681,15 @@ def follow_up(channel, lead_id, name):
     vk_exit = {
         "url": VK_WRITE_LINK,
         "label": "Написать во ВКонтакте →",
-        "note": "Напишите нам в сообщения сообщества — ответим там же, "
-                f"по заявке №{lead_id}.",
+        # Номера может не быть: у проверки со своего телефона его нет,
+        # и писать «по заявке №0» бессмысленно.
+        "note": "Напишите нам в сообщения сообщества — ответим там же"
+                + (f", по заявке №{lead_id}." if lead_id else "."),
     }
 
     if channel == "WhatsApp":
-        text = (f"Здравствуйте! Я оставил заявку №{lead_id} на сайте "
+        nomer = f" №{lead_id}" if lead_id else ""
+        text = (f"Здравствуйте! Я оставил заявку{nomer} на сайте "
                 f"granat-kmv.ru")
         if name:
             text += f". Меня зовут {name}"
@@ -735,11 +767,17 @@ def order():
 
     # Номер нужен, чтобы Джарвис узнал клиента, когда тот придёт в бота,
     # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
-    lead_id = leads.next_id()
+    proverka = eto_proverka(phone)
+    lead_id = 0 if proverka else leads.next_id()
     payload["lead"] = lead_id
-    leads.log(lead_id, "created", source="site_form", **payload)
+    if proverka:
+        payload["proverka"] = True
+    else:
+        leads.log(lead_id, "created", source="site_form", **payload)
 
-    lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
+    lines = ["🧪 ПРОВЕРКА, НЕ КЛИЕНТ — заявка со своего номера, "
+             "номер не потрачен"] if proverka else []
+    lines += [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
     if phone:
         label = "Ник в Telegram" if got["kind"] == "username" else "Телефон"
         lines.append(f"📞 {label}: {contact.pretty(phone)}")
@@ -776,14 +814,16 @@ def order():
         """Разослать заявку по каналам и записать результат. Возвращает,
         дошла ли она хоть куда-нибудь."""
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка с сайта №{lead_id} — {name}", text
+            (f"🧪 Проверка с сайта — {name}" if proverka
+             else f"Заявка с сайта №{lead_id} — {name}"), text
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,
                    reason="" if delivered else
                           f"вк: {vk_reason}; почта: {mail_reason}")
-        leads.log(lead_id, "notified", delivered=delivered,
-                  vk=vk_ok, mail=mail_ok)
+        if not proverka:
+            leads.log(lead_id, "notified", delivered=delivered,
+                      vk=vk_ok, mail=mail_ok)
         if not delivered:
             print(f"[order] заявка №{lead_id} сохранена, но не доставлена: "
                   f"вк: {vk_reason}; почта: {mail_reason}", flush=True)
@@ -896,8 +936,11 @@ def bot_lead():
         "scenario": (data.get("scenario") or "").strip(),
     }
 
-    lead_id = leads.next_id()
+    proverka = eto_proverka(contact)
+    lead_id = 0 if proverka else leads.next_id()
     payload["lead"] = lead_id
+    if proverka:
+        payload["proverka"] = True
 
     # Кладём файл на диск под номером заявки: так его находят по заявке,
     # не разбирая, кто из клиентов какой «scan1.pdf» прислал.
@@ -920,10 +963,13 @@ def bot_lead():
     if maket_zametki:
         payload["maket_zametka"] = "; ".join(maket_zametki)
 
-    leads.log(lead_id, "created", **payload)
+    if not proverka:
+        leads.log(lead_id, "created", **payload)
 
     # ── ГЕНЕРАЛ докладывает ──────────────────────────────────────────────
-    lines = [f"🤖 ЗАЯВКА ИЗ СИМУЛЯТОРА №{lead_id}", "", f"📞 Контакт: {contact}"]
+    lines = ["🧪 ПРОВЕРКА, НЕ КЛИЕНТ — заявка со своего номера, "
+             "номер не потрачен"] if proverka else []
+    lines += [f"🤖 ЗАЯВКА С САЙТА №{lead_id}", "", f"📞 Контакт: {contact}"]
     if route_text:
         lines.append(f"🧭 Собрал: {route_text}")
     if total:
@@ -944,15 +990,17 @@ def bot_lead():
 
     def notify():
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка из симулятора №{lead_id}", text,
+            ("🧪 Проверка с сайта" if proverka
+             else f"Заявка с сайта №{lead_id}"), text,
             vlozhenie=makety or None
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,
                    reason="" if delivered else
                           f"вк: {vk_reason}; почта: {mail_reason}")
-        leads.log(lead_id, "notified", delivered=delivered,
-                  vk=vk_ok, mail=mail_ok)
+        if not proverka:
+            leads.log(lead_id, "notified", delivered=delivered,
+                      vk=vk_ok, mail=mail_ok)
         if not delivered:
             print(f"[bot-lead] заявка №{lead_id} сохранена, но не доставлена: "
                   f"вк: {vk_reason}; почта: {mail_reason}", flush=True)

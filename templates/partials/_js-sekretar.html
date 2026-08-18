@@ -894,6 +894,30 @@
       soglasieSCenoj();
     }
 
+    /* ПРОЦЕНТ ПРЕДОПЛАТЫ СЧИТАЕТСЯ В ОДНОМ МЕСТЕ. Это не красота, а разбор
+       живой ошибки 18.08.2026: секретарь называл процент в трёх местах —
+       в вопросе «оформляем?», в заявке владелице и на экране оплаты.
+       Правило про 50% от 200 штук завели в первых двух, а третье
+       осталось на 30%. Владелица увидела это на своём же заказе:
+       «в переписке секретарь говорит 50%, а на выходе 30%».
+
+       Одна цифра, названная в трёх местах, рано или поздно разъедется
+       в двух. Поэтому места вычисления теперь одно, а не три. */
+    function bolshojTirazh() {
+      var o = C.oplata || {};
+      var kolvo = Number(vybor && vybor.kolvo) || 0;
+      return !!(o.bolshojOt && kolvo >= o.bolshojOt && o.procentBolshoj);
+    }
+
+    function procentPredoplaty() {
+      var o = C.oplata || {};
+      /* На большом тираже материалы закупаются ДО печати, и 30% их
+         не покрывают: на 500 листах А4 с плотной заливкой одних чернил
+         и бумаги на 22 700 ₽ при предоплате 10 710 ₽. Оборотных денег
+         у студии нет, и начать такой тираж физически нельзя. */
+      return bolshojTirazh() ? o.procentBolshoj : (o.procent || 30);
+    }
+
     /* Подтверждение цены — отдельный шаг, и он обязателен.
        Требование владелицы, 16.08.2026: «вышла цена, например 290 рублей.
        Если устраивает цена — тогда формировать заявку. Мне просто так
@@ -913,16 +937,8 @@
       // вписанная руками, пережила правку прайса и обещала клиенту чужую
       // цифру. Теперь источник один — OPLATA.predoplataProcent.
       var o = C.oplata || {};
-      var proc = o.procent || 30;
-
-      /* На больших тиражах предоплата половина, и сказать об этом надо
-         ЗДЕСЬ, в момент решения, а не только в заявке. 18.08.2026 эта
-         строка показывала 30% на тираже 500 штук: в письме владелице
-         уходило 50%, а клиент видел 30 — два разных условия в одном
-         заказе. Считаем по тому же правилу, что и заявка. */
-      var kolvo = Number(vybor && vybor.kolvo) || 0;
-      var bolshoj = o.bolshojOt && kolvo >= o.bolshojOt;
-      if (bolshoj && o.procentBolshoj) proc = o.procentBolshoj;
+      var proc = procentPredoplaty();
+      var bolshoj = bolshojTirazh();
 
       var pro = 'Печать запускаем после предоплаты ' + proc + '%.';
       if (bolshoj) pro += '<br>На тираже от ' + o.bolshojOt +
@@ -1308,16 +1324,10 @@
      *  в data/prices.ts — поменяется и здесь. */
     function stroCkiOplaty() {
       var o = C.oplata || {};
-      var procent = o.procent;
-      if (!itog || itog.summa == null || !procent) return [];
+      if (!itog || itog.summa == null || !o.procent) return [];
 
-      /* На больших тиражах предоплата выше: 30% не покрывают материалы,
-         а купить их надо ДО печати. Оборотных денег у студии нет, и
-         начать тираж, не собрав на бумагу и чернила, физически нельзя.
-         Заведено 18.08.2026. */
-      var kolvo = Number(vybor && vybor.kolvo) || 0;
-      var bolshoj = o.bolshojOt && kolvo >= o.bolshojOt;
-      if (bolshoj && o.procentBolshoj) procent = o.procentBolshoj;
+      var procent = procentPredoplaty();
+      var bolshoj = bolshojTirazh();
 
       var stroki = [
         'Итого по расчёту: ' + rub(itog.summa),
@@ -1342,7 +1352,8 @@
 
       var o = C.oplata || {};
       var itogo = itog && itog.summa ? itog.summa : null;
-      var predoplata = itogo ? Math.round(itogo * (o.procent || 30) / 100) : null;
+      var proc = procentPredoplaty();
+      var predoplata = itogo ? Math.round(itogo * proc / 100) : null;
 
       var text = '<b>Заявка' + (nomerZayavki ? ' №' + nomerZayavki : '') + ' принята.</b><br>' +
                  'Перезвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00. ' +
@@ -1350,8 +1361,12 @@
       skazat('bot', text);
 
       if (predoplata) {
-        var oplataText = 'Предоплата ' + (o.procent || 30) + '% — ' +
+        var oplataText = 'Предоплата ' + proc + '% — ' +
           '<span class="sek-cifra">' + rub(predoplata) + '</span>' +
+          (bolshojTirazh()
+            ? 'Тираж от ' + o.bolshojOt + ' штук — половина вперёд: бумагу ' +
+              'и чернила на такой объём закупаем до печати.<br>'
+            : '') +
           'Печать запускаем после поступления.<br>' +
           'Перевод по номеру <b>' + (o.nomer || '') + '</b>' +
           ' или наличными в студии: г. Лермонтов, ул. Нагорная 2/1, этаж 2.';

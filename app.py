@@ -100,7 +100,13 @@ MAX_MAKET = 20 * 1024 * 1024
 # поднимался двадцать минут — NameError на 74-й строке, gunicorn падал
 # в цикле. Ошибка не ловится ни глазами, ни `python -c "import ast"`:
 # синтаксис верный, порядок неверный.
-app.config["MAX_CONTENT_LENGTH"] = MAX_MAKET + 1024 * 1024  # запас на поля формы
+# Сколько файлов берём за одну заявку. Четыре — это лицо и оборот
+# листовки, три панели буклета или обложка с разворотом. Предел нужен
+# не для порядка, а чтобы папка со свадебными фотографиями не приехала
+# к нам целиком: контейнер читает тело в память.
+MAX_MAKETOV = 4
+
+app.config["MAX_CONTENT_LENGTH"] = MAX_MAKET * MAX_MAKETOV + 1024 * 1024  # запас на поля формы
 
 # Расширения, которые принимаем от клиента. Список белый, а не чёрный:
 # запрещать по одному бесполезно, разрешать по одному — надёжно.
@@ -301,8 +307,18 @@ def auth_reason(err):
 def send_to_mail(subject, text, vlozhenie=None):
     """Дубль заявки письмом. Возвращает (ok, причина).
 
-    `vlozhenie` — кортеж (имя_файла, байты) с макетом клиента, если он его
-    приложил. Заведено 17.08.2026: до этого человек доходил до конца
+    `vlozhenie` — СПИСОК кортежей (имя_файла, байты) с макетами клиента.
+    Одиночный кортеж тоже принимается: так вызывали раньше, и ломать
+    старые вызовы ради красоты незачем.
+
+    Список, а не один файл, — с 18.08.2026. Поле принимало ровно один
+    макет, а у листовки две стороны, и клиентка написала прямо: «там
+    загружается только одна картинка, а мне нужно отправить две
+    стороны». Она прислала лицо, была уверена, что отправила обе, —
+    и печатать было нечего. Форма молчала об этом, а выяснилось через
+    сутки.
+
+    Заведено 17.08.2026: до этого человек доходил до конца
     диалога, оставлял телефон — и упирался в вопрос «а куда макет».
     Файл уходил отдельным письмом без параметров заказа, и связать их
     было нечем. Ровно так потерялся заказ 16.08.
@@ -322,11 +338,14 @@ def send_to_mail(subject, text, vlozhenie=None):
     msg.set_content(text)
 
     if vlozhenie:
-        imya, bajty = vlozhenie
-        # Тип не разбираем: почтовым клиентам хватает octet-stream, а угадывать
-        # по расширению — лишний повод ошибиться на .cdr и .psd.
-        msg.add_attachment(bajty, maintype="application", subtype="octet-stream",
-                           filename=imya)
+        # Одиночный кортеж приводим к списку: старые вызовы передавали
+        # именно его, и падать на них нельзя.
+        spisok = vlozhenie if isinstance(vlozhenie, list) else [vlozhenie]
+        for imya, bajty in spisok:
+            # Тип не разбираем: почтовым клиентам хватает octet-stream, а угадывать
+            # по расширению — лишний повод ошибиться на .cdr и .psd.
+            msg.add_attachment(bajty, maintype="application", subtype="octet-stream",
+                               filename=imya)
 
     try:
         with smtplib.SMTP_SSL(MAIL_HOST, MAIL_PORT,
@@ -830,30 +849,37 @@ def bot_lead():
     # Сохраняем на диск ДО всякой отправки — тем же правилом, что и заявку:
     # почта может молчать, а файл клиента единственный, второй раз он его
     # не пришлёт.
-    maket_imya, maket_bajty, maket_zametka = "", None, ""
-    fajl = request.files.get("maket")
-    if fajl and fajl.filename:
+    # Файлов может быть несколько: у листовки две стороны, у буклета три
+    # панели. До 18.08.2026 бралcя ровно один, и клиент об этом не знал —
+    # он видел, что файл прикрепился, и был уверен, что отправил всё.
+    makety, maket_zametki = [], []
+    for fajl in request.files.getlist("maket")[:MAX_MAKETOV]:
+        if not (fajl and fajl.filename):
+            continue
         # Браузеры на Windows иногда шлют полный путь с обратными слешами,
         # а os.path.basename на Linux их за разделитель не считает — имя
         # выходило вроде «CUsersАняграмота.jpg».
         ish = os.path.basename(fajl.filename.replace("\\", "/"))
         rasshirenie = os.path.splitext(ish)[1].lower()
         if rasshirenie not in MAKET_RASSHIRENIYA:
-            maket_zametka = f"файл {ish} не принят: расширение {rasshirenie or 'без расширения'}"
-        else:
-            bajty = fajl.read(MAX_MAKET + 1)
-            if len(bajty) > MAX_MAKET:
-                maket_zametka = f"файл {ish} не принят: больше {MAX_MAKET // 1024 // 1024} МБ"
-            else:
-                # Имя клиента в имя файла на диске не берём: там бывает что
-                # угодно, вплоть до путей. Своё имя, а клиентское — в письме.
-                bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
-                maket_imya = bezopasnoe or ("maket" + rasshirenie)
-                maket_bajty = bajty
-                try:
-                    os.makedirs(MAKETY_DIR, exist_ok=True)
-                except OSError as e:
-                    print(f"[maket] не создать папку: {e}", flush=True)
+            maket_zametki.append(
+                f"файл {ish} не принят: расширение {rasshirenie or 'без расширения'}")
+            continue
+        bajty = fajl.read(MAX_MAKET + 1)
+        if len(bajty) > MAX_MAKET:
+            maket_zametki.append(
+                f"файл {ish} не принят: больше {MAX_MAKET // 1024 // 1024} МБ")
+            continue
+        # Имя клиента в имя файла на диске не берём: там бывает что
+        # угодно, вплоть до путей. Своё имя, а клиентское — в письме.
+        bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
+        makety.append((bezopasnoe or ("maket" + rasshirenie), bajty))
+
+    if makety:
+        try:
+            os.makedirs(MAKETY_DIR, exist_ok=True)
+        except OSError as e:
+            print(f"[maket] не создать папку: {e}", flush=True)
 
     try:
         total = int(data.get("total") or 0)
@@ -875,17 +901,24 @@ def bot_lead():
 
     # Кладём файл на диск под номером заявки: так его находят по заявке,
     # не разбирая, кто из клиентов какой «scan1.pdf» прислал.
-    if maket_bajty is not None:
-        put_na_diske = os.path.join(MAKETY_DIR, f"{lead_id}_{maket_imya}")
+    puti = []
+    for nomer, (imya, bajty) in enumerate(makety, 1):
+        # Номер в имени сохраняет ПОРЯДОК сторон: лицо и оборот приходят
+        # двумя файлами, и какой из них какой — видно только по очереди,
+        # в которой их выбрал клиент.
+        put_na_diske = os.path.join(MAKETY_DIR, f"{lead_id}_{nomer}_{imya}")
         try:
             with open(put_na_diske, "wb") as f:
-                f.write(maket_bajty)
-            payload["maket"] = put_na_diske
+                f.write(bajty)
+            puti.append(put_na_diske)
         except OSError as e:
-            maket_zametka = f"файл {maket_imya} не сохранён на диск: {e}"
-            print(f"[maket] {maket_zametka}", flush=True)
-    if maket_zametka:
-        payload["maket_zametka"] = maket_zametka
+            maket_zametki.append(f"файл {imya} не сохранён на диск: {e}")
+            print(f"[maket] файл {imya} не сохранён на диск: {e}", flush=True)
+    if puti:
+        payload["makety"] = puti
+        payload["maket"] = puti[0]   # старое поле — чтобы не сломать читателей
+    if maket_zametki:
+        payload["maket_zametka"] = "; ".join(maket_zametki)
 
     leads.log(lead_id, "created", **payload)
 
@@ -895,10 +928,13 @@ def bot_lead():
         lines.append(f"🧭 Собрал: {route_text}")
     if total:
         lines.append("💰 На сумму: {:,} ₽".format(total).replace(",", " "))
-    if maket_bajty is not None:
-        lines.append(f"📎 Макет приложен к письму: {maket_imya}")
-    elif maket_zametka:
-        lines.append(f"⚠️ {maket_zametka} — попросите прислать другим способом")
+    if makety:
+        imena = ", ".join(imya for imya, _ in makety)
+        skolko = "Макет приложен" if len(makety) == 1 else f"Макетов приложено {len(makety)}"
+        lines.append(f"📎 {skolko} к письму: {imena}")
+    if maket_zametki:
+        lines.append("⚠️ " + "; ".join(maket_zametki) +
+                     " — попросите прислать другим способом")
     lines.append("")
     lines.append("Ждём клиента в боте для сбора ТЗ.")
 
@@ -909,7 +945,7 @@ def bot_lead():
     def notify():
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
             f"Заявка из симулятора №{lead_id}", text,
-            vlozhenie=(maket_imya, maket_bajty) if maket_bajty is not None else None
+            vlozhenie=makety or None
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,

@@ -62,10 +62,14 @@
                    ОТДЕЛЬНО, без тиража, бумаги и срока. Здесь наоборот —
                    параметры собраны, цена принята, не хватало только файла. -->
               <label class="sek-pole sek-fajl">
-                <span>Макет, если есть — приложите сразу</span>
-                <input type="file" id="sekMaket"
-                       accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,.ai,.eps,.psd,.cdr" />
-                <em id="sekFajlPodpis">PDF, JPG, PNG и другие. До 20 МБ. Необязательно.</em>
+                <span>Макет, если есть — приложите сразу. Обе стороны</span>
+                <!-- Список расширений держим ТОЧНО таким же, как MAKET_RASSHIRENIYA
+                     в app.py. 18.08.2026 они разошлись: сервер принимал .zip
+                     и .rar, а окно выбора файлов их не показывало — человек
+                     видел свой архив серым и решал, что архивы мы не берём. -->
+                <input type="file" id="sekMaket" multiple
+                       accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,.ai,.eps,.psd,.cdr,.zip,.rar,.doc,.docx" />
+                <em id="sekFajlPodpis">Можно выбрать несколько файлов — лицо и оборот. Целую папку — архивом ZIP. До 20 МБ каждый файл. Необязательно.</em>
               </label>
               <button type="submit" class="btn-gold sek-otpravit" id="sekOtpravit">Отправить заявку</button>
               <p class="sek-msg" id="sekMsg" role="status"></p>

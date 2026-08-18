@@ -1245,11 +1245,25 @@
       var o = C.oplata || {};
       var procent = o.procent;
       if (!itog || itog.summa == null || !procent) return [];
-      return [
+
+      /* На больших тиражах предоплата выше: 30% не покрывают материалы,
+         а купить их надо ДО печати. Оборотных денег у студии нет, и
+         начать тираж, не собрав на бумагу и чернила, физически нельзя.
+         Заведено 18.08.2026. */
+      var kolvo = Number(vybor && vybor.kolvo) || 0;
+      var bolshoj = o.bolshojOt && kolvo >= o.bolshojOt;
+      if (bolshoj && o.procentBolshoj) procent = o.procentBolshoj;
+
+      var stroki = [
         'Итого по расчёту: ' + rub(itog.summa),
         'Предоплата ' + procent + '%: ' + rub(Math.round(itog.summa * procent / 100)),
         'Оплата на момент заявки: не внесена'
       ];
+      if (bolshoj) {
+        stroki.splice(2, 0, 'Тираж от ' + o.bolshojOt + ' штук — предоплата половина: ' +
+          'бумагу и чернила на такой объём закупаем до печати');
+      }
+      return stroki;
     }
 
     /* Конец разговора. Требование владелицы: «на сайте мы должны

@@ -150,6 +150,10 @@ const CENY = {
      ссылка на оплату вместе с нарисованным по ней QR-кодом. */
   oplata: {
     procent: OPLATA.predoplataProcent,
+    /* Половина вперёд на тиражах от 200 штук: 30% не покрывают
+       материалы, а купить их надо до печати. */
+    procentBolshoj: OPLATA.predoplataBolshojTirazh,
+    bolshojOt: OPLATA.bolshojTirazhOt,
     nomer: OPLATA.nomer,
     ssylka: OPLATA.ssylka,
     qr: OPLATA.ssylka ? qrSvg(OPLATA.ssylka) : '',

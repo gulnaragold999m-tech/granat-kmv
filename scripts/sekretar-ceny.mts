@@ -21,6 +21,7 @@
    сам, руками ничего править не нужно. */
 
 import {
+  ZAPOLNENIE_MAKETA,
   OTKRYTKI,
   SHTUCHNAYA_A4,
   PRIGLASHENIYA,
@@ -126,6 +127,10 @@ const CENY = {
   bigovka: BIGOVKA,
   folgirovanie: FOLGIROVANIE,
   plotnosti: NACENKA_ZA_PLOTNOST.stroki,
+  /* Категории заполнения макета. Заведены 18.08.2026: струйник тратит
+     чернила по площади краски, и белая листовка с фотоколлажем не могут
+     стоить одинаково. Секретарь спрашивает это ДО того, как назвать цену. */
+  zapolnenie: ZAPOLNENIE_MAKETA.stroki,
 
   /* Множители. Срочность одна на весь прайс — как у бота. */
   koefficienty: {

@@ -39,6 +39,7 @@ import {
   NACENKA_ZA_PLOTNOST,
   type TirazhTablica,
   type Yacheyka,
+  SKIDKA_PENSIONERAM,
 } from '../data/prices.ts';
 
 import { writeFileSync } from 'node:fs';
@@ -145,6 +146,10 @@ const CENY = {
   /* Действующие акции. Заводятся в data/prices.ts и попадают сюда сами:
      объявили скидку в рекламе — секретарь о ней знает. */
   akcii: AKCII.filter((a) => a.aktivna),
+
+  /* Скидка пенсионерам. В счёт НЕ вносится: подтверждается
+     удостоверением на месте. Секретарь про неё говорит. */
+  skidkaPensioneram: SKIDKA_PENSIONERAM.aktivna ? SKIDKA_PENSIONERAM : null,
 
   /* Предоплата: процент, номер для перевода и — когда появится —
      ссылка на оплату вместе с нарисованным по ней QR-кодом. */

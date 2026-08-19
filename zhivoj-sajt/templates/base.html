@@ -530,9 +530,9 @@
              для файла и прочитала «отвечаем в течение дня» — при том
              что водитель уже ехал за готовыми документами. Ушла.
              Секретарь спрашивает, считает и принимает файл сразу. -->
-        <a href="#sekretar" class="btn-gold" style="padding:11px 22px;">Оставить заявку</a>
+        <a href="#sekretar" class="btn-gold" style="padding:11px 22px;">Узнать цену</a>
       </nav>
-      <a href="#sekretar" class="md:hidden btn-gold" style="padding:10px 18px;">Заявка</a>
+      <a href="#sekretar" class="md:hidden btn-gold" style="padding:10px 18px;">Цена</a>
     </div>
   </header>
 
@@ -643,17 +643,18 @@
         cifra: 'Между нами: живой сайт держит внимание в разы дольше статичного. Вы это сейчас и чувствуете 😉',
         raboty: 'Частая ошибка — брать шаблон. Мы делаем под характер бренда, поэтому работы не похожи одна на другую.',
         kak: 'Секрет спокойных проектов — чёткое ТЗ на старте. Мы соберём его за вас: вопросами, а не терминами.',
-        zayavka: 'Здесь обычно спрашивают про сроки. Печать — от 1–2 дней, сайт — от нескольких. Точнее посчитаем в заявке.'
+        sekretar: 'Секретарь считает по прайсу студии: спросит формат, тираж, бумагу и срок. Файл можно приложить прямо в разговоре.',
+        zayavka: 'Здесь обычно спрашивают про сроки. Печать — 3–5 рабочих дней, срочно день в день за +30%. Сайт — от 7 дней. Точнее посчитает секретарь.'
       };
       var spoken = {}, autoCount = 0, AUTO_MAX = 3;
       function speak(t) { if (t) bubble.textContent = t; orb.classList.add('speak'); clearTimeout(orb._t); orb._t = setTimeout(function () { orb.classList.remove('speak'); }, 6500); }
 
       // Какой блок сейчас перед глазами
-      var ids = ['pechat', 'cifra', 'raboty', 'kak', 'zayavka'], current = null, dwell = null;
+      var ids = ['pechat', 'cifra', 'raboty', 'kak', 'sekretar', 'zayavka'], current = null, dwell = null;
       var io = new IntersectionObserver(function (es) {
         es.forEach(function (en) {
           if (en.isIntersecting && en.intersectionRatio >= 0.55) current = en.target.id;
-          if (en.target.id === 'zayavka') { if (en.isIntersecting) orb.classList.add('pulse'); else orb.classList.remove('pulse'); }
+          if (en.target.id === 'zayavka' || en.target.id === 'sekretar') { if (en.isIntersecting) orb.classList.add('pulse'); else orb.classList.remove('pulse'); }
         });
         scheduleDwell();
       }, { threshold: [0.55] });
@@ -677,7 +678,7 @@
       var tips = [
         ['a[href*="vk.me"]', 'Во ВКонтакте ответим быстрее всего — там заявку принимает бот.'],
         ['#orderForm button[type="submit"]', 'Смелее — это ни к чему не обязывает. Посчитаем и покажем примеры.'],
-        ['a[href="#zayavka"]', 'Тут без «купи сейчас». Просто расскажете задачу — остальное на нас.']
+        ['a[href="#sekretar"]', 'Секретарь спросит формат, тираж и срок и назовёт цену по прайсу. Сразу, без ожидания.']
       ];
       var hoverCount = 0;
       tips.forEach(function (t) {

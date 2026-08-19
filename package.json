@@ -14,7 +14,8 @@
     "sekretar": "node --experimental-strip-types scripts/sekretar-ceny.mts",
     "sebestoimost": "node --experimental-strip-types scripts/sebestoimost.mts",
     "bot-ceny": "node --experimental-strip-types scripts/bot-ceny.mts",
-    "sebestoimost-prajs": "node --experimental-strip-types scripts/proverka-sebestoimosti.mts"
+    "sebestoimost-prajs": "node --experimental-strip-types scripts/proverka-sebestoimosti.mts",
+    "sekretar-proverka": "node scripts/proverka-sekretarya.mjs"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

@@ -860,8 +860,63 @@
       });
     }
 
+    /* ТЕКСТ НА ИЗДЕЛИИ. Владелица 19.08.2026, глядя на живой расчёт
+       сертификата: «тут нет возможности вставить текст». И правда:
+       поле «своими словами» появлялось только в самом конце, в форме,
+       а человек, которому рисуют открытку с нуля, хочет написать
+       поздравление сразу — иначе он уходит искать, «куда это вписать».
+
+       Спрашиваем только там, где макета НЕТ: если файл готов, текст
+       уже в нём, и лишний вопрос выглядит невнимательностью. */
+    function sprositTekst(gotovo) {
+      skazat('bot', 'Какой текст должен быть на изделии? Напишите так, ' +
+        'как хотите видеть — имена, поздравление, дату. Можно коротко: ' +
+        'уточним при согласовании макета.');
+
+      knopki.innerHTML = '';
+      var obertka = document.createElement('div');
+      obertka.className = 'sek-tekst';
+
+      var pole = document.createElement('textarea');
+      pole.rows = 3;
+      pole.placeholder = 'Например: Дорогая Анна! Поздравляем с юбилеем…';
+
+      var knopka = document.createElement('button');
+      knopka.type = 'button';
+      knopka.innerHTML = '<span>Дальше</span>';
+
+      var propustit = document.createElement('button');
+      propustit.type = 'button';
+      propustit.innerHTML = '<span>Текста нет</span><i>обсудим потом</i>';
+
+      function dalshe(znachenie) {
+        knopki.innerHTML = '';
+        if (znachenie) {
+          vybor.tekstIzdeliya = znachenie;
+          put.push('Текст на изделии: ' + znachenie);
+          skazat('ya', znachenie);
+        } else {
+          skazat('ya', 'Текста нет');
+        }
+        obnovitChek();
+        gotovo();
+      }
+      knopka.addEventListener('click', function () { dalshe(pole.value.trim()); });
+      propustit.addEventListener('click', function () { dalshe(''); });
+
+      obertka.appendChild(pole);
+      obertka.appendChild(knopka);
+      knopki.appendChild(obertka);
+      knopki.appendChild(propustit);
+      pole.focus();
+    }
+
     function sleduyushchijShag() {
       if (shagIndex >= scen.shagi.length) {
+        // Макета нет — человек должен сказать, что писать на изделии.
+        if (vybor.maket === 'net' && vybor.tekstIzdeliya === undefined) {
+          return sprositTekst(function () { sleduyushchijShag(); });
+        }
         // Срочный заказ без часа — спрашиваем час и только потом считаем.
         if (vybor.srok === 'srochno' && !vybor.chas) {
           return sprositChas(finish);

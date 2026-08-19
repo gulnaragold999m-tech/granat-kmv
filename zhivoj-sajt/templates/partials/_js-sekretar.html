@@ -123,7 +123,7 @@
         }
         var folga = C.folgirovanie && C.folgirovanie.cena;
         if (folga) {
-          spisok.push({ t: 'Тиснение фольгой', i: rub(folga) + ' за лист, ' + C.folgirovanie.opisanie, v: 'folga' });
+          spisok.push({ t: 'Фольгирование', i: rub(folga) + ' за лист, ' + C.folgirovanie.opisanie, v: 'folga' });
         }
         if (lam && folga) {
           spisok.push({ t: 'И то, и другое', v: 'oba' });
@@ -144,7 +144,7 @@
       }
       if ((o.otdelka === 'folga' || o.otdelka === 'oba') && folga) {
         pribavka += folga;
-        stroki.push('Тиснение фольгой — ' + rub(folga) + ' за штуку');
+        stroki.push('Фольгирование — ' + rub(folga) + ' за штуку');
       }
       return pribavka;
     }

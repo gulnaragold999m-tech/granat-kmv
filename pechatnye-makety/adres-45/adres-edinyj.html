@@ -4,9 +4,17 @@
 <meta charset="utf-8">
 <title>Поздравительный адрес — 45 лет</title>
 <style>
-/* Шрифты лежат рядом, в папке shrifty/. Не ссылка на Google — по двум
-   причинам: макет должен собираться без интернета, и первый оттиск уже
-   ушёл запасной гарнитурой, потому что ссылка не догрузилась. */
+/* Наградной адрес, А4, всё вектором.
+   Третья редакция оформления. Из первых двух вынесен урок: любой
+   повторяющийся мелкий мотив — ромбы по краям, точки в ленте, ряды
+   эллипсов вместо фигуры — на бумаге читается как «наклейки», а не
+   как гравюра. Поэтому здесь:
+     • рамка — сплошные золотые линии, три уровня толщины;
+     • углы — по одной цельной виньетке, а не повтор мотива;
+     • синяя лента — чистый градиент без единой текстуры;
+     • низ — лента-баннер и лавровый венок сплошными кривыми.
+   Золото везде градиентом: плоская жёлтая заливка на бумаге выглядит
+   грязной. */
 @font-face{
   font-family:'Prata'; font-style:normal; font-weight:400; font-display:block;
   src:url('shrifty/prata-400.woff2') format('woff2');
@@ -19,30 +27,12 @@
   font-family:'Golos Text'; font-style:normal; font-weight:600; font-display:block;
   src:url('shrifty/golos-text-600.woff2') format('woff2');
 }
-
-/* Наградной адрес, А4. Бланк и текст в одном файле, всё вектором:
-   печатается на любом принтере без потери резкости.
-
-   Золото нигде не заливается плоским цветом — только градиентом из
-   трёх-четырёх стоянок. Плоское золото на бумаге выглядит грязно-жёлтым,
-   это первое, что выдаёт дешёвый макет.
-
-   Шрифты: заголовки каллиграфией (Marck Script) и антиквой (Prata),
-   основной текст без засечек (Golos Text) — по требованию заказчицы.
-   У всех трёх проверена кириллица. */
 :root{
   --bumaga:#FDFAF3;
-  --bumaga-ten:#F4EDDF;
-  --sin:#153A66;
-  --sin-tem:#0A2244;
-  --zol-tem:#7A5416;
-  --zol:#C9A227;
-  --zol-svet:#F6E7B0;
-  --zol-blik:#FFF7DC;
-  --chernila:#1F1F22;
+  --chernila:#1F2126;
   --tihie:#6A5F4C;
-  --kegl:3.8mm;
-  --shag:6.16mm;
+  --kegl:4.2mm;
+  --shag:6.80mm;
 }
 @page{ size: A4 portrait; margin: 0; }
 *{ box-sizing: border-box; margin: 0; }
@@ -50,46 +40,29 @@ body{ font-family:'Golos Text', Arial, sans-serif; color: var(--chernila); backg
 
 .list{
   position: relative; width: 210mm; height: 297mm; margin: 0 auto; overflow: hidden;
-  background:
-    radial-gradient(120% 80% at 50% 0%, #FFFDF7 0%, var(--bumaga) 45%, var(--bumaga-ten) 100%);
+  background: radial-gradient(125% 85% at 50% 8%, #FFFEFA 0%, var(--bumaga) 52%, #F5EEDF 100%);
 }
+.fon{ position:absolute; inset:0; }
+.fon svg{ width:100%; height:100%; display:block; }
 
-/* ── слои бланка ───────────────────────────────────────────── */
-.fon{ position: absolute; inset: 0; }
-.fon svg{ width: 100%; height: 100%; display: block; }
-
-/* ── текст ─────────────────────────────────────────────────── */
 .polosa{
-  position: absolute; top: 90mm; bottom: 92mm; left: 42mm; right: 42mm;
+  position: absolute; top: 100mm; bottom: 70mm; left: 34mm; right: 34mm;
   display: flex; flex-direction: column; justify-content: flex-start; text-align: center;
   font-size: var(--kegl); line-height: var(--shag);
 }
 .obrashchenie{
-  font-family:'Golos Text', Arial, sans-serif;
-  font-weight: 600;
-  font-size: calc(var(--kegl) * 1.72);
-  line-height: calc(var(--kegl) * 2.05);
-  color:#1B2430;
-  margin-bottom: calc(var(--shag) * .5);
+  font-weight: 600; font-size: calc(var(--kegl) * 1.92); line-height: calc(var(--kegl) * 2.25);
+  color:#182231; margin-bottom: calc(var(--shag) * .42);
 }
 .povod{
-  font-family:'Golos Text', Arial, sans-serif;
-  font-weight: 600;
-  font-size: calc(var(--kegl) * 1.06);
-  letter-spacing: .22em; text-transform: uppercase;
-  color:#8A6410;
-  margin-bottom: calc(var(--shag) * .85);
+  font-weight: 600; font-size: calc(var(--kegl) * 1.02);
+  letter-spacing: .26em; text-transform: uppercase; color:#8A6410;
+  margin-bottom: calc(var(--shag) * .72);
 }
-.abzac + .abzac{ margin-top: calc(var(--shag) * .5); }
+.abzac + .abzac{ margin-top: calc(var(--shag) * .46); }
 .vozrast{ font-weight: 600; color:#8A6410; white-space: nowrap; }
-.podpis{
-  margin-top: auto;
-  font-family:'Golos Text', Arial, sans-serif;
-  font-weight: 600;
-  font-size: calc(var(--kegl) * 1.06);
-  line-height: 1.35; color:#1B2430;
-}
-.data{ font-family:'Golos Text', Arial, sans-serif; font-size: calc(var(--kegl) * .92); color: var(--tihie); margin-top: 2mm; }
+.podpis{ margin-top: auto; font-weight: 600; font-size: calc(var(--kegl) * 1.08); line-height: 1.35; color:#182231; }
+.data{ font-size: calc(var(--kegl) * .9); color: var(--tihie); margin-top: 2mm; }
 </style>
 </head>
 <body>
@@ -97,191 +70,98 @@ body{ font-family:'Golos Text', Arial, sans-serif; color: var(--chernila); backg
   <div class="fon">
     <svg viewBox="0 0 595 842" preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <!-- Золото по вертикали: блик сверху, тень снизу -->
         <linearGradient id="zolV" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#F6E7B0"/><stop offset=".35" stop-color="#E3C767"/>
-          <stop offset=".62" stop-color="#C9A227"/><stop offset="1" stop-color="#7A5416"/>
+          <stop offset="0" stop-color="#FBF0C6"/><stop offset=".3" stop-color="#E0C067"/>
+          <stop offset=".6" stop-color="#B9902C"/><stop offset="1" stop-color="#6E4C13"/>
         </linearGradient>
-        <!-- Золото по горизонтали: для лент и волн -->
         <linearGradient id="zolH" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#7A5416"/><stop offset=".18" stop-color="#F6E7B0"/>
-          <stop offset=".42" stop-color="#C9A227"/><stop offset=".66" stop-color="#FFF7DC"/>
-          <stop offset=".85" stop-color="#C9A227"/><stop offset="1" stop-color="#7A5416"/>
+          <stop offset="0" stop-color="#8A6410"/><stop offset=".2" stop-color="#F7E8B4"/>
+          <stop offset=".45" stop-color="#C9A227"/><stop offset=".7" stop-color="#FFF7DC"/>
+          <stop offset=".88" stop-color="#C9A227"/><stop offset="1" stop-color="#8A6410"/>
         </linearGradient>
         <linearGradient id="metall" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#FFF3C9"/><stop offset=".22" stop-color="#E2C46F"/>
-          <stop offset=".52" stop-color="#B98F2C"/><stop offset=".74" stop-color="#E7D08A"/>
-          <stop offset="1" stop-color="#6E4C13"/>
+          <stop offset="0" stop-color="#FFF4CC"/><stop offset=".26" stop-color="#E4C673"/>
+          <stop offset=".55" stop-color="#B58B27"/><stop offset=".78" stop-color="#EBD595"/>
+          <stop offset="1" stop-color="#6B490F"/>
         </linearGradient>
         <linearGradient id="metallTem" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#C8A44A"/><stop offset=".6" stop-color="#8A6410"/>
-          <stop offset="1" stop-color="#5B3E0C"/>
+          <stop offset="0" stop-color="#C6A146"/><stop offset=".62" stop-color="#8A6410"/>
+          <stop offset="1" stop-color="#57390A"/>
         </linearGradient>
-        <radialGradient id="teplo" cx=".5" cy=".35" r=".7">
-          <stop offset="0" stop-color="#FFF6D8" stop-opacity=".9"/>
-          <stop offset="1" stop-color="#FFF6D8" stop-opacity="0"/>
-        </radialGradient>
         <linearGradient id="sinG" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#1B4676"/><stop offset="1" stop-color="#0A2244"/>
-        </linearGradient>
-
-        <!-- Мотив бокового орнамента: завиток с листом, повторяется по вертикали -->
-        <pattern id="kolonna" x="0" y="0" width="34" height="120" patternUnits="userSpaceOnUse">
-          <!-- Стебель входит и выходит в одной точке по x — поэтому плитки
-               стыкуются без шва и узор читается сплошной лозой. -->
-          <path d="M17 0 C 4 20, 30 40, 17 60 C 4 80, 30 100, 17 120"
-                fill="none" stroke="url(#zolV)" stroke-width="1.9"/>
-          <path d="M17 10 C 26 6, 31 12, 28 20 C 23 24, 17 20, 17 10 z" fill="url(#zolV)" opacity=".95"/>
-          <path d="M17 40 C 8 36, 3 42, 6 50 C 11 54, 17 50, 17 40 z" fill="url(#zolV)" opacity=".95"/>
-          <path d="M17 70 C 26 66, 31 72, 28 80 C 23 84, 17 80, 17 70 z" fill="url(#zolV)" opacity=".95"/>
-          <path d="M17 100 C 8 96, 3 102, 6 110 C 11 114, 17 110, 17 100 z" fill="url(#zolV)" opacity=".95"/>
-          <path d="M17 26 C 22 24, 25 28, 22 31 C 19 32, 17 30, 17 26 z" fill="url(#zolV)" opacity=".8"/>
-          <path d="M17 86 C 22 84, 25 88, 22 91 C 19 92, 17 90, 17 86 z" fill="url(#zolV)" opacity=".8"/>
-          <circle cx="17" cy="56" r="1.5" fill="url(#zolV)"/>
-        </pattern>
-
-        <!-- Мотив орнамента внутри синей шапки -->
-        <linearGradient id="siyanie" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#E9C86A" stop-opacity=".28"/>
-          <stop offset=".1" stop-color="#E9C86A" stop-opacity="0"/>
-          <stop offset=".88" stop-color="#E9C86A" stop-opacity="0"/>
-          <stop offset="1" stop-color="#E9C86A" stop-opacity=".5"/>
+          <stop offset="0" stop-color="#1D4B7C"/><stop offset=".55" stop-color="#123A63"/>
+          <stop offset="1" stop-color="#08203F"/>
         </linearGradient>
       </defs>
 
-      <!-- ── боковые колонны с орнаментом ── -->
-      <g>
-        <rect x="26" y="26" width="30" height="790" fill="url(#kolonna)" opacity=".95"/>
-        <rect x="539" y="26" width="30" height="790" fill="url(#kolonna)" opacity=".95"/>
-        <!-- канты колонн -->
-        <rect x="22" y="26" width="2.2" height="790" fill="url(#zolV)"/>
-        <rect x="58" y="26" width="2.2" height="790" fill="url(#zolV)"/>
-        <rect x="535" y="26" width="2.2" height="790" fill="url(#zolV)"/>
-        <rect x="571" y="26" width="2.2" height="790" fill="url(#zolV)"/>
-      </g>
+      <!-- ── РАМКА: три сплошные линии, без единого повторяющегося мотива ── -->
+      <rect x="16" y="16" width="563" height="810" fill="none" stroke="url(#zolH)" stroke-width="4.6"/>
+      <rect x="25" y="25" width="545" height="792" fill="none" stroke="url(#zolV)" stroke-width="1.5" opacity=".85"/>
+      <rect x="31" y="31" width="533" height="780" fill="none" stroke="url(#zolV)" stroke-width=".7" opacity=".55"/>
+      <rect x="52" y="52" width="491" height="738" fill="none" stroke="url(#zolV)" stroke-width=".6" opacity=".4"/>
 
-      <!-- ── внешняя рамка ── -->
-      <rect x="14" y="14" width="567" height="814" fill="none" stroke="url(#zolH)" stroke-width="5"/>
-      <rect x="66" y="132" width="463" height="588" fill="none" stroke="url(#zolV)" stroke-width="1.1" opacity=".5"/>
-
-      <!-- ── шапка: синее поле с фигурной кромкой ── -->
+      <!-- ── ШАПКА: чистый градиент, никаких текстур ── -->
       <g>
-        <path d="M22 26 H573 V118 C480 144, 420 100, 297 118 C175 136, 112 144, 22 118 Z" fill="url(#sinG)"/>
-        <path d="M22 26 H573 V118 C480 144, 420 100, 297 118 C175 136, 112 144, 22 118 Z" fill="url(#siyanie)"/>
-        <!-- гравировка по центру ленты: два зеркальных завитка, тонкой линией -->
-        <g fill="none" stroke="#D9BA5E" stroke-width="1.15" opacity=".9">
-          <path d="M297 58 C 268 44, 232 46, 214 62 C 232 74, 268 72, 297 58 z"/>
-          <path d="M297 58 C 326 44, 362 46, 380 62 C 362 74, 326 72, 297 58 z"/>
-          <path d="M214 62 C 196 68, 176 62, 168 52"/>
-          <path d="M380 62 C 398 68, 418 62, 426 52"/>
-          <path d="M168 52 C 156 60, 140 58, 132 50"/>
-          <path d="M426 52 C 438 60, 454 58, 462 50"/>
-        </g>
-        <g fill="none" stroke="#C9A227" stroke-width=".8" opacity=".75">
-          <path d="M256 74 C 262 82, 274 84, 282 78"/>
-          <path d="M338 74 C 332 82, 320 84, 312 78"/>
-          <path d="M200 74 C 208 82, 220 82, 228 76"/>
-          <path d="M394 74 C 386 82, 374 82, 366 76"/>
-        </g>
-        <g fill="#D9BA5E" opacity=".9">
-          <ellipse cx="243" cy="58" rx="4" ry="1.8" transform="rotate(-18 243 58)"/>
-          <ellipse cx="351" cy="58" rx="4" ry="1.8" transform="rotate(18 351 58)"/>
-          <ellipse cx="196" cy="52" rx="3.2" ry="1.5" transform="rotate(-22 196 52)"/>
-          <ellipse cx="398" cy="52" rx="3.2" ry="1.5" transform="rotate(22 398 52)"/>
-        </g>
-        <circle cx="297" cy="58" r="3.2" fill="#E9C86A"/>
-        <!-- золотые канты шапки -->
-        <path d="M22 32 H573" stroke="url(#zolH)" stroke-width="2.4" fill="none"/>
-        <path d="M22 118 C112 144, 175 136, 297 118 C420 100, 480 144, 573 118"
+        <path d="M31 31 H564 V112 C470 140, 400 96, 297 112 C195 128, 122 140, 31 112 Z" fill="url(#sinG)"/>
+        <path d="M31 112 C122 140, 195 128, 297 112 C400 96, 470 140, 564 112"
               fill="none" stroke="url(#zolH)" stroke-width="4"/>
-        <path d="M22 126 C112 152, 175 144, 297 126 C420 108, 480 152, 573 126"
-              fill="none" stroke="url(#zolH)" stroke-width="1.4" opacity=".7"/>
+        <path d="M31 120 C122 148, 195 136, 297 120 C400 104, 470 148, 564 120"
+              fill="none" stroke="url(#zolV)" stroke-width="1.1" opacity=".7"/>
       </g>
 
-      <!-- ── венок с кубком под шапкой ── -->
-      <g transform="translate(297 170)">
-        <!-- лавровый венок: два полукольца из листьев -->
-        <g id="venok" fill="url(#zolV)"></g>
-        <!-- кубок -->
-        <g fill="url(#zolV)" transform="translate(0 6)">
-          <path d="M-19 -34 h38 v20 a19 19 0 0 1 -38 0 z"/>
-          <path d="M-26 -34 h7 v15 c-9 -1 -13 -7 -13 -12 0 -2 2 -3 6 -3z"/>
-          <path d="M26 -34 h-7 v15 c9 -1 13 -7 13 -12 0 -2 -2 -3 -6 -3z"/>
-          <rect x="-5" y="5" width="10" height="13" rx="2"/>
-          <path d="M-16 18 h32 l4 9 h-40z"/>
-          <!-- блик на чаше -->
-          <path d="M-12 -30 h6 v18 a6 6 0 0 1 -6 0z" fill="#FFF7DC" opacity=".55"/>
-        </g>
-      </g>
+      <!-- ── УГЛОВЫЕ ВИНЬЕТКИ: одна цельная фигура на угол, зеркалится ── -->
+      <g id="ugly"></g>
 
-      <!-- пять звёзд ровным рядом под венком -->
-      <g id="zvezdy" fill="url(#zolV)"></g>
-
-      <!-- ── нижняя часть: ленты идут из угла в угол, четырьмя слоями ── -->
-      <g>
-        <path d="M22 742 C 170 690, 250 806, 380 764 C 470 734, 520 700, 573 690 V816 H22 Z"
-              fill="url(#zolH)" opacity=".9"/>
-        <path d="M22 764 C 160 716, 268 822, 396 782 C 480 756, 528 726, 573 716 V816 H22 Z"
-              fill="#F6E9C2" opacity=".85"/>
-        <path d="M22 786 C 168 742, 286 834, 412 798 C 492 774, 536 750, 573 742 V816 H22 Z"
-              fill="#FBF3DC" opacity=".9"/>
-        <path d="M22 806 C 180 772, 300 842, 428 812 C 500 794, 542 780, 573 774 V816 H22 Z"
-              fill="#FDFAF3"/>
-        <path d="M22 742 C 170 690, 250 806, 380 764 C 470 734, 520 700, 573 690"
-              fill="none" stroke="#B08A2A" stroke-width=".8" opacity=".45"/>
-        <path d="M22 764 C 160 716, 268 822, 396 782 C 480 756, 528 726, 573 716"
-              fill="none" stroke="#C9A227" stroke-width=".5" opacity=".35"/>
-        <!-- филигрань в нижних углах -->
-        <g fill="none" stroke="url(#zolV)" stroke-width="1.1" opacity=".75">
-          <path d="M40 800 C 60 780, 84 786, 92 806"/>
-          <path d="M46 812 C 62 798, 78 800, 84 812"/>
-          <path d="M555 786 C 534 770, 512 776, 504 794"/>
-          <path d="M549 798 C 532 786, 518 788, 512 798"/>
-        </g>
-      </g>
-      </g>
-
-      <g transform="translate(297 726) scale(1.22)">
-        <!-- тёплый ореол под фигурой: отделяет её от лент -->
-        <ellipse cx="0" cy="-6" rx="64" ry="58" fill="url(#teplo)"/>
-        <g id="venok-niza" fill="url(#metall)"></g>
-
-        <!-- Крылатая фигура. Собрана слоями, как лепят скульптуру:
-             дальнее крыло темнее, ближнее светлее, ткань — отдельными
-             складками, поверх лёгкая тень. Плоский силуэт читался
-             мультяшно, светотень это чинит. -->
+      <!-- ── КУБОК С ВЕНКОМ ── -->
+      <g transform="translate(297 190)">
+        <g id="venok-verh"></g>
         <g>
-          <!-- дальние крылья -->
-          <g id="krylya-dal" fill="url(#metallTem)" opacity=".85"></g>
-          <!-- ближние крылья -->
-          <g id="krylya" fill="url(#metall)"></g>
-
-          <!-- туника: три складки разной светлоты -->
-          <path d="M-8 -6 C -4 6, 4 6, 8 -6 L 15 30 C 5 34, -5 34, -15 30 Z" fill="url(#metall)"/>
-          <path d="M-3 -4 C -1 8, 1 8, 3 -4 L 6 31 C 2 32, -2 32, -6 31 Z" fill="#F3E0A4" opacity=".55"/>
-          <path d="M6 -5 C 7 6, 10 10, 13 14 L 15 30 C 11 32, 8 32, 6 32 Z" fill="url(#metallTem)" opacity=".7"/>
-
-          <!-- корпус и плечи -->
-          <path d="M0 -26 C 6 -22, 8 -14, 7 -6 C 3 -2, -3 -2, -7 -6 C -8 -14, -6 -22, 0 -26 Z" fill="url(#metall)"/>
-          <path d="M3 -25 C 7 -21, 8 -13, 7 -6 C 5 -4, 3 -3, 2 -3 Z" fill="#FFF3C9" opacity=".5"/>
-
-          <!-- голова с гладкой причёской -->
-          <circle cx="0" cy="-31" r="4.8" fill="url(#metall)"/>
-          <path d="M-4.6 -32 C -4 -37, 4 -37, 4.6 -32 C 3 -34, -3 -34, -4.6 -32 Z" fill="url(#metallTem)"/>
-
-          <!-- руки подняты к венку -->
-          <path d="M-5 -22 C -13 -29, -17 -38, -14 -45" fill="none" stroke="url(#metall)" stroke-width="3.1" stroke-linecap="round"/>
-          <path d="M5 -22 C 13 -29, 17 -38, 14 -45" fill="none" stroke="url(#metall)" stroke-width="3.1" stroke-linecap="round"/>
-          <ellipse cx="0" cy="-49" rx="9.5" ry="8" fill="none" stroke="url(#metall)" stroke-width="2.4"/>
-          <ellipse cx="0" cy="-49" rx="9.5" ry="8" fill="none" stroke="#FFF3C9" stroke-width=".8" opacity=".6"/>
-
-          <!-- постамент -->
-          <path d="M-17 30 H17 L19 35 H-19 Z" fill="url(#metall)"/>
-          <path d="M-20 35 H20 L21.5 39 H-21.5 Z" fill="url(#metallTem)"/>
-          <path d="M-14 30 H-8 L-9 35 H-16 Z" fill="#FFF3C9" opacity=".4"/>
+          <!-- чаша с гранями и бликом -->
+          <path d="M-21 -30 H21 L18 -6 C 14 6, -14 6, -18 -6 Z" fill="url(#metall)"/>
+          <path d="M-8 -30 H-1 L-2 -4 C -5 -4, -7 -6, -8 -8 Z" fill="#FFF6D8" opacity=".55"/>
+          <path d="M8 -30 H16 L14 -8 C 12 -5, 10 -4, 8 -4 Z" fill="url(#metallTem)" opacity=".55"/>
+          <!-- ручки -->
+          <path d="M-21 -28 C -33 -26, -35 -10, -22 -6 L -20 -12 C -27 -14, -27 -21, -20 -22 Z" fill="url(#metall)"/>
+          <path d="M21 -28 C 33 -26, 35 -10, 22 -6 L 20 -12 C 27 -14, 27 -21, 20 -22 Z" fill="url(#metall)"/>
+          <!-- ножка и подставка -->
+          <path d="M-4 6 H4 L5 18 H-5 Z" fill="url(#metall)"/>
+          <path d="M-14 18 H14 L17 26 H-17 Z" fill="url(#metall)"/>
+          <path d="M-19 26 H19 L21 32 H-21 Z" fill="url(#metallTem)"/>
+          <path d="M-14 18 H-8 L-10 26 H-16 Z" fill="#FFF6D8" opacity=".4"/>
         </g>
       </g>
-      </svg>
+
+      <!-- пять звёзд под кубком -->
+      <g id="zvezdy" fill="url(#metall)"></g>
+
+      <!-- ── НИЗ: лента-баннер и лавровый венок, сплошными кривыми ── -->
+      <g>
+        <!-- мягкие ленты фона -->
+        <path d="M31 742 C 180 694, 268 796, 400 756 C 486 730, 528 700, 564 692 V811 H31 Z"
+              fill="url(#zolH)" opacity=".85"/>
+        <path d="M31 768 C 176 722, 288 812, 416 774 C 494 750, 534 726, 564 718 V811 H31 Z"
+              fill="#F8EDCB" opacity=".9"/>
+        <path d="M31 794 C 186 756, 306 828, 432 796 C 502 778, 540 760, 564 754 V811 H31 Z"
+              fill="#FDFAF3"/>
+        <path d="M31 742 C 180 694, 268 796, 400 756 C 486 730, 528 700, 564 692"
+              fill="none" stroke="#A9821F" stroke-width=".8" opacity=".5"/>
+      </g>
+
+      <g transform="translate(297 726)">
+        <g id="venok-niza"></g>
+        <!-- лента-баннер: центральное полотно и два хвоста -->
+        <!-- Лента-баннер: полотно почти прямое, концы с V-вырезом.
+             Выпуклое полотно с треугольными концами читалось как конфета. -->
+        <path d="M-88 -14 C -44 -19, 44 -19, 88 -14 L 88 18 C 44 23, -44 23, -88 18 Z"
+              fill="url(#metall)"/>
+        <path d="M-88 -14 C -44 -19, 44 -19, 88 -14" fill="none" stroke="#FFF6D8" stroke-width="1.4" opacity=".75"/>
+        <path d="M-88 18 C -44 23, 44 23, 88 18" fill="none" stroke="#8A6410" stroke-width=".9" opacity=".45"/>
+        <path d="M-88 -14 L -132 -24 L -112 2 L -132 28 L -88 18 Z" fill="url(#metallTem)"/>
+        <path d="M88 -14 L 132 -24 L 112 2 L 132 28 L 88 18 Z" fill="url(#metallTem)"/>
+        <path d="M-88 -14 L -98 -10 L -98 15 L -88 18 Z" fill="#5B3E0C" opacity=".3"/>
+        <path d="M88 -14 L 98 -10 L 98 15 L 88 18 Z" fill="#5B3E0C" opacity=".3"/>
+      </g>
+    </svg>
   </div>
 
   <div class="polosa">
@@ -309,37 +189,76 @@ body{ font-family:'Golos Text', Arial, sans-serif; color: var(--chernila); backg
 </div>
 
 <script>
-/* Венки и крылья рисуются скриптом: ряды одинаковых листьев и перьев
-   руками не выровнять, а глазу неровность видна сразу.
-   Лист — эллипс, повёрнутый по касательной к дуге; перо — то же самое,
-   но длиннее и тоньше. */
+/* Виньетки, венки и звёзды считаются, а не расставляются руками:
+   ряд одинаковых элементов, выставленный на глаз, всегда «пляшет».
+   Лист венка — заострённый лепесток из двух кривых, а не эллипс:
+   эллипсы в прошлой редакции читались как насыпанные семечки. */
 (() => {
-  const put = (rx, ry, x, y, ugol, opacity) =>
-    `<ellipse cx="0" cy="0" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}"` +
-    (opacity ? ` opacity="${opacity}"` : '') +
-    ` transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ugol.toFixed(1)})"/>`;
+  // ── угловая виньетка: одна цельная фигура ──
+  /* Угловая виньетка: четверть дуги, вдоль неё три листа и завиток
+     на конце. Одна фигура на угол — не повтор мотива, как просили. */
+  /* Угловая виньетка: дуга, вдоль неё тонкая парная линия и два
+     завитка на концах. Крупные листья отсюда убраны — на печати они
+     читались как перья, а не как гравировка. */
+  const vinetka = `
+    <g fill="none" stroke="url(#zolV)" stroke-linecap="round">
+      <path d="M0 92 C 0 40, 40 0, 92 0" stroke-width="2.4"/>
+      <path d="M0 74 C 0 33, 33 0, 74 0" stroke-width=".9" opacity=".7"/>
+      <path d="M92 0 C 106 0, 114 7, 116 18 C 110 13, 102 11, 94 13" stroke-width="1.6"/>
+      <path d="M0 92 C 0 106, 7 114, 18 116 C 13 110, 11 102, 13 94" stroke-width="1.6"/>
+      <path d="M26 66 C 34 48, 48 34, 66 26" stroke-width="1.3" opacity=".85"/>
+      <path d="M40 40 C 46 34, 52 31, 58 30" stroke-width=".9" opacity=".7"/>
+    </g>
+    <g fill="url(#zolV)">
+      <path d="M20 74 C 24 62, 30 54, 40 47 C 37 58, 31 67, 22 74 Z" opacity=".9"/>
+      <path d="M74 20 C 62 24, 54 30, 47 40 C 58 37, 67 31, 74 22 Z" opacity=".9"/>
+      <circle cx="33" cy="33" r="3"/>
+    </g>`;
+  document.getElementById('ugly').innerHTML = `
+    <g transform="translate(64 172) scale(1.05)">${vinetka}</g>
+    <g transform="translate(531 172) scale(-1.05 1.05)">${vinetka}</g>
+    <g transform="translate(64 702) scale(1.05 -1.05)">${vinetka}</g>
+    <g transform="translate(531 702) scale(-1.05 -1.05)">${vinetka}</g>`;
 
-  // Венок вокруг кубка: два полукольца, листья по касательной
-  const venok = (radius, listov, tolshchina) => {
-    let d = '';
-    for (const storona of [-1, 1]) {
-      for (let i = 0; i < listov; i++) {
-        const t = i / (listov - 1);
-        const a = (Math.PI * 0.62) * t + Math.PI * 0.2;     // дуга снизу вверх
-        const x = storona * Math.sin(a) * radius;
-        const y = Math.cos(a) * radius;
-        const ugol = (Math.atan2(y, x) * 180 / Math.PI) + 90 + storona * 16;
-        const k = 1 - t * .35;
-        d += put(tolshchina * 2.4 * k, tolshchina * k, x, y, ugol);
-      }
+  // ── лавровый венок: лист — лепесток из двух кривых ──
+  const list = (x, y, ugol, dlina, shirina) =>
+    `<path d="M0 0 C ${dlina * .3} ${-shirina}, ${dlina * .75} ${-shirina * .8}, ${dlina} 0
+              C ${dlina * .75} ${shirina * .8}, ${dlina * .3} ${shirina}, 0 0 Z"
+       transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ugol.toFixed(1)})"/>`;
+
+  /* Венок рисуем ОДНОЙ ветвью и зеркалим группой. Раньше вторая ветвь
+     считалась отдельно, и листья на ней разворачивались не туда:
+     угол поворота при отражении координат сам не отражается. */
+  const vetv = (radius, listov, dlina) => {
+    const p0 = [-radius * .92, radius * .42];
+    const p1 = [-radius * 1.12, -radius * .1];
+    const p2 = [-radius * .86, -radius * .66];
+    const p3 = [-radius * .34, -radius * .9];
+    let d = `<path d="M ${p0[0].toFixed(1)} ${p0[1].toFixed(1)}
+                     C ${p1[0].toFixed(1)} ${p1[1].toFixed(1)},
+                       ${p2[0].toFixed(1)} ${p2[1].toFixed(1)},
+                       ${p3[0].toFixed(1)} ${p3[1].toFixed(1)}"
+               fill="none" stroke="url(#metallTem)" stroke-width="1.8"/>`;
+    for (let i = 0; i < listov; i++) {
+      const t = i / (listov - 1), u = 1 - t;
+      const x = u*u*u*p0[0] + 3*u*u*t*p1[0] + 3*u*t*t*p2[0] + t*t*t*p3[0];
+      const y = u*u*u*p0[1] + 3*u*u*t*p1[1] + 3*u*t*t*p2[1] + t*t*t*p3[1];
+      const ugol = (Math.atan2(y, x) * 180 / Math.PI) + 90 - 26;
+      const k = 1 - t * .3;
+      d += list(x, y, ugol, dlina * k, dlina * .3 * k);
     }
     return d;
   };
-  document.getElementById('venok').innerHTML = venok(52, 9, 3.4);
-  document.getElementById('venok-niza').innerHTML = venok(60, 11, 3.5);
 
-  // Пять звёзд: центральная крупнее, к краям мельче. Ряд считается,
-  // а не расставляется руками — иначе шаг между звёздами «пляшет».
+  const venok = (radius, listov, dlina, zalivka) => {
+    const odna = vetv(radius, listov, dlina);
+    return `<g fill="${zalivka}"><g>${odna}</g><g transform="scale(-1 1)">${odna}</g></g>`;
+  };
+
+  document.getElementById('venok-verh').innerHTML = venok(56, 9, 20, 'url(#metall)');
+  document.getElementById('venok-niza').innerHTML = venok(62, 10, 22, 'url(#metall)');
+
+  // ── пять звёзд ──
   const zvezda = (x, y, r) => {
     let d = '';
     for (let i = 0; i < 5; i++) {
@@ -352,44 +271,10 @@ body{ font-family:'Golos Text', Arial, sans-serif; color: var(--chernila); backg
   };
   let zv = '';
   [-2, -1, 0, 1, 2].forEach(i => {
-    const r = 7.6 - Math.abs(i) * 1.5;
-    zv += zvezda(297 + i * 22, 232 + Math.abs(i) * 2.5, r);
+    const r = 8.4 - Math.abs(i) * 1.6;
+    zv += zvezda(297 + i * 24, 258 + Math.abs(i) * 3, r);
   });
   document.getElementById('zvezdy').innerHTML = zv;
-
-
-
-
-  /* Крылья: три ряда перьев на каждое крыло. Дальний ряд рисуется
-     тёмным металлом и уходит за фигуру — так крыло получает глубину,
-     а не выглядит веером наклеек. */
-  const krylo = (storona, ryad) => {
-    const nabor = [
-      { n: 7, dlina: 30, tolshchina: 3.0, x0: 6,  dx: 15, y0: -26, dy: 12, a0: -58, da: 40 },
-      { n: 6, dlina: 22, tolshchina: 2.6, x0: 7,  dx: 12, y0: -20, dy: 10, a0: -46, da: 36 },
-      { n: 5, dlina: 14, tolshchina: 2.2, x0: 7,  dx: 8,  y0: -14, dy: 7,  a0: -34, da: 30 },
-    ][ryad];
-    let d = '';
-    for (let i = 0; i < nabor.n; i++) {
-      const t = i / (nabor.n - 1);
-      const dlina = nabor.dlina - t * nabor.dlina * .42;
-      const x = storona * (nabor.x0 + t * nabor.dx);
-      const y = nabor.y0 + t * nabor.dy;
-      const ugol = storona > 0 ? nabor.a0 + t * nabor.da : 180 - nabor.a0 - t * nabor.da;
-      d += put(dlina, nabor.tolshchina - t * .6, x, y, ugol, (0.97 - t * .1).toFixed(2));
-    }
-    return d;
-  };
-
-  let kr = '', krDal = '';
-  for (const storona of [-1, 1]) {
-    krDal += krylo(storona, 0);
-    kr += krylo(storona, 1) + krylo(storona, 2);
-    kr += `<path d="M ${storona * 7} -26 Q ${storona * 26} -40, ${storona * 36} -20"
-             fill="none" stroke="url(#metall)" stroke-width="1.7" stroke-linecap="round"/>`;
-  }
-  document.getElementById('krylya-dal').innerHTML = krDal;
-  document.getElementById('krylya').innerHTML = kr;
 })();
 </script>
 </body>

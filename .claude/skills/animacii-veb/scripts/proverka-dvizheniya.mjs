@@ -52,6 +52,11 @@ function sobrannyj(put, text) {
 
 // Свойства, ради которых браузер пересчитывает разметку на каждом кадре.
 // Всё это делается через transform/opacity — как именно, написано в SKILL.md.
+// background-color — случай пограничный: у кнопки или чипа он почти незаметен,
+// у экрана целиком заметен сразу. Размер элемента скрипт знать не может,
+// поэтому это предупреждение, а не ошибка: смотрит человек.
+const SPORNYE = { 'background-color': 'у мелких элементов допустимо, у крупных площадей — нет' };
+
 const TYAZHELYE = {
   left: 'transform: translateX()', top: 'transform: translateY()',
   right: 'transform: translateX()', bottom: 'transform: translateY()',
@@ -60,10 +65,9 @@ const TYAZHELYE = {
   'margin-left': 'обёртка + translate', padding: 'обёртка + translate',
   'box-shadow': 'псевдоэлемент с тенью + opacity',
   filter: 'по возможности opacity', 'background-position': 'transform у слоя внутри',
-  'background-color': 'допустимо для мелких элементов, но не для крупных площадей',
 };
 
-const itog = { tyazhelye: [], dolgie: [], bezGlusheniya: [], skriptBezProverki: [], beskonechnye: [], willChange: [] };
+const itog = { tyazhelye: [], spornye: [], dolgie: [], bezGlusheniya: [], skriptBezProverki: [], beskonechnye: [], willChange: [] };
 let obshcheeGlushenie = false;   // блок prefers-reduced-motion со звёздочкой — накрывает весь CSS
 const fajly = obojti(koren);
 
@@ -103,6 +107,8 @@ for (const f of fajly) {
         const svojstvo = kusok.trim().split(/\s+/)[0].toLowerCase();
         if (TYAZHELYE[svojstvo]) {
           itog.tyazhelye.push({ fajl: otn, stroka: nomer, svojstvo, vmesto: TYAZHELYE[svojstvo] });
+        } else if (SPORNYE[svojstvo]) {
+          itog.spornye.push({ fajl: otn, stroka: nomer, svojstvo, vmesto: SPORNYE[svojstvo] });
         }
       }
     }
@@ -192,6 +198,12 @@ if (itog.skriptBezProverki.length === 0) {
   plohih++;
 }
 P('');
+
+if (itog.spornye.length) {
+  P(`⚠️  background-color в переходах — ${itog.spornye.length}. У кнопок и чипов это нормально, у крупных блоков нет:`);
+  spisok(itog.spornye, 6, x => `      ${x.fajl}:${x.stroka}  ${x.svojstvo}  —  ${x.vmesto}`);
+  P('');
+}
 
 if (itog.dolgie.length === 0) P('✅ Длительностей дольше 800 мс нет.');
 else {

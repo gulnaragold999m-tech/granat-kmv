@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Адрес на синем с медальоном — 45 лет</title>
+<style>
+/* Второй вид грамоты — по образцу, который принесла владелица:
+   тёмно-синий фон, широкая золотая барочная рамка, белый овал-медальон
+   с текстом, кубок справа внизу.
+
+   ЧЕСТНОЕ ОГРАНИЧЕНИЕ. На образце рамка и птицы — объёмная лепнина
+   из нейросети: светотень, фактура металла, резьба. Вектором такое
+   не рисуется — здесь стилизация той же композиции: многослойное
+   золото, барочные углы из кривых, блики-звёзды. Похоже по строю,
+   но не фотореалистично. */
+@font-face{
+  font-family:'Prata'; font-style:normal; font-weight:400; font-display:block;
+  src:url('shrifty/prata-400.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Golos Text'; font-style:normal; font-weight:400; font-display:block;
+  src:url('shrifty/golos-text-400.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Golos Text'; font-style:normal; font-weight:600; font-display:block;
+  src:url('shrifty/golos-text-600.woff2') format('woff2');
+}
+:root{
+  --sin-fon:#0A1937;
+  --sin-glub:#050D22;
+  --medal:#FCFAF4;
+  --chernila:#1F2126;
+  --tihie:#5E5646;
+  --kegl:3.9mm;
+  --shag:6.32mm;
+}
+@page{ size: A4 portrait; margin: 0; }
+*{ box-sizing: border-box; margin: 0; }
+body{ font-family:'Golos Text', Arial, sans-serif; color: var(--chernila); background:#8f8f8f; }
+
+.list{ position: relative; width: 210mm; height: 297mm; margin: 0 auto; overflow: hidden; background: var(--sin-glub); }
+.fon{ position:absolute; inset:0; }
+.fon svg{ width:100%; height:100%; display:block; }
+
+/* Текст живёт внутри овала, поэтому колонка узкая: по краям овал
+   сужается, и строка, посчитанная по прямоугольнику, вылезла бы на золото. */
+.polosa{
+  position: absolute; top: 78mm; bottom: 80mm; left: 60mm; right: 60mm;
+  display: flex; flex-direction: column; justify-content: center; text-align: center;
+  font-size: var(--kegl); line-height: var(--shag);
+}
+.obrashchenie{
+  font-weight: 600; font-size: calc(var(--kegl) * 1.26); line-height: calc(var(--kegl) * 1.55);
+  color:#16203A; margin-bottom: calc(var(--shag) * .5);
+}
+.abzac + .abzac{ margin-top: calc(var(--shag) * .42); }
+.vozrast{ font-weight: 600; color:#8A6410; white-space: nowrap; }
+.podpis{ margin-top: calc(var(--shag) * .8); font-weight: 600; line-height: 1.35; color:#16203A; }
+.data{ font-size: calc(var(--kegl) * .92); color: var(--tihie); margin-top: 1.6mm; }
+</style>
+</head>
+<body>
+<div class="list">
+  <div class="fon">
+    <svg viewBox="0 0 595 842" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <radialGradient id="nochь" cx=".5" cy=".42" r=".75">
+          <stop offset="0" stop-color="#16305C"/><stop offset=".55" stop-color="#0A1937"/>
+          <stop offset="1" stop-color="#040A1B"/>
+        </radialGradient>
+        <linearGradient id="zolH" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#6E4C13"/><stop offset=".16" stop-color="#F7E8B4"/>
+          <stop offset=".38" stop-color="#C9A227"/><stop offset=".62" stop-color="#FFF7DC"/>
+          <stop offset=".84" stop-color="#C9A227"/><stop offset="1" stop-color="#6E4C13"/>
+        </linearGradient>
+        <linearGradient id="zolV" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#FBF0C6"/><stop offset=".32" stop-color="#E0C067"/>
+          <stop offset=".64" stop-color="#B9902C"/><stop offset="1" stop-color="#6E4C13"/>
+        </linearGradient>
+        <linearGradient id="metall" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#FFF4CC"/><stop offset=".28" stop-color="#E4C673"/>
+          <stop offset=".58" stop-color="#B58B27"/><stop offset=".8" stop-color="#EBD595"/>
+          <stop offset="1" stop-color="#6B490F"/>
+        </linearGradient>
+        <linearGradient id="metallTem" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#C6A146"/><stop offset=".6" stop-color="#8A6410"/>
+          <stop offset="1" stop-color="#4E320A"/>
+        </linearGradient>
+        <radialGradient id="blik" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stop-color="#FFF7DC" stop-opacity=".95"/>
+          <stop offset="1" stop-color="#FFF7DC" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <rect x="0" y="0" width="595" height="842" fill="url(#nochь)"/>
+      <g id="iskry"></g>
+
+      <!-- многослойная золотая рамка -->
+      <rect x="18" y="18" width="559" height="806" fill="none" stroke="url(#zolH)" stroke-width="13"/>
+      <rect x="18" y="18" width="559" height="806" fill="none" stroke="#5B3E0C" stroke-width="1" opacity=".6"/>
+      <rect x="28" y="28" width="539" height="786" fill="none" stroke="url(#zolV)" stroke-width="3.4"/>
+      <rect x="35" y="35" width="525" height="772" fill="none" stroke="#F7E8B4" stroke-width=".8" opacity=".5"/>
+      <rect x="47" y="47" width="501" height="748" fill="none" stroke="url(#zolV)" stroke-width="1.6" opacity=".8"/>
+
+      <g id="ugly"></g>
+      <g id="sredniki"></g>
+
+      <!-- медальон -->
+      <g>
+        <ellipse cx="297" cy="420" rx="196" ry="272" fill="#0B1B3A" opacity=".5"/>
+        <ellipse cx="297" cy="418" rx="192" ry="268" fill="none" stroke="url(#zolV)" stroke-width="7"/>
+        <ellipse cx="297" cy="418" rx="182" ry="258" fill="none" stroke="#F7E8B4" stroke-width="1.4" opacity=".7"/>
+        <ellipse cx="297" cy="418" rx="176" ry="252" fill="url(#medalFon)"/>
+        <ellipse cx="297" cy="418" rx="176" ry="252" fill="#FCFAF4"/>
+      </g>
+
+      <!-- кубок справа внизу, частично на рамке -->
+      <g transform="translate(487 648) scale(1.15)">
+        <path d="M-26 -44 H26 L22 -8 C 17 8, -17 8, -22 -8 Z" fill="url(#metall)"/>
+        <path d="M-10 -44 H-2 L-3 -6 C -7 -7, -9 -10, -10 -13 Z" fill="#FFF6D8" opacity=".55"/>
+        <path d="M10 -44 H20 L17 -10 C 15 -6, 12 -5, 10 -5 Z" fill="url(#metallTem)" opacity=".5"/>
+        <path d="M-26 -42 C -42 -39, -45 -14, -27 -8 L -24 -16 C -34 -19, -34 -30, -24 -32 Z" fill="url(#metall)"/>
+        <path d="M26 -42 C 42 -39, 45 -14, 27 -8 L 24 -16 C 34 -19, 34 -30, 24 -32 Z" fill="url(#metall)"/>
+        <path d="M-5 8 H5 L6 26 H-6 Z" fill="url(#metall)"/>
+        <path d="M-17 26 H17 L20 36 H-20 Z" fill="url(#metall)"/>
+        <path d="M-24 36 H24 L27 45 H-27 Z" fill="url(#metallTem)"/>
+        <path d="M-17 26 H-10 L-12 36 H-19 Z" fill="#FFF6D8" opacity=".4"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="polosa">
+    <p class="obrashchenie">Дорогая моя любимая доченька!<br>Моё любимое сокровище!</p>
+
+    <p class="abzac">С безграничной любовью поздравляю тебя с прекрасным
+       юбилеем — <span class="vozrast">45 лет!</span></p>
+
+    <p class="abzac">Ты наше с папой самое лучшее произведение!</p>
+
+    <p class="abzac">Ты достигла расцвета женской красоты, стала
+       самодостаточной, уверенной в себе, успешной, очаровательной
+       женщиной. Ты научилась быть нежной и заботливой, терпеливой и доброй!</p>
+
+    <p class="abzac">Я хочу выразить тебе свою благодарность за всё:
+       за твою заботу и понимание, за твою улыбку и тёплые объятия.
+       Ты — моя гордость, моя радость.</p>
+
+    <p class="abzac">Желаю тебе, моя спелая ягодка, крепкого здоровья,
+       чувствовать себя счастливой, любимой и нужной!</p>
+
+    <p class="podpis">С любовью и нежностью, твоя мама</p>
+    <p class="data">21.08.2026</p>
+  </div>
+</div>
+
+<script>
+/* Барочные углы, средники и блики. Считаются, а не расставляются руками. */
+(() => {
+  // ── барочный угол: раковина, два аканта и завитки ──
+  const ugol = `
+    <g fill="url(#zolV)">
+      <path d="M8 96 C 8 52, 22 26, 52 12 C 44 34, 34 52, 20 66 C 30 62, 42 52, 52 38
+               C 48 66, 32 86, 8 96 Z"/>
+      <path d="M96 8 C 52 8, 26 22, 12 52 C 34 44, 52 34, 66 20 C 62 30, 52 42, 38 52
+               C 66 48, 86 32, 96 8 Z"/>
+      <path d="M40 40 C 54 30, 70 28, 84 34 C 72 40, 58 44, 46 52 C 40 48, 38 44, 40 40 Z" opacity=".9"/>
+      <path d="M40 40 C 30 54, 28 70, 34 84 C 40 72, 44 58, 52 46 C 48 40, 44 38, 40 40 Z" opacity=".9"/>
+      <ellipse cx="36" cy="36" rx="7" ry="7" fill="url(#metall)"/>
+      <ellipse cx="36" cy="36" rx="3" ry="3" fill="#FFF6D8" opacity=".85"/>
+      <path d="M104 22 C 118 20, 128 28, 128 40 C 120 34, 112 32, 104 34 Z" opacity=".95"/>
+      <path d="M22 104 C 20 118, 28 128, 40 128 C 34 120, 32 112, 34 104 Z" opacity=".95"/>
+    </g>
+    <g fill="none" stroke="#FFF6D8" stroke-width="1" opacity=".45">
+      <path d="M14 92 C 14 56, 30 34, 56 20"/>
+      <path d="M92 14 C 56 14, 34 30, 20 56"/>
+    </g>`;
+  document.getElementById('ugly').innerHTML = `
+    <g transform="translate(34 34)">${ugol}</g>
+    <g transform="translate(561 34) scale(-1 1)">${ugol}</g>
+    <g transform="translate(34 808) scale(1 -1)">${ugol}</g>
+    <g transform="translate(561 808) scale(-1 -1)">${ugol}</g>`;
+
+  // ── средник: пальметта по центру каждой стороны ──
+  const palmetta = `
+    <g fill="url(#zolV)">
+      <path d="M0 -22 C 9 -14, 13 -4, 12 8 C 6 4, 2 0, 0 -6 C -2 0, -6 4, -12 8
+               C -13 -4, -9 -14, 0 -22 Z"/>
+      <path d="M0 8 C 6 12, 10 18, 10 24 C 4 22, 0 18, 0 12 C 0 18, -4 22, -10 24
+               C -10 18, -6 12, 0 8 Z" opacity=".9"/>
+      <circle cx="0" cy="0" r="3.4" fill="url(#metall)"/>
+    </g>`;
+  document.getElementById('sredniki').innerHTML = `
+    <g transform="translate(297 44)">${palmetta}</g>
+    <g transform="translate(297 798) scale(1 -1)">${palmetta}</g>
+    <g transform="translate(38 421) rotate(-90)">${palmetta}</g>
+    <g transform="translate(556 421) rotate(90)">${palmetta}</g>`;
+
+  // ── блики-звёзды на синем: четырёхлучевые, разного размера ──
+  const iskra = (x, y, r, o) => `
+    <g transform="translate(${x} ${y})" opacity="${o}">
+      <circle cx="0" cy="0" r="${r * .5}" fill="url(#blik)"/>
+      <path d="M0 ${-r} Q ${r * .12} ${-r * .12}, ${r} 0 Q ${r * .12} ${r * .12}, 0 ${r}
+               Q ${-r * .12} ${r * .12}, ${-r} 0 Q ${-r * .12} ${-r * .12}, 0 ${-r} Z" fill="#FFF7DC"/>
+    </g>`;
+  const iskry = [[104, 214, 26, .95], [500, 268, 20, .9], [82, 470, 16, .75],
+                 [516, 560, 14, .7], [140, 690, 12, .6], [470, 150, 11, .55]];
+  document.getElementById('iskry').innerHTML = iskry.map(i => iskra(...i)).join('');
+})();
+</script>
+</body>
+</html>

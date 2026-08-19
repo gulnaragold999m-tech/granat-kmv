@@ -164,7 +164,12 @@
 
     var SROK = [
       { t: 'Не срочно', i: 'стандартно 3–5 рабочих дней', v: 'obychno' },
-      { t: 'Сегодня, день в день', i: 'плюс 30% к заказу', v: 'srochno' }
+      // «Сегодня» без часа — это не срок. Владелица 19.08.2026:
+      // «вопрос срочно сегодня он обширный. сегодня когда?». Студия
+      // работает до 20:00, и заказ «сегодня к 19:50» и «сегодня к 12:00» —
+      // это разное. Час спрашивается ниже, отдельным полем, и при
+      // срочности он обязателен.
+      { t: 'Сегодня, к определённому часу', i: 'плюс 30% к заказу', v: 'srochno' }
     ];
 
     var SCENARII = {
@@ -680,17 +685,23 @@
      *  Шага нет в списке — строка уходит как раньше, без подписи.
      *  Это не ошибка: у сценария может быть свой шаг, и лучше строка
      *  без подписи, чем пропавшая строка. */
+    /* Подписи шагов для заявки. Ключи ОБЯЗАНЫ быть уникальными:
+       19.08.2026 сюда дважды попали kolvo и storony, и в JavaScript
+       побеждает последний — «Тираж» молча превратился в «Количество»
+       во всех сценариях сразу. Проверка `npm run sekretar-proverka`
+       теперь ловит такие повторы. */
     var PODPISI = {
       vid: 'Что печатаем',
       format: 'Формат',
-      storony: 'Стороны',
       material: 'Носитель',
-      kolvo: 'Тираж',
+      bumaga: 'Бумага',
+      kolvo: 'Количество',
+      storony: 'Стороны',
+      zapolnenie: 'Заполнение макета',
+      plotnost: 'Бумага',
       sgib: 'Сгиб',
       otdelka: 'Отделка',
       maket: 'Макет',
-      kolvo: 'Количество',
-      storony: 'Стороны',
       srok: 'Срок',
       stroka: 'Что печатаем',
       usluga: 'Услуга'
@@ -1036,12 +1047,24 @@
       }
     }
 
+    /* Мелкий заказ оплачивается ЦЕЛИКОМ И СРАЗУ. Решение владелицы
+       19.08.2026: «такие заказы надо сразу оплатить».
+       Просить 20 ₽ предоплаты с заказа в 65 ₽ бессмысленно, но и «потом
+       на месте» не годится: распечатанные четыре страницы с чужой
+       фамилией не продать никому. Значит сто процентов вперёд. */
+    function melkijZakaz() {
+      var o = C.oplata || {};
+      var summa = itog && itog.summa ? itog.summa : 0;
+      return !!(o.melkijDo && summa && summa < o.melkijDo);
+    }
+
     function procentPredoplaty() {
       var o = C.oplata || {};
       /* На большом тираже материалы закупаются ДО печати, и 30% их
          не покрывают: на 500 листах А4 с плотной заливкой одних чернил
          и бумаги на 22 700 ₽ при предоплате 10 710 ₽. Оборотных денег
          у студии нет, и начать такой тираж физически нельзя. */
+      if (melkijZakaz()) return 100;
       return bolshojTirazh() ? o.procentBolshoj : (o.procent || 30);
     }
 
@@ -1074,8 +1097,11 @@
       var proc = procentPredoplaty();
       var bolshoj = bolshojTirazh();
 
-      var pro = 'Печать запускаем после предоплаты ' + proc + '%.';
-      if (bolshoj) pro += '<br>На тираже от ' + o.bolshojOt +
+      var pro = melkijZakaz()
+        ? 'Небольшой заказ оплачивается сразу и целиком — ' + rub(itog.summa) +
+          '. Печатаем, как только оплата придёт.'
+        : 'Печать запускаем после предоплаты ' + proc + '%.';
+      if (bolshoj && !melkijZakaz()) pro += '<br>На тираже от ' + o.bolshojOt +
         ' штук предоплата половина: бумагу и чернила на такой объём закупаем до печати.';
       skazat('bot', '<b>Оформляем по этой цене?</b><br>' + pro);
 
@@ -1152,6 +1178,62 @@
                  d.getFullYear() + ', ' + dvuznak(d.getHours()) + ':' + dvuznak(d.getMinutes()));
         obnovitChek();
         podpisEl.textContent = 'задание согласовано';
+        ktoZaberet();
+      });
+    }
+
+    /* КТО ЗАБЕРЁТ ЗАКАЗ И К КАКОМУ ЧАСУ.
+       Просьба владелицы 19.08.2026: «если будет забирать кто-то другой,
+       секретарь может спросить — вы будете забирать документы? нет, мой
+       водитель, курьер — надо оставить номер, к которому часу надо, чтобы
+       было готово».
+
+       Это не вежливость. Заказ, готовый «к вечеру», и заказ, готовый
+       «к 14:00, потому что в 14:10 уедет машина», — разная работа
+       и разный порядок в очереди. А курьер у стойки без телефона
+       и без номера заявки — это заказ, который некому отдать. */
+    function ktoZaberet() {
+      skazat('bot', 'Кто заберёт заказ?');
+      pokazatKnopki([
+        { t: 'Заберу сам', v: 'sam' },
+        { t: 'Курьер или водитель', i: 'оставим его телефон', v: 'kurer' }
+      ], function (k) {
+        skazat('ya', k.t);
+        put.push('Забирает: ' + k.t);
+        obnovitChek();
+
+        var kurer = document.getElementById('sekKurerPole');
+        if (kurer) kurer.hidden = (k.v !== 'kurer');
+        var chas = document.getElementById('sekChasPole');
+        if (chas) chas.hidden = false;
+
+        /* При срочности час обязателен: «сегодня» без времени — это
+           не срок, а надежда. И честно говорим, сколько времени
+           осталось до закрытия: обещать «сегодня» в 19:50 нельзя. */
+        var pole = document.getElementById('sekChas');
+        var podpisChas = document.getElementById('sekChasPodpis');
+        if (vybor.srok === 'srochno') {
+          if (pole) pole.required = true;
+          if (podpisChas) podpisChas.textContent = 'К какому часу СЕГОДНЯ нужно готово';
+          var chasSejchas = new Date().getHours();
+          var vsk = new Date().getDay() === 0;
+          var zakrytie = vsk ? 19 : 20;
+          if (!studiyaOtkryta()) {
+            skazat('bot', 'Сейчас студия закрыта, поэтому «сегодня» уже не получится. ' +
+              'Укажите час на завтра — откроемся в ' + (vsk ? '10:00' : '09:00') + '. ' +
+              'Если горит прямо сейчас, звоните: <b>+7 (999) 244-99-99</b>.');
+          } else if (chasSejchas >= zakrytie - 2) {
+            skazat('bot', 'До закрытия меньше двух часов — работаем до ' + zakrytie + ':00. ' +
+              'Укажите час, и я передам, но лучше сразу позвоните: ' +
+              '<b>+7 (999) 244-99-99</b>, подтвердим, что успеваем.');
+          } else {
+            skazat('bot', 'Срочный заказ — укажите час, к которому нужно готово. ' +
+              'Работаем до ' + zakrytie + ':00.');
+          }
+        } else if (podpisChas) {
+          podpisChas.textContent = 'К какому часу нужно готово, если это важно';
+        }
+
         /* Про файл говорим СЛОВАМИ, а не надеемся, что человек заметит
            поле внизу. И называем его так, как называет человек: тот, кто
            несёт паспорт на копию, не ищет глазами слово «макет». */
@@ -1396,6 +1478,16 @@
            Белый оборот при плотном лице действительно дешевле, и
            считать весь заказ по лицу было бы завышением. */
         zamerMaketa = null;
+
+        /* Мерить краску имеет смысл только там, где от неё зависит цена.
+           19.08.2026 владелица приложила два PDF к РАСПЕЧАТКЕ ДОКУМЕНТОВ
+           и увидела «заливку посмотрим глазами: этот формат браузер
+           не читает». В копиях цена считается по страницам, заливка
+           не при чём — фраза только пугала. */
+        var schitaemZalivku = scen && scen.shagi &&
+          scen.shagi.some(function (sh) { return sh.id === 'zapolnenie'; });
+        if (!schitaemZalivku) return;
+
         var zamery = [], zhdem = fajly.length;
         fajly.forEach(function (f) {
           zamerZalivki(f, function (z) {
@@ -1403,8 +1495,16 @@
             if (--zhdem) return;
 
             if (!zamery.length) {
-              podpis.textContent = opisanie + ' · заливку посмотрим глазами: ' +
-                'этот формат браузер не читает';
+              /* Формулировка правилась дважды. Сначала стояло «этот формат
+                 браузер не читает» — неправда: PDF браузер открывает
+                 прекрасно. Не умеет наш ЗАМЕР: он рисует картинку
+                 в невидимый холст и считает пиксели, а для PDF нужна
+                 отдельная библиотека, которой на сайте нет.
+                 Владелица поймала это 19.08.2026 одним вопросом:
+                 «какой формат браузер не читает». */
+              podpis.textContent = opisanie + ' · краску по PDF посчитаем ' +
+                'сами при проверке файла: автоматический замер работает ' +
+                'только по картинкам';
               return;
             }
             var sum = 0;
@@ -1464,21 +1564,32 @@
       var zadacha = document.getElementById('sekZadacha');
       zadacha = zadacha ? zadacha.value.trim() : '';
 
+      /* Телефон курьера и час готовности — в заявку отдельными строками.
+         Час — самое важное из двух: по нему заказ встаёт в очередь.
+         Если человек забирает сам, поле курьера скрыто и пусто. */
+      var kurerPole = document.getElementById('sekKurer');
+      var kurer = (kurerPole && !document.getElementById('sekKurerPole').hidden)
+        ? kurerPole.value.trim() : '';
+      var chasPole = document.getElementById('sekChas');
+      var chas = chasPole ? chasPole.value.trim() : '';
+
       var polya = {
         contact: tel,
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
         // по 152-ФЗ мы должны уметь показать, что человек его давал.
         path: put.concat(stroCkiOplaty()).concat(
           [fajly.length
-            ? (fajly.length === 1 ? 'Макет приложен к заявке: ' : 'Макетов приложено ' +
+            ? (fajly.length === 1 ? 'Файл приложен к заявке: ' : 'Файлов приложено ' +
                fajly.length + ': ') + fajly.map(function (f) { return f.name; }).join(', ')
-            : 'Макет к заявке не приложен']
+            : 'Файл к заявке не приложен']
             .concat(zamerMaketa
               ? ['Замер по файлу: краски ' + zamerMaketa.procent + '%, ' +
                  zamerMaketa.nazvanie.toLowerCase() + ' заполнение (коэффициент ' +
                  zamerMaketa.koef + ')' +
                  (zamerMaketa.storon > 1 ? ' — среднее по ' + zamerMaketa.storon + ' сторонам' : '')]
               : [])
+            .concat(chas ? ['Нужно готово к ' + chas] : [])
+            .concat(kurer ? ['Заберёт курьер, его телефон: ' + kurer] : [])
             .concat(zadacha ? ['Клиент написал: ' + zadacha] : [])
             .concat(['Согласие на обработку персональных данных получено'])
         ),
@@ -1525,7 +1636,7 @@
                 summa: (itog && itog.summa) || 0
               });
             }
-            zakonchitZayavku(j.lead, j.schet);
+            zakonchitZayavku(j.lead, j.schet, j.pamyatka);
           } else {
             zapasnojPut(tel);
           }
@@ -1544,6 +1655,14 @@
     function stroCkiOplaty() {
       var o = C.oplata || {};
       if (!itog || itog.summa == null || !o.procent) return [];
+
+      if (melkijZakaz()) {
+        return [
+          'Итого по расчёту: ' + rub(itog.summa),
+          'Мелкий заказ — оплата 100% сразу: ' + rub(itog.summa),
+          'Оплата на момент заявки: не внесена'
+        ];
+      }
 
       var procent = procentPredoplaty();
       var bolshoj = bolshojTirazh();
@@ -1564,7 +1683,7 @@
        закончить заявку» — человек не должен уходить со страницы,
        не понимая, что дальше. Поэтому здесь номер заявки, что будет
        происходить, и как внести предоплату. */
-    function zakonchitZayavku(nomerZayavki, ssylkaNaSchet) {
+    function zakonchitZayavku(nomerZayavki, ssylkaNaSchet, ssylkaNaPamyatku) {
       forma.hidden = true;
       knopki.innerHTML = '';
       msgEl.textContent = '';
@@ -1596,10 +1715,19 @@
         text += 'Перезвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00. ' +
                 'Подтвердим срок и проверим макет до печати.';
       }
+      /* Памятка клиенту — ПЕРВОЙ строкой после «принято». Человек
+         закроет вкладку через минуту, и у него не останется ни номера,
+         ни состава заказа, ни суммы. Владелица 19.08.2026: «как клиент
+         сохранит свою заявку». */
+      if (ssylkaNaPamyatku) {
+        text += '<br><br><a class="sek-schet" href="' + ssylkaNaPamyatku +
+          '" target="_blank" rel="noopener">Сохранить заявку — что заказано, ' +
+          'сколько и куда прийти →</a>';
+      }
       skazat('bot', text);
 
       if (predoplata) {
-        var oplataText = 'Предоплата ' + proc + '% — ' +
+        var oplataText = (melkijZakaz() ? 'К оплате целиком — ' : 'Предоплата ' + proc + '% — ') +
           '<span class="sek-cifra">' + rub(predoplata) + '</span>' +
           (bolshojTirazh()
             ? 'Тираж от ' + o.bolshojOt + ' штук — половина вперёд: бумагу ' +
@@ -1625,8 +1753,15 @@
           oplataText += '<br><a class="btn-gold sek-oplatit" href="' + o.ssylka +
             '" target="_blank" rel="noopener">Оплатить ' + rub(predoplata) + '</a>';
           if (o.qr) {
+            /* 18.08.2026 клиентка отказалась платить: «не пришёл код
+               из банка». По QR через СБП кода и не бывает — платёж
+               подтверждается внутри приложения банка. Человек ждал
+               СМС, не дождался и решил, что оплата сломана.
+               Пишем это прямо под кодом. */
             oplataText += '<div class="sek-qr">' + o.qr +
-              '<span>наведите камеру телефона</span></div>';
+              '<span>Наведите камеру телефона — откроется приложение ' +
+              'вашего банка. Код из СМС не нужен: подтвердите оплату ' +
+              'прямо в приложении.</span></div>';
           }
         }
         skazat('bot', oplataText);

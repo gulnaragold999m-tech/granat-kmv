@@ -125,8 +125,18 @@
         if (folga) {
           spisok.push({ t: 'Фольгирование', i: rub(folga) + ' за лист, ' + C.folgirovanie.opisanie, v: 'folga' });
         }
+        /* Тиснение прессом — своя машинка, «Остров сокровищ» ОС-5.
+           Появилось в прайсе 19.08.2026: услуга делалась руками
+           и в счёт не попадала, потому что строки не было. */
+        var tisn = C.tisnenie && C.tisnenie.cena;
+        if (tisn) {
+          spisok.push({ t: 'Тиснение по шаблону', i: rub(tisn) + ' за штуку, ' + C.tisnenie.opisanie, v: 'tisnenie' });
+        }
+        if (folga && tisn) {
+          spisok.push({ t: 'Фольгирование и тиснение', v: 'folga_tisnenie' });
+        }
         if (lam && folga) {
-          spisok.push({ t: 'И то, и другое', v: 'oba' });
+          spisok.push({ t: 'Ламинация и фольгирование', v: 'oba' });
         }
         return spisok;
       } };
@@ -138,13 +148,23 @@
       if (!o.otdelka || o.otdelka === 'net') return 0;
       var lam = cenaLaminacii(o.format, o.kolvo || 1);
       var folga = C.folgirovanie && C.folgirovanie.cena;
-      if ((o.otdelka === 'laminaciya' || o.otdelka === 'oba') && lam) {
+      var tisn = C.tisnenie && C.tisnenie.cena;
+      /* Код отделки читаем по кускам, а не сравнением целиком: варианты
+         складываются («фольгирование и тиснение» — это `folga_tisnenie`),
+         и перечислять все сочетания через равенство значит забыть одно. */
+      var kod = String(o.otdelka || '');
+      var est = function (chto) { return kod.indexOf(chto) !== -1 || kod === 'oba'; };
+      if (lam && (kod.indexOf('laminaciya') !== -1 || kod === 'oba')) {
         pribavka += lam;
         stroki.push('Ламинация 80–100 мкм — ' + rub(lam) + ' за штуку');
       }
-      if ((o.otdelka === 'folga' || o.otdelka === 'oba') && folga) {
+      if (folga && est('folga')) {
         pribavka += folga;
         stroki.push('Фольгирование — ' + rub(folga) + ' за штуку');
+      }
+      if (tisn && kod.indexOf('tisnenie') !== -1) {
+        pribavka += tisn;
+        stroki.push('Тиснение по шаблону — ' + rub(tisn) + ' за штуку');
       }
       return pribavka;
     }

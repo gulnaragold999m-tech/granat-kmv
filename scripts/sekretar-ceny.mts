@@ -36,6 +36,7 @@ import {
   OTDELKA,
   BIGOVKA,
   FOLGIROVANIE,
+  TISNENIE,
   NACENKA_ZA_PLOTNOST,
   type TirazhTablica,
   type Yacheyka,
@@ -132,6 +133,9 @@ const CENY = {
   otdelka: OTDELKA,
   bigovka: BIGOVKA,
   folgirovanie: FOLGIROVANIE,
+  /* Тиснение прессом — отдельная услуга, не заменяет фольгирование:
+     в счёте они складываются. */
+  tisnenie: TISNENIE,
   plotnosti: NACENKA_ZA_PLOTNOST.stroki,
   /* Категории заполнения макета. Заведены 18.08.2026: струйник тратит
      чернила по площади краски, и белая листовка с фотоколлажем не могут

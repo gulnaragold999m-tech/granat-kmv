@@ -464,9 +464,17 @@
             { t: 'Копия А3, ч/б', v: 'A3, ч/б, ксерокопия' },
             { t: 'Цветная печать А3', v: 'A3, цветная печать' }
           ] },
-          { id: 'kolvo', vopros: 'Сколько листов?', varianty: [
-            { t: '1–5', v: 3 }, { t: '10', v: 10 }, { t: '50', v: 50 },
-            { t: '100 и больше', v: 100 }
+          // Число, а не кнопки: человек с документом знает точное
+          // количество страниц, а «1–5 / 10 / 50» заставляет округлять.
+          { id: 'kolvo', vopros: 'Сколько страниц?', chislo: true,
+            edinica: 'стр.', podskazka: 'например, 24' },
+          // Одна сторона или две — вопрос, который клиенты задают сами,
+          // а секретарь до 18.08.2026 не спрашивал вовсе. Он молча
+          // печатал сноску «двусторонняя считается как два листа»,
+          // и человек не понимал, сколько заплатит.
+          { id: 'storony', vopros: 'Печать с одной стороны или с двух?', varianty: [
+            { t: 'С одной стороны', i: 'каждая страница на своём листе', v: 'odna' },
+            { t: 'С двух сторон', i: 'бумаги вдвое меньше, документ тоньше', v: 'dve' }
           ] },
           // Срочность спрашиваем и здесь. До 17.08.2026 её не было
           // у копий и ламинации — а именно за ними чаще всего и бегут
@@ -475,14 +483,32 @@
           { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
         schet: function (o) {
-          var zaList = poTirazhu(C.kopii, o.stroka, o.kolvo);
-          var summa = zaList * o.kolvo, zametki = [];
+          var stranic = Number(o.kolvo) || 1;
+          var zaStranicu = poTirazhu(C.kopii, o.stroka, stranic);
+          var summa = zaStranicu * stranic, zametki = [];
           if (summa < C.minimalki.kopii) {
             summa = C.minimalki.kopii;
             zametki.push('Минимальный заказ на копирование и распечатку — ' + rub(C.minimalki.kopii) + '.');
           }
-          zametki.push('Двусторонняя печать считается как два листа.');
-          return { summa: summa, stroki: [o.stroka + ' — ' + rub(zaList) + ' за лист'], zametki: zametki };
+          /* Цена считается по СТРАНИЦАМ, а не по листам бумаги: краска
+             и прогон тратятся на каждую сторону одинаково. Говорим это
+             прямо, иначе двусторонняя печать выглядит как обман —
+             «бумаги вдвое меньше, а цена та же». */
+          if (o.storony === 'dve') {
+            var listov = Math.ceil(stranic / 2);
+            zametki.push(stranic + ' страниц лягут на ' + listov + ' листах — печать с двух сторон. ' +
+                         'Цена считается по страницам: краска и прогон уходят на каждую сторону. ' +
+                         'Зато бумаги вдвое меньше и документ тоньше.');
+          } else {
+            zametki.push(stranic + ' страниц — ' + stranic + ' листов, печать с одной стороны. ' +
+                         'С двух сторон вышло бы ' + Math.ceil(stranic / 2) + ' листов по той же цене.');
+          }
+          zametki.push('Документ приложите прямо здесь, в поле ниже — напечатаем к вашему приезду.');
+          return {
+            summa: summa,
+            stroki: [o.stroka + ' — ' + rub(zaStranicu) + ' за страницу'],
+            zametki: zametki
+          };
         }
       },
 
@@ -663,6 +689,8 @@
       sgib: 'Сгиб',
       otdelka: 'Отделка',
       maket: 'Макет',
+      kolvo: 'Количество',
+      storony: 'Стороны',
       srok: 'Срок',
       stroka: 'Что печатаем',
       usluga: 'Услуга'
@@ -695,6 +723,43 @@
         });
         knopki.appendChild(b);
       });
+    }
+
+    /* ЧИСЛОВОЙ ШАГ. Кнопками «1–5 / 10 / 50» нельзя сказать «двадцать
+       четыре страницы», а человек с документом знает точное число.
+       Округление вверх до кнопки — это счёт за то, чего не печатали;
+       округление вниз — работа даром. 18.08.2026 владелица сказала
+       прямо: «надо было спросить сколько страниц». */
+    function pokazatChislo(shag, gotovo) {
+      knopki.innerHTML = '';
+      var obertka = document.createElement('div');
+      obertka.className = 'sek-chislo';
+
+      var pole = document.createElement('input');
+      pole.type = 'number';
+      pole.min = '1';
+      pole.inputMode = 'numeric';
+      pole.placeholder = shag.podskazka || 'например, 24';
+
+      var knopka = document.createElement('button');
+      knopka.type = 'button';
+      knopka.innerHTML = '<span>Дальше</span>';
+
+      function otpravit() {
+        var n = parseInt(pole.value, 10);
+        if (!n || n < 1) { pole.focus(); return; }
+        knopki.innerHTML = '';
+        gotovo(n);
+      }
+      knopka.addEventListener('click', otpravit);
+      pole.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); otpravit(); }
+      });
+
+      obertka.appendChild(pole);
+      obertka.appendChild(knopka);
+      knopki.appendChild(obertka);
+      pole.focus();
     }
 
     function obnovitChek() {
@@ -735,6 +800,9 @@
                           akciya.uslovie + '. ' + akciya.do_ + ' — посчитаю уже со скидкой.');
           }
           zanovoB.hidden = false;
+          if (window.granatGoal) {
+            window.granatGoal('sekretar_start', { usluga: scen.imya });
+          }
           shagIndex = 0;
           sleduyushchijShag();
         }
@@ -754,6 +822,20 @@
         : shag.varianty;
 
       skazat('bot', typeof shag.vopros === 'function' ? shag.vopros(vybor) : shag.vopros);
+
+      if (shag.chislo) {
+        pokazatChislo(shag, function (n) {
+          vybor[shag.id] = n;
+          var podpis = (PODPISI[shag.id] ? PODPISI[shag.id] + ': ' : '') +
+                       n + (shag.edinica ? ' ' + shag.edinica : '');
+          put.push(podpis);
+          obnovitChek();
+          skazat('ya', n + (shag.edinica ? ' ' + shag.edinica : ''));
+          shagIndex++;
+          sleduyushchijShag();
+        });
+        return;
+      }
 
       function otvet(v) {
         // «Не знаю, посоветуйте» — объясняем и спрашиваем снова,
@@ -916,6 +998,44 @@
       return !!(o.bolshojOt && kolvo >= o.bolshojOt && o.procentBolshoj);
     }
 
+    /* Код текущего сценария — нужен там, где поведение зависит
+       от услуги. Раньше этот же перебор стоял внутри поиска акции. */
+    function kodScenariya() {
+      for (var k in SCENARII) { if (SCENARII[k] === scen) return k; }
+      return '';
+    }
+
+    /* Услуги, где человек несёт ГОТОВЫЙ файл и ждёт его сегодня.
+       Им нельзя отвечать «перезвоним»: 18.08.2026 девушка из Краснодара
+       попросила распечатать документы, водитель уже ехал забирать —
+       а секретарь не дал приложить файл и пообещал связаться позже.
+       Она ответила «спасибо, не надо, я в другом месте». */
+    var SROCHNYE_USLUGI = ['kopii', 'foto', 'laminaciya', 'dokfoto'];
+
+    function studiyaOtkryta() {
+      var d = new Date();
+      var chas = d.getHours();
+      // Вс — до 19:00, остальные дни с 09:00 до 20:00.
+      return d.getDay() === 0 ? (chas >= 10 && chas < 19) : (chas >= 9 && chas < 20);
+    }
+
+    /* Поле «своими словами». В сценарии «Другая задача» оно обязательно:
+       там больше ничего и нет — ни формата, ни тиража, ни цены. В прочих
+       сценариях необязательно и служит для того, чего кнопками не скажешь:
+       «отдать курьеру до 14:00», «сшить пружиной». */
+    function nastroitPoleZadachi() {
+      var pole = document.getElementById('sekZadacha');
+      var podpis = document.getElementById('sekZadachaPodpis');
+      if (!pole) return;
+      var drugoe = kodScenariya() === 'drugoe';
+      pole.required = drugoe;
+      if (podpis) {
+        podpis.textContent = drugoe
+          ? 'Расскажите задачу: что напечатать, сколько, к какому сроку'
+          : 'Что нужно — своими словами, если есть что добавить';
+      }
+    }
+
     function procentPredoplaty() {
       var o = C.oplata || {};
       /* На большом тираже материалы закупаются ДО печати, и 30% их
@@ -933,9 +1053,16 @@
        это не заказ, а работа на удачу. */
     function soglasieSCenoj() {
       if (itog.summa == null) {          // «другая задача» — считаем вручную
-        skazat('bot', 'Оставьте телефон — перезвоним и посчитаем вместе.');
+        /* «Другая задача» упиралась в тупик: секретарь просил рассказать
+           задачу, а рассказать было некуда — поля не существовало.
+           Человек уходил молча, и мы даже не узнавали, чего он хотел. */
+        nastroitPoleZadachi();
+        skazat('bot', 'Расскажите задачу в поле ниже — что напечатать, ' +
+                      'сколько и к какому сроку. Файл можно приложить тут же. ' +
+                      'Посчитаем и ответим.');
         forma.hidden = false;
-        document.getElementById('sekTel').focus();
+        document.getElementById('sekZadacha') &&
+          document.getElementById('sekZadacha').focus();
         return;
       }
 
@@ -968,6 +1095,12 @@
         // цену видел и принял, — и разговора «я передумала» после печати
         // уже не будет.
         put.push('Цену подтвердил: ' + rub(itog.summa));
+        /* Отдельная цель: человек дошёл до цены и принял её. Между ней
+           и заявкой видно, сколько людей соглашаются, но не оставляют
+           телефон, — это разные проблемы и лечатся по-разному. */
+        if (window.granatGoal) {
+          window.granatGoal('cena_prinyata', { summa: itog.summa });
+        }
         obnovitChek();
         podpisEl.textContent = 'цена подтверждена';
         soglasovanieTZ();
@@ -1019,7 +1152,17 @@
                  d.getFullYear() + ', ' + dvuznak(d.getHours()) + ':' + dvuznak(d.getMinutes()));
         obnovitChek();
         podpisEl.textContent = 'задание согласовано';
-        skazat('bot', 'Принято. Оставьте телефон — передам заявку в студию, и мы подтвердим срок. Макет проверяем до печати.');
+        /* Про файл говорим СЛОВАМИ, а не надеемся, что человек заметит
+           поле внизу. И называем его так, как называет человек: тот, кто
+           несёт паспорт на копию, не ищет глазами слово «макет». */
+        var srochnaya = SROCHNYE_USLUGI.indexOf(kodScenariya()) !== -1;
+        nastroitPoleZadachi();
+        skazat('bot', srochnaya
+          ? 'Принято. <b>Приложите файл прямо здесь</b>, в поле ниже — ' +
+            'и оставьте телефон. Файл у нас — печатаем, приезжать можно ' +
+            'сразу, ждать звонка не нужно.'
+          : 'Принято. <b>Приложите файл прямо здесь</b>, если он готов, ' +
+            'и оставьте телефон. Макет проверяем до печати.');
         forma.hidden = false;
         document.getElementById('sekTel').focus();
       });
@@ -1137,7 +1280,10 @@
         предложение «взять больше» шло от прайса, а не от фантазии. */
     function sleduyushchijTirazh() {
       var shag = scen.shagi.filter(function (s) { return s.id === 'kolvo'; })[0];
-      if (!shag || !vybor.kolvo) return null;
+      // У числового шага вариантов нет вовсе, и предлагать «следующий
+      // тираж» там нечего: человек назвал точное число страниц.
+      if (!shag || !vybor.kolvo || shag.chislo ||
+          typeof shag.varianty !== 'object') return null;
       var bolshie = shag.varianty
         .map(function (v) { return v.v; })
         .filter(function (n) { return typeof n === 'number' && n > vybor.kolvo; });
@@ -1223,8 +1369,8 @@
       var pole = document.getElementById('sekMaket');
       var podpis = document.getElementById('sekFajlPodpis');
       if (!pole || !podpis) return;
-      var PUSTO = 'Можно выбрать несколько файлов — лицо и оборот. ' +
-                  'Целую папку — архивом ZIP. До 20 МБ каждый файл. Необязательно.';
+      var PUSTO = 'Документ, макет, фото — можно выбрать несколько файлов сразу. ' +
+                  'Целую папку — архивом ZIP. До 20 МБ каждый файл.';
 
       pole.addEventListener('change', function () {
         var fajly = pole.files ? Array.prototype.slice.call(pole.files, 0, MAX_MAKETOV) : [];
@@ -1315,6 +1461,9 @@
                               : 'Отправляем заявку и макеты...')
         : 'Отправляем...';
 
+      var zadacha = document.getElementById('sekZadacha');
+      zadacha = zadacha ? zadacha.value.trim() : '';
+
       var polya = {
         contact: tel,
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
@@ -1330,6 +1479,7 @@
                  zamerMaketa.koef + ')' +
                  (zamerMaketa.storon > 1 ? ' — среднее по ' + zamerMaketa.storon + ' сторонам' : '')]
               : [])
+            .concat(zadacha ? ['Клиент написал: ' + zadacha] : [])
             .concat(['Согласие на обработку персональных данных получено'])
         ),
         total: itog && itog.summa ? Math.round(itog.summa) : 0,
@@ -1362,7 +1512,20 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) {
-            zakonchitZayavku(j.lead);
+            /* ЦЕЛЬ МЕТРИКИ. До 18.08.2026 её тут не было вовсе: цель
+               `lead_form` отправляла только старая форма, а заявки
+               от секретаря в отчёте о конверсиях не появлялись НИКОГДА.
+               Владелица смотрела конверсии и видела ноль — при том что
+               заявки шли. Имя цели то же самое, чтобы её настройка
+               в Метрике продолжала работать; отличить источник можно
+               по параметру form. */
+            if (window.granatGoal) {
+              window.granatGoal('lead_form', { form: 'sekretar' });
+              window.granatGoal('sekretar_zayavka', {
+                summa: (itog && itog.summa) || 0
+              });
+            }
+            zakonchitZayavku(j.lead, j.schet);
           } else {
             zapasnojPut(tel);
           }
@@ -1401,7 +1564,7 @@
        закончить заявку» — человек не должен уходить со страницы,
        не понимая, что дальше. Поэтому здесь номер заявки, что будет
        происходить, и как внести предоплату. */
-    function zakonchitZayavku(nomerZayavki) {
+    function zakonchitZayavku(nomerZayavki, ssylkaNaSchet) {
       forma.hidden = true;
       knopki.innerHTML = '';
       msgEl.textContent = '';
@@ -1411,9 +1574,28 @@
       var proc = procentPredoplaty();
       var predoplata = itogo ? Math.round(itogo * proc / 100) : null;
 
-      var text = '<b>Заявка' + (nomerZayavki ? ' №' + nomerZayavki : '') + ' принята.</b><br>' +
-                 'Перезвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00. ' +
-                 'Подтвердим срок и проверим макет до печати.';
+      /* КОНЕЦ РАЗГОВОРА РЕШАЕТ, ПРИДЁТ ЧЕЛОВЕК ИЛИ УЙДЁТ.
+         Здесь стояло одно «перезвоним в рабочие часы» на все услуги.
+         Для тиража это верно, для распечатки документов — потеря
+         клиента: он готов приехать через час, а ему говорят ждать
+         звонка. Разбор — 18.08.2026, девушка из Краснодара. */
+      var srochnaya = SROCHNYE_USLUGI.indexOf(kodScenariya()) !== -1;
+      var otkryto = studiyaOtkryta();
+      var adres = 'г. Лермонтов, ул. Нагорная 2/1, этаж 2';
+
+      var text = '<b>Заявка' + (nomerZayavki ? ' №' + nomerZayavki : '') + ' принята.</b><br>';
+      if (srochnaya && otkryto) {
+        text += 'Печатаем сегодня. Приезжайте или присылайте курьера — ' +
+                adres + ', мы до 20:00 (Вс до 19:00).<br>' +
+                'Нужно срочно — звоните прямо сейчас: <b>+7 (999) 244-99-99</b>.';
+      } else if (srochnaya) {
+        text += 'Сейчас студия закрыта. Напечатаем к открытию — ' +
+                'Пн–Сб с 09:00, Вс с 10:00, забрать можно сразу.<br>' +
+                adres + ' · +7 (999) 244-99-99.';
+      } else {
+        text += 'Перезвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00. ' +
+                'Подтвердим срок и проверим макет до печати.';
+      }
       skazat('bot', text);
 
       if (predoplata) {
@@ -1430,6 +1612,15 @@
         // QR и кнопка появляются, только если в прайсе задана ссылка
         // на оплату. Нет ссылки — остаётся перевод по номеру, и это
         // тоже рабочий путь: эквайринг мы сознательно не подключали.
+        /* Счёт с реквизитами — для тех, кто платит с расчётного счёта.
+           Просьба владелицы 18.08.2026: «мне заявка, а заказчику счёт
+           с моими реквизитами». Юрлицо без счёта не платит, а в чат
+           бухгалтерия не смотрит. */
+        if (ssylkaNaSchet) {
+          oplataText += '<br><a class="sek-schet" href="' + ssylkaNaSchet +
+            '" target="_blank" rel="noopener">Счёт на оплату с реквизитами →</a>';
+        }
+
         if (o.ssylka) {
           oplataText += '<br><a class="btn-gold sek-oplatit" href="' + o.ssylka +
             '" target="_blank" rel="noopener">Оплатить ' + rub(predoplata) + '</a>';

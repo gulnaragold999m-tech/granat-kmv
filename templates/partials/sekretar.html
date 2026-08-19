@@ -183,6 +183,15 @@
 
       /* Числовой ответ: поле и кнопка в одну строку, рядом с обычными
          кнопками ответов. Клавиатура телефона открывается цифровой. */
+      /* Текст на изделии: поле во всю ширину, кнопка под ним. */
+      .sek-tekst { display: flex; gap: 8px; width: 100%; align-items: flex-end; }
+      .sek-tekst textarea {
+        flex: 1; min-width: 0; border: 1.5px solid rgba(74,14,23,.25);
+        border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 15px;
+        color: #2A1013; background: #fff; resize: vertical;
+      }
+      .sek-tekst button { flex: none; }
+
       .sek-chislo { display: flex; gap: 8px; width: 100%; }
       .sek-chislo input {
         flex: 1; min-width: 0; border: 1.5px solid rgba(74,14,23,.25);

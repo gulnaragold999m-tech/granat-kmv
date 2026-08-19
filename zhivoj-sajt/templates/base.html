@@ -525,9 +525,14 @@
         <a href="/cifra" class="nav-link hover:text-white">Сайты и боты</a>
         <a href="/raboty" class="nav-link hover:text-white" data-goal="portfolio_view">Работы</a>
         <a href="/kak-rabotaem" class="nav-link hover:text-white">Как работаем</a>
-        <a href="#zayavka" class="btn-gold" style="padding:11px 22px;">Оставить заявку</a>
+        <!-- Ведём к СЕКРЕТАРЮ, а не к форме внизу. 18.08.2026 девушка
+             из Краснодара нажала эту кнопку, попала в форму без поля
+             для файла и прочитала «отвечаем в течение дня» — при том
+             что водитель уже ехал за готовыми документами. Ушла.
+             Секретарь спрашивает, считает и принимает файл сразу. -->
+        <a href="#sekretar" class="btn-gold" style="padding:11px 22px;">Оставить заявку</a>
       </nav>
-      <a href="#zayavka" class="md:hidden btn-gold" style="padding:10px 18px;">Заявка</a>
+      <a href="#sekretar" class="md:hidden btn-gold" style="padding:10px 18px;">Заявка</a>
     </div>
   </header>
 
@@ -683,7 +688,18 @@
         });
       });
 
-      function go() { var f = document.getElementById('zayavka'); if (f) f.scrollIntoView({ behavior: 'smooth' }); }
+      function go() {
+        var f = document.getElementById('sekretar') || document.getElementById('zayavka');
+        if (f) f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      /* Секретарь есть не на всех страницах: на «Сайтах и ботах» его нет.
+         Там кнопка должна вести в форму, иначе она не сделает ничего. */
+      if (!document.getElementById('sekretar')) {
+        document.querySelectorAll('a[href="#sekretar"]').forEach(function (a) {
+          a.setAttribute('href', '#zayavka');
+        });
+      }
       orb.addEventListener('click', go);
       orb.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
     })();

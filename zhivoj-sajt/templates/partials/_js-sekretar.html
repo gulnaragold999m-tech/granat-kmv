@@ -820,8 +820,54 @@
       );
     }
 
+    /* СРОЧНО — ЗНАЧИТ К КАКОМУ ЧАСУ. Владелица 19.08.2026: «может
+       у меня есть ещё срочная работа, бот должен спросить».
+
+       Час нужен ДО согласия с ценой, а не полем в форме внизу: студия
+       ставит заказ в очередь по времени, и «сегодня» без часа очередь
+       не строит. Кнопки считаются от текущего времени до закрытия —
+       предлагать 12:00 в четыре часа дня бессмысленно. */
+    function sprositChas(gotovo) {
+      var d = new Date();
+      var vsk = d.getDay() === 0;
+      var zakrytie = vsk ? 19 : 20;
+      var pervyj = Math.max(d.getHours() + 1, vsk ? 10 : 9);
+
+      var varianty = [];
+      for (var h = pervyj; h <= zakrytie; h++) {
+        varianty.push({ t: (h < 10 ? '0' : '') + h + ':00', v: h + ':00' });
+      }
+      if (!varianty.length) {
+        // Времени на сегодня уже не осталось: студия закрывается.
+        skazat('bot', 'Сегодня мы уже закрываемся — успеть не получится. ' +
+          'Сделаем к открытию: ' + (vsk ? '10:00' : '09:00') + '. ' +
+          'Если горит прямо сейчас, звоните: <b>+7 (999) 244-99-99</b>.');
+        vybor.chas = 'к открытию';
+        put.push('Готово к: к открытию завтра');
+        obnovitChek();
+        return gotovo();
+      }
+      varianty.push({ t: 'Как можно скорее', i: 'сделаем первым', v: 'skoree' });
+
+      skazat('bot', 'К какому часу сегодня нужно готово? Работаем до ' +
+        zakrytie + ':00.');
+      pokazatKnopki(varianty, function (v) {
+        skazat('ya', v.t);
+        vybor.chas = v.v;
+        put.push('Готово к: ' + (v.v === 'skoree' ? 'как можно скорее' : v.v));
+        obnovitChek();
+        gotovo();
+      });
+    }
+
     function sleduyushchijShag() {
-      if (shagIndex >= scen.shagi.length) return finish();
+      if (shagIndex >= scen.shagi.length) {
+        // Срочный заказ без часа — спрашиваем час и только потом считаем.
+        if (vybor.srok === 'srochno' && !vybor.chas) {
+          return sprositChas(finish);
+        }
+        return finish();
+      }
       var shag = scen.shagi[shagIndex];
 
       // varianty бывают функцией от уже собранных ответов. Нужно там, где
@@ -1205,7 +1251,9 @@
         var kurer = document.getElementById('sekKurerPole');
         if (kurer) kurer.hidden = (k.v !== 'kurer');
         var chas = document.getElementById('sekChasPole');
-        if (chas) chas.hidden = false;
+        // При срочности час уже назван кнопками в разговоре — второй раз
+        // спрашивать то же самое значит выглядеть невнимательным.
+        if (chas) chas.hidden = (vybor.srok === 'srochno');
 
         /* При срочности час обязателен: «сегодня» без времени — это
            не срок, а надежда. И честно говорим, сколько времени

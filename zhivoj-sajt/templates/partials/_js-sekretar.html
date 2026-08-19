@@ -1457,6 +1457,16 @@
            Белый оборот при плотном лице действительно дешевле, и
            считать весь заказ по лицу было бы завышением. */
         zamerMaketa = null;
+
+        /* Мерить краску имеет смысл только там, где от неё зависит цена.
+           19.08.2026 владелица приложила два PDF к РАСПЕЧАТКЕ ДОКУМЕНТОВ
+           и увидела «заливку посмотрим глазами: этот формат браузер
+           не читает». В копиях цена считается по страницам, заливка
+           не при чём — фраза только пугала. */
+        var schitaemZalivku = scen && scen.shagi &&
+          scen.shagi.some(function (sh) { return sh.id === 'zapolnenie'; });
+        if (!schitaemZalivku) return;
+
         var zamery = [], zhdem = fajly.length;
         fajly.forEach(function (f) {
           zamerZalivki(f, function (z) {
@@ -1464,8 +1474,8 @@
             if (--zhdem) return;
 
             if (!zamery.length) {
-              podpis.textContent = opisanie + ' · заливку посмотрим глазами: ' +
-                'этот формат браузер не читает';
+              podpis.textContent = opisanie + ' · сколько на макете краски, ' +
+                'посмотрим сами при проверке файла — PDF браузер измерить не умеет';
               return;
             }
             var sum = 0;

@@ -530,9 +530,13 @@
              для файла и прочитала «отвечаем в течение дня» — при том
              что водитель уже ехал за готовыми документами. Ушла.
              Секретарь спрашивает, считает и принимает файл сразу. -->
-        <a href="#sekretar" class="btn-gold" style="padding:11px 22px;">Узнать цену</a>
+        <!-- data-goal ловится metrika-goals.js: в Метрике будет видно
+             нажатия именно этой кнопки, а не «переходы по сайту» вообще. -->
+        <a href="#sekretar" class="btn-gold" data-goal="knopka_cena_zakaz"
+           style="padding:11px 22px;">Узнать цену и заказать</a>
       </nav>
-      <a href="#sekretar" class="md:hidden btn-gold" style="padding:10px 18px;">Цена</a>
+      <a href="#sekretar" class="md:hidden btn-gold" data-goal="knopka_cena_zakaz"
+         style="padding:10px 16px;">Цена и заказ</a>
     </div>
   </header>
 

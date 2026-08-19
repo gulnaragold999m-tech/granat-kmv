@@ -500,6 +500,14 @@ def pechat():
     return render_template("pechat.html")
 
 
+# Отдельная страница под запросы вроде «сделать копию миграционной
+# карты» и «копия патента Лермонтов». Общая страница печати по таким
+# словам не находится: их там просто нет. Цена та же, что у копирования.
+@app.route("/dokumenty")
+def dokumenty():
+    return render_template("dokumenty.html")
+
+
 @app.route("/cifra")
 def cifra():
     return render_template("cifra.html")

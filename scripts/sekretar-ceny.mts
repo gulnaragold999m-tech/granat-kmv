@@ -40,6 +40,7 @@ import {
   type TirazhTablica,
   type Yacheyka,
   SKIDKA_PENSIONERAM,
+  PODARKI,
 } from '../data/prices.ts';
 
 import { writeFileSync } from 'node:fs';
@@ -146,6 +147,10 @@ const CENY = {
   /* Действующие акции. Заводятся в data/prices.ts и попадают сюда сами:
      объявили скидку в рекламе — секретарь о ней знает. */
   akcii: AKCII.filter((a) => a.aktivna),
+
+  /* Персональное поздравление — апсейл после согласованного заказа.
+     Цены те же, что у бота: в двух каналах цифра должна быть одна. */
+  podarki: PODARKI.pozicii,
 
   /* Скидка пенсионерам. В счёт НЕ вносится: подтверждается
      удостоверением на месте. Секретарь про неё говорит. */

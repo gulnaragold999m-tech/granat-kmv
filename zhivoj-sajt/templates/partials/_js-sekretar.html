@@ -1291,7 +1291,114 @@
                  d.getFullYear() + ', ' + dvuznak(d.getHours()) + ':' + dvuznak(d.getMinutes()));
         obnovitChek();
         podpisEl.textContent = 'задание согласовано';
-        ktoZaberet();
+        predlozhitPodarok(ktoZaberet);
+      });
+    }
+
+    /* ПЕРСОНАЛЬНОЕ ПОЗДРАВЛЕНИЕ — апсейл после согласованного заказа.
+       Владелица 19.08.2026: «у меня бот в телеграм спрашивал: хотите,
+       я вам помогу — скажите имя, возраст, характер, чего добилась,
+       какие успехи, особенности». В боте это работает, а секретарь
+       на сайте про это молчал вовсе.
+
+       Предлагаем ПОСЛЕ согласия с ценой и подписи под заданием, а не
+       до: человек, который ещё не решил про основной заказ, от лишнего
+       предложения уходит. И цену называем сразу на кнопке — молча
+       собирать данные, а потом выставить счёт, нельзя.
+
+       Про человека спрашиваем ОДНИМ вопросом, а не пятью: имя, возраст,
+       увлечения и за что его любят человек пишет одной фразой сам,
+       и это честнее опроса из пяти шагов, на котором он бросит. */
+    function predlozhitPodarok(gotovo) {
+      var spisok = (C.podarki || []).slice();
+      if (!spisok.length) return gotovo();
+
+      skazat('bot', 'Ещё одно, и это по желанию. Можем написать <b>персональное ' +
+        'поздравление</b> для того, кому предназначен заказ — по имени, возрасту ' +
+        'и тому, чем он вам дорог. Не открыточная рифма, а про него.');
+
+      var knopkiSpisok = spisok.map(function (p) {
+        return { t: p.nazvanie + ' — ' + rub(p.cena), i: p.opisanie, v: p.id };
+      });
+      knopkiSpisok.push({ t: 'Спасибо, не нужно', v: 'net' });
+
+      pokazatKnopki(knopkiSpisok, function (v) {
+        skazat('ya', v.t);
+        if (v.v === 'net') return gotovo();
+
+        var vybran = null;
+        spisok.forEach(function (p) { if (p.id === v.v) vybran = p; });
+        if (!vybran) return gotovo();
+
+        vybor.podarok = vybran.id;
+        put.push('Персональное поздравление: ' + vybran.nazvanie + ' — ' + rub(vybran.cena));
+        if (itog && itog.summa != null) {
+          itog.summa = itog.summa + vybran.cena;
+          summaEl.textContent = rub(itog.summa);
+        }
+        obnovitChek();
+
+        sprositProCheloveka(gotovo);
+      });
+    }
+
+    /* Один вопрос вместо пяти. Пять шагов подряд — «имя», «возраст»,
+       «кем приходится», «увлечения», «стиль» — человек не проходит:
+       он пришёл печатать, а не заполнять анкету. */
+    function sprositProCheloveka(gotovo) {
+      skazat('bot', 'Расскажите о человеке одной-двумя фразами: как зовут, ' +
+        'сколько лет, кем вам приходится, чем увлекается и за что вы его ' +
+        'любите. Чем живее подробности, тем меньше это похоже на открытку ' +
+        'из магазина.');
+
+      knopki.innerHTML = '';
+      var obertka = document.createElement('div');
+      obertka.className = 'sek-tekst';
+
+      var pole = document.createElement('textarea');
+      pole.rows = 3;
+      pole.placeholder = 'Например: Анна, 55 лет, моя мама. Всю жизнь ' +
+        'проработала учителем, обожает свой сад и внуков.';
+
+      var knopka = document.createElement('button');
+      knopka.type = 'button';
+      knopka.innerHTML = '<span>Дальше</span>';
+
+      knopka.addEventListener('click', function () {
+        var t = pole.value.trim();
+        knopki.innerHTML = '';
+        if (t) {
+          vybor.proCheloveka = t;
+          put.push('Про кого поздравление: ' + t);
+          skazat('ya', t);
+        } else {
+          skazat('ya', 'Расскажу позже');
+          put.push('Про кого поздравление: расскажет позже');
+        }
+        obnovitChek();
+        vybratStil(gotovo);
+      });
+
+      obertka.appendChild(pole);
+      obertka.appendChild(knopka);
+      knopki.appendChild(obertka);
+      pole.focus();
+    }
+
+    function vybratStil(gotovo) {
+      skazat('bot', 'И в каком настроении писать?');
+      pokazatKnopki([
+        { t: 'Трогательно', i: 'тепло, до слёз', v: 'Трогательно' },
+        { t: 'С юмором', i: 'легко и весело', v: 'Юмор' },
+        { t: 'Торжественно', i: 'для юбилея и награды', v: 'Торжественно' },
+        { t: 'Детская сказка', i: 'если поздравляем ребёнка', v: 'Детская сказка' }
+      ], function (v) {
+        skazat('ya', v.t);
+        put.push('Настроение поздравления: ' + v.v);
+        obnovitChek();
+        skazat('bot', 'Принято. Текст пришлём на согласование до печати — ' +
+          'поправим, если что-то захотите изменить.');
+        gotovo();
       });
     }
 

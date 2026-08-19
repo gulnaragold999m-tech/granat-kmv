@@ -82,7 +82,11 @@
           metrikaGoal('zayavka');
           // lead_form — имя цели из ТЗ по Метрике. Историческую
           // «zayavka» не убираем: по ней собрана статистика за месяцы.
-          if (window.granatGoal) window.granatGoal('lead_form', { form: 'site_order' });
+          // Имя цели — то же, что заведено в Метрике: 'zayavka'.
+          if (window.granatGoal) {
+            window.granatGoal('zayavka', { form: 'site_order' });
+            window.granatGoal('lead_form', { form: 'site_order' });
+          }
         } else if (json.field || json.error === 'Укажите имя') {
           // Клиент ошибся в поле — это чинится за секунду, если сказать где.
           // Раньше сюда попадала только проверка имени, а всё остальное

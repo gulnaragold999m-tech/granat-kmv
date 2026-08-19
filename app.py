@@ -508,6 +508,21 @@ def dokumenty():
     return render_template("dokumenty.html")
 
 
+# Ещё две страницы под запросы, а не под товар. Владелица 19.08.2026:
+# «про сертификаты и открытки тоже есть». Человек ищет «напечатать
+# грамоту» и «приглашения на свадьбу», а этих слов на общей странице
+# печати нет — они спрятаны в примечании к таблице. Цены те же, что
+# в прайсе: страницы разные, прайс один.
+@app.route("/sertifikaty")
+def sertifikaty():
+    return render_template("sertifikaty.html")
+
+
+@app.route("/otkrytki")
+def otkrytki():
+    return render_template("otkrytki.html")
+
+
 @app.route("/cifra")
 def cifra():
     return render_template("cifra.html")

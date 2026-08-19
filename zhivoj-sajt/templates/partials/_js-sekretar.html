@@ -969,8 +969,8 @@
            дочери открытку написать». */
         var sk = C.skidkaPensioneram;
         if (sk && sk.gde && sk.gde.indexOf(kodScenariya()) !== -1) {
-          r.zametki.push('Пенсионерам — минус ' + sk.procent + '%: ' +
-            sk.uslovie + '. В расчёте выше она не учтена.');
+          r.zametki.push((sk.tekst || ('Пенсионерам — минус ' + sk.procent + '%')) +
+            ' В расчёте выше она не учтена.');
         }
 
         var baza = r.summa;

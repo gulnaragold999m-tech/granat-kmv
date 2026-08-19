@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Поздравительный адрес дочери — 45 лет</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap">
+<style>
+/* Поздравительный адрес, 45 лет. Лист А4, размеры в миллиметрах.
+   Шрифт без засечек, чернила чёрные — требование заказчицы.
+
+   ПОЛОСА ТЕКСТА рассчитана по бланку: сверху золотая виньетка с кубком
+   заканчивается на 95 мм, снизу волна с фигурой начинается на 207 мм.
+   Значит, у текста ровно 112 мм высоты и 132 мм ширины — в них и вписан.
+
+   Кегль подбирается скриптом sobrat.mjs: он уменьшает --kegl, пока текст
+   не уляжется в полосу, и вписывает найденное значение сюда. Поэтому
+   «всё на одном листе» — это не надежда, а проверка. */
+:root{
+  --polosa-verh: 92mm;
+  --polosa-niz: 209mm;
+  --polosa-bok: 39mm;
+  --chernila: #111111;
+
+  --kegl: 4.0mm;
+  --shag: 6.4mm;
+}
+@page{ size: A4 portrait; margin: 0; }
+*{ box-sizing: border-box; margin: 0; }
+body{ font-family: 'Golos Text', Arial, Helvetica, sans-serif; color: var(--chernila); background: #fff; }
+
+.list{ position: relative; width: 210mm; height: 297mm; margin: 0 auto; background: #fff; overflow: hidden; }
+
+.polosa{
+  position: absolute;
+  top: var(--polosa-verh); height: calc(var(--polosa-niz) - var(--polosa-verh));
+  left: var(--polosa-bok); right: var(--polosa-bok);
+  display: flex; flex-direction: column; justify-content: center;
+  text-align: center;
+  font-size: var(--kegl); line-height: var(--shag);
+}
+
+/* Обращение — крупнее и плотнее: это заголовок письма, а не первая строка абзаца */
+.obrashchenie{
+  font-size: calc(var(--kegl) * 1.32);
+  line-height: calc(var(--shag) * 1.06);
+  font-weight: 600;
+  margin-bottom: calc(var(--shag) * .72);
+}
+.abzac{ text-wrap: pretty; }
+.abzac + .abzac{ margin-top: calc(var(--shag) * .62); }
+.vozrast{ font-weight: 600; white-space: nowrap; }
+
+/* Подпись отделена воздухом, дата под ней — мельче и тише */
+.podpis{
+  margin-top: calc(var(--shag) * 1.15);
+  font-weight: 600;
+}
+.data{ margin-top: calc(var(--shag) * .22); font-size: calc(var(--kegl) * .92); }
+
+/* Экранные направляющие: где кончается золото. Не печатаются. */
+.granicy{ position: absolute; inset: 0; pointer-events: none; }
+.granicy::before{
+  content: ""; position: absolute;
+  top: var(--polosa-verh); bottom: calc(297mm - var(--polosa-niz));
+  left: var(--polosa-bok); right: var(--polosa-bok);
+  outline: .3mm dashed rgba(0,0,0,.16);
+}
+@media print{ .granicy{ display: none; } }
+</style>
+</head>
+<body>
+<div class="list">
+  <div class="granicy"></div>
+
+  <div class="polosa">
+    <p class="obrashchenie">Дорогому, моему сокровищу,<br>моей любимой дочери</p>
+
+    <p class="abzac">С безграничной любовью поздравляю тебя с прекрасным
+       юбилеем — <span class="vozrast">45 лет!</span>
+       Ты наше с папой самое лучшее произведение!</p>
+
+    <p class="abzac">Ты достигла расцвета женской красоты, стала самодостаточной,
+       уверенной в себе, успешной, очаровательной женщиной. Ты научилась быть
+       нежной и заботливой, терпеливой и доброй!</p>
+
+    <p class="abzac">Я хочу выразить тебе свою благодарность за всё: за твою заботу
+       и понимание, за твою улыбку и тёплые объятия.
+       Ты — моя гордость, моя радость.</p>
+
+    <p class="abzac">Желаю тебе, моя спелая ягодка, крепкого здоровья, чувствовать
+       себя счастливой, любимой и нужной!</p>
+
+    <p class="podpis">С любовью и нежностью, твоя мама</p>
+    <p class="data">21.08.2026</p>
+  </div>
+</div>
+</body>
+</html>

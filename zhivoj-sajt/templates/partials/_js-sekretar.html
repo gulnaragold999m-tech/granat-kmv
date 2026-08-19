@@ -1047,16 +1047,15 @@
       }
     }
 
-    /* Просим ли предоплату вообще. На мелком заказе — нет: 19.08.2026
-       секретарь посчитал распечатку на 65 ₽ и попросил внести 20 ₽.
-       Это не защита, а лишний шаг, на котором человек бросает
-       оформление. Смысл предоплаты — покрыть материалы, закупаемые
-       вперёд; на 65 ₽ покрывать нечего. */
-    function nuzhnaPredoplata() {
+    /* Мелкий заказ оплачивается ЦЕЛИКОМ И СРАЗУ. Решение владелицы
+       19.08.2026: «такие заказы надо сразу оплатить».
+       Просить 20 ₽ предоплаты с заказа в 65 ₽ бессмысленно, но и «потом
+       на месте» не годится: распечатанные четыре страницы с чужой
+       фамилией не продать никому. Значит сто процентов вперёд. */
+    function melkijZakaz() {
       var o = C.oplata || {};
       var summa = itog && itog.summa ? itog.summa : 0;
-      if (!o.predoplataOt) return true;
-      return summa >= o.predoplataOt;
+      return !!(o.melkijDo && summa && summa < o.melkijDo);
     }
 
     function procentPredoplaty() {
@@ -1065,6 +1064,7 @@
          не покрывают: на 500 листах А4 с плотной заливкой одних чернил
          и бумаги на 22 700 ₽ при предоплате 10 710 ₽. Оборотных денег
          у студии нет, и начать такой тираж физически нельзя. */
+      if (melkijZakaz()) return 100;
       return bolshojTirazh() ? o.procentBolshoj : (o.procent || 30);
     }
 
@@ -1097,10 +1097,11 @@
       var proc = procentPredoplaty();
       var bolshoj = bolshojTirazh();
 
-      var pro = nuzhnaPredoplata()
-        ? 'Печать запускаем после предоплаты ' + proc + '%.'
-        : 'Предоплата не нужна — рассчитаетесь при получении.';
-      if (bolshoj && nuzhnaPredoplata()) pro += '<br>На тираже от ' + o.bolshojOt +
+      var pro = melkijZakaz()
+        ? 'Небольшой заказ оплачивается сразу и целиком — ' + rub(itog.summa) +
+          '. Печатаем, как только оплата придёт.'
+        : 'Печать запускаем после предоплаты ' + proc + '%.';
+      if (bolshoj && !melkijZakaz()) pro += '<br>На тираже от ' + o.bolshojOt +
         ' штук предоплата половина: бумагу и чернила на такой объём закупаем до печати.';
       skazat('bot', '<b>Оформляем по этой цене?</b><br>' + pro);
 
@@ -1635,7 +1636,7 @@
                 summa: (itog && itog.summa) || 0
               });
             }
-            zakonchitZayavku(j.lead, j.schet);
+            zakonchitZayavku(j.lead, j.schet, j.pamyatka);
           } else {
             zapasnojPut(tel);
           }
@@ -1655,10 +1656,11 @@
       var o = C.oplata || {};
       if (!itog || itog.summa == null || !o.procent) return [];
 
-      if (!nuzhnaPredoplata()) {
+      if (melkijZakaz()) {
         return [
           'Итого по расчёту: ' + rub(itog.summa),
-          'Предоплата не нужна — мелкий заказ, оплата при получении'
+          'Мелкий заказ — оплата 100% сразу: ' + rub(itog.summa),
+          'Оплата на момент заявки: не внесена'
         ];
       }
 
@@ -1681,7 +1683,7 @@
        закончить заявку» — человек не должен уходить со страницы,
        не понимая, что дальше. Поэтому здесь номер заявки, что будет
        происходить, и как внести предоплату. */
-    function zakonchitZayavku(nomerZayavki, ssylkaNaSchet) {
+    function zakonchitZayavku(nomerZayavki, ssylkaNaSchet, ssylkaNaPamyatku) {
       forma.hidden = true;
       knopki.innerHTML = '';
       msgEl.textContent = '';
@@ -1689,8 +1691,7 @@
       var o = C.oplata || {};
       var itogo = itog && itog.summa ? itog.summa : null;
       var proc = procentPredoplaty();
-      var predoplata = (itogo && nuzhnaPredoplata())
-        ? Math.round(itogo * proc / 100) : null;
+      var predoplata = itogo ? Math.round(itogo * proc / 100) : null;
 
       /* КОНЕЦ РАЗГОВОРА РЕШАЕТ, ПРИДЁТ ЧЕЛОВЕК ИЛИ УЙДЁТ.
          Здесь стояло одно «перезвоним в рабочие часы» на все услуги.
@@ -1714,10 +1715,19 @@
         text += 'Перезвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00. ' +
                 'Подтвердим срок и проверим макет до печати.';
       }
+      /* Памятка клиенту — ПЕРВОЙ строкой после «принято». Человек
+         закроет вкладку через минуту, и у него не останется ни номера,
+         ни состава заказа, ни суммы. Владелица 19.08.2026: «как клиент
+         сохранит свою заявку». */
+      if (ssylkaNaPamyatku) {
+        text += '<br><br><a class="sek-schet" href="' + ssylkaNaPamyatku +
+          '" target="_blank" rel="noopener">Сохранить заявку — что заказано, ' +
+          'сколько и куда прийти →</a>';
+      }
       skazat('bot', text);
 
       if (predoplata) {
-        var oplataText = 'Предоплата ' + proc + '% — ' +
+        var oplataText = (melkijZakaz() ? 'К оплате целиком — ' : 'Предоплата ' + proc + '% — ') +
           '<span class="sek-cifra">' + rub(predoplata) + '</span>' +
           (bolshojTirazh()
             ? 'Тираж от ' + o.bolshojOt + ' штук — половина вперёд: бумагу ' +

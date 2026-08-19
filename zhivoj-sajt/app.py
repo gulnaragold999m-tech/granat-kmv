@@ -1092,7 +1092,14 @@ def bot_lead():
     if total > 0 and not proverka:
         schet_url = "/schet/{}?k={}".format(lead_id, klyuch_scheta(lead_id))
 
+    # Памятка клиенту. Даётся всегда, когда заявка настоящая: человек
+    # закроет вкладку и останется без номера и без состава заказа.
+    pamyatka_url = ""
+    if not proverka:
+        pamyatka_url = "/zayavka/{}?k={}".format(lead_id, klyuch_scheta(lead_id))
+
     return jsonify(ok=True, lead=lead_id, schet=schet_url,
+                   pamyatka=pamyatka_url,
                    next=follow_up("", lead_id, ""))
 
 
@@ -1122,6 +1129,11 @@ REKVIZITY = {
 # Строка про НДС. У ИП на НПД и на УСН её текст одинаков по смыслу —
 # налога на добавленную стоимость нет, — поэтому пишем нейтрально.
 # Появится другой режим — правится переменной, а не кодом.
+# Мелкий заказ оплачивается целиком и сразу — та же цифра, что в прайсе
+# секретаря (OPLATA.melkijZakazDo). Держим копией, потому что сервер
+# прайс не читает: он собирается в разметку на этапе сборки.
+MELKIJ_ZAKAZ_DO = int(os.getenv("MELKIJ_ZAKAZ_DO", "1000"))
+
 NDS_STROKA = os.getenv(
     "REKV_NDS",
     "Без НДС. Продавец применяет налог на профессиональный доход "
@@ -1253,6 +1265,70 @@ def schet(lead_id):
         srok_scheta=os.getenv("REKV_SROK_SCHETA",
                               "Счёт действителен для оплаты 3 банковских дня."),
         sostav=" · ".join(sostav[1:]) if len(sostav) > 1 else "",
+    )
+
+
+@app.route("/zayavka/<int:lead_id>")
+def zayavka_klientu(lead_id):
+    """Памятка клиенту: что он заказал, за сколько и куда прийти.
+
+    Просьба владелицы 19.08.2026: «а этой девушке такая заявка
+    не уйдёт? как клиент сохранит свою заявку». Не уходила: человек
+    видел экран, закрывал вкладку — и у него не оставалось ни номера,
+    ни состава, ни суммы. Приходил через день и спрашивал «а что я
+    заказывал».
+
+    Почты мы не спрашиваем и спрашивать не будем — лишнее поле в форме
+    стоит заявок. Поэтому памятка живёт по ссылке: её можно сохранить
+    в закладки, отправить себе в мессенджер или распечатать.
+    """
+    if request.args.get("k", "") != klyuch_scheta(lead_id):
+        return "Заявка не найдена", 404
+
+    zayavka = leads.find(lead_id)
+    if not zayavka:
+        return "Заявка не найдена", 404
+
+    # Служебные строки клиенту не нужны: он их и так только что видел
+    # в разговоре, а согласия и замеры — наша кухня.
+    sluzhebnye = ("Согласие на обработку", "Замер по файлу",
+                  "Оплата на момент заявки", "ТЗ согласовано")
+    sostav = [str(o) for o in (zayavka.get("options") or [])
+              if str(o).strip() and not str(o).startswith(sluzhebnye)]
+
+    try:
+        summa = int(zayavka.get("total") or 0)
+    except (TypeError, ValueError):
+        summa = 0
+
+    # Что дальше — зависит от того, ждёт нас человек сегодня или тираж
+    # в работе. Обещать «перезвоним» тому, кто придёт через час, нельзя:
+    # ровно на этом 18.08.2026 ушла клиентка из Краснодара.
+    srochno = any("Сегодня" in str(o) for o in sostav)
+    chto_dalshe = (
+        "Приезжайте — заказ будет готов к названному времени. "
+        "Назовите номер заявки, этого достаточно."
+        if srochno else
+        "Мы проверим файл и подтвердим срок. Если что-то в макете "
+        "помешает печати, скажем об этом до работы, а не после."
+    )
+
+    return render_template(
+        "zayavka-klientu.html",
+        nomer=lead_id,
+        data=now_msk().strftime("%d.%m.%Y"),
+        sostav=sostav,
+        summa="{:,}".format(summa).replace(",", " ") if summa else "",
+        oplata=("Оплата целиком сразу — печатаем, как только придёт"
+                if summa and summa < MELKIJ_ZAKAZ_DO
+                else "Печать запускаем после предоплаты"),
+        chto_dalshe=chto_dalshe,
+        studiya={
+            "adres": REKVIZITY["adres"],
+            "chasy": "Пн–Сб 09:00–20:00, Вс 10:00–19:00",
+            "telefon": REKVIZITY["telefon"],
+            "tel_ssylka": "+79992449999",
+        },
     )
 
 

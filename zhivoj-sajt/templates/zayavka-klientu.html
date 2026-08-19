@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Заявка № {{ nomer }} — студия «Гранат»</title>
+  <style>
+    /* Памятку клиент открывает с телефона и, скорее всего, сразу
+       сохраняет скриншотом. Поэтому крупно, узкой колонкой и без
+       ничего лишнего: номер, что заказано, сколько, куда прийти. */
+    * { box-sizing: border-box; }
+    body {
+      font: 16px/1.5 -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0; padding: 20px 14px; background: #F4EEE6; color: #2A1013;
+    }
+    .list {
+      max-width: 560px; margin: 0 auto; background: #fff; border-radius: 16px;
+      padding: 24px; box-shadow: 0 10px 30px rgba(74,14,23,.10);
+    }
+    .nomer { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #8a6a2f; }
+    h1 { font-size: 24px; margin: 6px 0 18px; color: #4A0E17; }
+    ul { list-style: none; margin: 0 0 18px; padding: 0; }
+    li { padding: 7px 0; border-bottom: 1px solid rgba(74,14,23,.10); }
+    li:last-child { border-bottom: 0; }
+    .summa { font-size: 30px; font-weight: 800; color: #4A0E17; margin: 4px 0 2px; }
+    .blok { margin-top: 20px; padding-top: 16px; border-top: 2px solid rgba(74,14,23,.12); }
+    .blok b { color: #4A0E17; }
+    a { color: #4A0E17; }
+    .knopka {
+      display: inline-block; margin-top: 18px; padding: 12px 20px;
+      background: #4A0E17; color: #F9F3EB; border: 0; border-radius: 10px;
+      font: inherit; cursor: pointer; text-decoration: none;
+    }
+    @media print { body { background: #fff; padding: 0; } .list { box-shadow: none; } .knopka { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="list">
+    <div class="nomer">Заявка № {{ nomer }} · {{ data }}</div>
+    <h1>Ваш заказ принят</h1>
+
+    <ul>
+      {% for s in sostav %}<li>{{ s }}</li>{% endfor %}
+    </ul>
+
+    {% if summa %}
+    <div>Стоимость по прайсу студии</div>
+    <div class="summa">{{ summa }} ₽</div>
+    <div style="color:#6b4a4f; font-size:14px;">{{ oplata }}</div>
+    {% endif %}
+
+    <div class="blok">
+      <b>Где забрать</b><br>
+      {{ studiya.adres }}<br>
+      {{ studiya.chasy }}<br>
+      Телефон: <a href="tel:{{ studiya.tel_ssylka }}">{{ studiya.telefon }}</a>
+    </div>
+
+    <div class="blok">
+      <b>Что дальше</b><br>
+      {{ chto_dalshe }}
+    </div>
+
+    <!-- Эту страницу человек и должен сохранить: ссылка постоянная,
+         по ней заказ виден целиком. Печать — для тех, кому нужна
+         бумажка на руки. -->
+    <button class="knopka" onclick="window.print()">Сохранить или распечатать</button>
+  </div>
+</body>
+</html>

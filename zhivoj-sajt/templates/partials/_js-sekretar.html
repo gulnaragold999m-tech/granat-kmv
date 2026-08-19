@@ -800,6 +800,9 @@
                           akciya.uslovie + '. ' + akciya.do_ + ' — посчитаю уже со скидкой.');
           }
           zanovoB.hidden = false;
+          if (window.granatGoal) {
+            window.granatGoal('sekretar_start', { usluga: scen.imya });
+          }
           shagIndex = 0;
           sleduyushchijShag();
         }
@@ -1092,6 +1095,12 @@
         // цену видел и принял, — и разговора «я передумала» после печати
         // уже не будет.
         put.push('Цену подтвердил: ' + rub(itog.summa));
+        /* Отдельная цель: человек дошёл до цены и принял её. Между ней
+           и заявкой видно, сколько людей соглашаются, но не оставляют
+           телефон, — это разные проблемы и лечатся по-разному. */
+        if (window.granatGoal) {
+          window.granatGoal('cena_prinyata', { summa: itog.summa });
+        }
         obnovitChek();
         podpisEl.textContent = 'цена подтверждена';
         soglasovanieTZ();
@@ -1503,7 +1512,20 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) {
-            zakonchitZayavku(j.lead);
+            /* ЦЕЛЬ МЕТРИКИ. До 18.08.2026 её тут не было вовсе: цель
+               `lead_form` отправляла только старая форма, а заявки
+               от секретаря в отчёте о конверсиях не появлялись НИКОГДА.
+               Владелица смотрела конверсии и видела ноль — при том что
+               заявки шли. Имя цели то же самое, чтобы её настройка
+               в Метрике продолжала работать; отличить источник можно
+               по параметру form. */
+            if (window.granatGoal) {
+              window.granatGoal('lead_form', { form: 'sekretar' });
+              window.granatGoal('sekretar_zayavka', {
+                summa: (itog && itog.summa) || 0
+              });
+            }
+            zakonchitZayavku(j.lead, j.schet);
           } else {
             zapasnojPut(tel);
           }
@@ -1542,7 +1564,7 @@
        закончить заявку» — человек не должен уходить со страницы,
        не понимая, что дальше. Поэтому здесь номер заявки, что будет
        происходить, и как внести предоплату. */
-    function zakonchitZayavku(nomerZayavki) {
+    function zakonchitZayavku(nomerZayavki, ssylkaNaSchet) {
       forma.hidden = true;
       knopki.innerHTML = '';
       msgEl.textContent = '';
@@ -1590,6 +1612,15 @@
         // QR и кнопка появляются, только если в прайсе задана ссылка
         // на оплату. Нет ссылки — остаётся перевод по номеру, и это
         // тоже рабочий путь: эквайринг мы сознательно не подключали.
+        /* Счёт с реквизитами — для тех, кто платит с расчётного счёта.
+           Просьба владелицы 18.08.2026: «мне заявка, а заказчику счёт
+           с моими реквизитами». Юрлицо без счёта не платит, а в чат
+           бухгалтерия не смотрит. */
+        if (ssylkaNaSchet) {
+          oplataText += '<br><a class="sek-schet" href="' + ssylkaNaSchet +
+            '" target="_blank" rel="noopener">Счёт на оплату с реквизитами →</a>';
+        }
+
         if (o.ssylka) {
           oplataText += '<br><a class="btn-gold sek-oplatit" href="' + o.ssylka +
             '" target="_blank" rel="noopener">Оплатить ' + rub(predoplata) + '</a>';

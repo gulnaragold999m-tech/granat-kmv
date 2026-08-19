@@ -1,4 +1,6 @@
 import os
+import hashlib
+import hmac
 import json
 import smtplib
 import socket
@@ -1020,7 +1022,163 @@ def bot_lead():
         return jsonify(ok=False, saved=True, error="not_delivered",
                        lead=lead_id, next=follow_up("", lead_id, "")), 200
 
-    return jsonify(ok=True, lead=lead_id, next=follow_up("", lead_id, ""))
+    # Ссылка на счёт — только когда есть что оплачивать и это не проверка.
+    # Подпись в ссылке обязательна: без неё чужой счёт открывается
+    # подстановкой номера.
+    schet_url = ""
+    if total > 0 and not proverka:
+        schet_url = "/schet/{}?k={}".format(lead_id, klyuch_scheta(lead_id))
+
+    return jsonify(ok=True, lead=lead_id, schet=schet_url,
+                   next=follow_up("", lead_id, ""))
+
+
+# ── Реквизиты для счёта ──────────────────────────────────────────────────
+#
+# Лежат в коде, а не в секретах, и это осознанно: расчётный счёт, БИК
+# и ИНН печатаются на каждом счёте и уходят каждому клиенту — секретом
+# они не являются. Через переменные Amvera их можно переопределить,
+# не трогая код: сменился банк — поменяли переменную и перезапустили.
+REKVIZITY = {
+    "nazvanie": os.getenv("REKV_NAZVANIE",
+                          "Индивидуальный предприниматель "
+                          "Мелконян Гульнара Рифкатовна"),
+    "familiya": os.getenv("REKV_FAMILIYA", "Мелконян Г. Р."),
+    "inn": os.getenv("REKV_INN", "490600091128"),
+    "schet": os.getenv("REKV_SCHET", "40802810000009815176"),
+    "bank": os.getenv("REKV_BANK", "АО «ТБанк»"),
+    "bik": os.getenv("REKV_BIK", "044525974"),
+    "korschet": os.getenv("REKV_KORSCHET", "30101810145250000974"),
+    "adres": os.getenv("REKV_ADRES", "г. Лермонтов, ул. Нагорная 2/1, этаж 2"),
+    "telefon": os.getenv("REKV_TELEFON", "+7 (999) 244-99-99"),
+}
+
+# Строка про НДС. У ИП на НПД и на УСН её текст одинаков по смыслу —
+# налога на добавленную стоимость нет, — поэтому пишем нейтрально.
+# Появится другой режим — правится переменной, а не кодом.
+NDS_STROKA = os.getenv("REKV_NDS", "Без налога (НДС не облагается).")
+
+
+def klyuch_scheta(lead_id: int) -> str:
+    """Короткая подпись ссылки на счёт.
+
+    Счёт лежит по адресу вида /schet/28, и без подписи любой человек
+    подставил бы чужой номер и увидел чужой заказ. Подпись считается
+    от номера и секрета студии, подобрать её нельзя.
+    """
+    sekret = (os.getenv("WATCH_TOKEN", "") or MAIL_PASSWORD or "granat").encode()
+    return hmac.new(sekret, str(lead_id).encode(), hashlib.sha256).hexdigest()[:12]
+
+
+def summa_propisyu(n: int) -> str:
+    """Сумма прописью — обязательная строка любого счёта.
+
+    Библиотеку не тянем: ради одной строки ставить зависимость,
+    которая может не собраться на Amvera, невыгодно.
+    """
+    ed = ["", "один", "два", "три", "четыре", "пять", "шесть", "семь",
+          "восемь", "девять"]
+    ed_zh = ["", "одна", "две", "три", "четыре", "пять", "шесть", "семь",
+             "восемь", "девять"]
+    do20 = ["десять", "одиннадцать", "двенадцать", "тринадцать",
+            "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать",
+            "восемнадцать", "девятнадцать"]
+    des = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят",
+           "шестьдесят", "семьдесят", "восемьдесят", "девяносто"]
+    sot = ["", "сто", "двести", "триста", "четыреста", "пятьсот",
+           "шестьсот", "семьсот", "восемьсот", "девятьсот"]
+
+    def gruppa(x, zhenskij=False):
+        slova = []
+        if x >= 100:
+            slova.append(sot[x // 100]); x %= 100
+        if 10 <= x < 20:
+            slova.append(do20[x - 10]); x = 0
+        if x >= 20:
+            slova.append(des[x // 10]); x %= 10
+        if x:
+            slova.append((ed_zh if zhenskij else ed)[x])
+        return slova
+
+    def okonchanie(x, formy):
+        x = x % 100
+        if 11 <= x <= 14:
+            return formy[2]
+        x = x % 10
+        if x == 1:
+            return formy[0]
+        if 2 <= x <= 4:
+            return formy[1]
+        return formy[2]
+
+    n = int(n)
+    if n <= 0:
+        return "ноль рублей 00 копеек"
+    slova = []
+    millionov, ostatok = divmod(n, 1000000)
+    tysyach, rublej = divmod(ostatok, 1000)
+    if millionov:
+        slova += gruppa(millionov) + [okonchanie(millionov, ["миллион", "миллиона", "миллионов"])]
+    if tysyach:
+        slova += gruppa(tysyach, True) + [okonchanie(tysyach, ["тысяча", "тысячи", "тысяч"])]
+    if rublej or not slova:
+        slova += gruppa(rublej)
+    slova.append(okonchanie(n, ["рубль", "рубля", "рублей"]))
+    fraza = " ".join(w for w in slova if w)
+    return fraza[0].upper() + fraza[1:] + " 00 копеек"
+
+
+@app.route("/schet/<int:lead_id>")
+def schet(lead_id):
+    """Счёт на оплату по заявке — для тех, кому нужен документ.
+
+    Просьба владелицы 18.08.2026: «можно формировать счёт: мне заявка,
+    а заказчику счёт с моими реквизитами». Юрлицо без счёта не платит,
+    а бухгалтерии нужен документ, а не сообщение в чате.
+
+    Счёт собирается ИЗ ЗАЯВКИ, руками ничего не переписывается: сумма
+    и состав заказа берутся оттуда же, откуда их видел клиент. Разойтись
+    им негде.
+    """
+    if request.args.get("k", "") != klyuch_scheta(lead_id):
+        return "Счёт не найден", 404
+
+    zayavka = leads.find(lead_id)
+    if not zayavka:
+        return "Счёт не найден", 404
+
+    try:
+        summa = int(zayavka.get("total") or 0)
+    except (TypeError, ValueError):
+        summa = 0
+    if summa <= 0:
+        return "По этой заявке сумма ещё не подтверждена", 404
+
+    # Состав заказа — то же, что клиент видел в разговоре. Телефон
+    # и служебные строки в счёт не выносим: документ уходит в чужую
+    # бухгалтерию.
+    sluzhebnye = ("Согласие на обработку", "ТЗ согласовано", "Клиент написал",
+                  "Оплата на момент заявки", "Макет к заявке", "Макетов приложено",
+                  "Макет приложен", "Замер по файлу")
+    sostav = [str(o) for o in (zayavka.get("options") or [])
+              if str(o).strip() and not str(o).startswith(sluzhebnye)]
+
+    naimenovanie = (sostav[0] if sostav else "Полиграфические услуги")
+    if not naimenovanie.strip():
+        naimenovanie = "Полиграфические услуги"
+
+    return render_template(
+        "schet.html",
+        nomer=lead_id,
+        data=now_msk().strftime("%d.%m.%Y"),
+        postavshchik=REKVIZITY,
+        platelshchik="Физическое лицо — по заявке № {}".format(lead_id),
+        naimenovanie="{} (по заявке № {})".format(naimenovanie, lead_id),
+        summa_str="{:,}".format(summa).replace(",", " "),
+        propisyu=summa_propisyu(summa),
+        nds=NDS_STROKA,
+        sostav=" · ".join(sostav[1:]) if len(sostav) > 1 else "",
+    )
 
 
 @app.route("/api/sbros-schetchika")

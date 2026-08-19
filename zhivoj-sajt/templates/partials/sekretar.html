@@ -71,6 +71,21 @@
                        accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,.ai,.eps,.psd,.cdr,.zip,.rar,.doc,.docx" />
                 <em id="sekFajlPodpis">Документ, макет, фото — можно выбрать несколько файлов сразу. Целую папку — архивом ZIP. До 20 МБ каждый файл.</em>
               </label>
+              <!-- Кто заберёт и к какому часу. Спрашивается не из вежливости:
+                   заказ, готовый «к вечеру», и заказ, готовый «к 14:00,
+                   потому что в 14:10 уедет машина», — это разная работа.
+                   А если забирает курьер, то без его телефона мы не можем
+                   ни предупредить о готовности, ни отдать заказ спокойно:
+                   человек у стойки должен назвать номер заявки. -->
+              <label class="sek-pole" id="sekKurerPole" hidden>
+                <span>Телефон того, кто заберёт</span>
+                <input type="tel" id="sekKurer" inputmode="tel"
+                       placeholder="+7 928 000-00-00" class="ym-disable-keys" />
+              </label>
+              <label class="sek-pole" id="sekChasPole" hidden>
+                <span id="sekChasPodpis">К какому часу нужно готово</span>
+                <input type="time" id="sekChas" />
+              </label>
               <!-- Поле «своими словами». До 18.08.2026 его не было вовсе,
                    и сценарий «Другая задача» упирался в тупик: секретарь
                    говорил «расскажите задачу», а рассказать было НЕКУДА —
@@ -182,6 +197,11 @@
       }
 
       .sek-forma { padding: 0 18px 20px; display: grid; gap: 10px; }
+      .sek-forma input[type="time"] {
+        width: 100%; border: 1.5px solid rgba(74,14,23,.2); border-radius: 10px;
+        padding: 10px 12px; font: inherit; font-size: 16px; color: #2A1013;
+        background: #fff;
+      }
       .sek-forma textarea {
         width: 100%; border: 1.5px solid rgba(74,14,23,.2); border-radius: 10px;
         padding: 10px 12px; font: inherit; font-size: 15px; color: #2A1013;

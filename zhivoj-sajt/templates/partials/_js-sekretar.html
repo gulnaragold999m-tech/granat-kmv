@@ -1152,6 +1152,35 @@
                  d.getFullYear() + ', ' + dvuznak(d.getHours()) + ':' + dvuznak(d.getMinutes()));
         obnovitChek();
         podpisEl.textContent = 'задание согласовано';
+        ktoZaberet();
+      });
+    }
+
+    /* КТО ЗАБЕРЁТ ЗАКАЗ И К КАКОМУ ЧАСУ.
+       Просьба владелицы 19.08.2026: «если будет забирать кто-то другой,
+       секретарь может спросить — вы будете забирать документы? нет, мой
+       водитель, курьер — надо оставить номер, к которому часу надо, чтобы
+       было готово».
+
+       Это не вежливость. Заказ, готовый «к вечеру», и заказ, готовый
+       «к 14:00, потому что в 14:10 уедет машина», — разная работа
+       и разный порядок в очереди. А курьер у стойки без телефона
+       и без номера заявки — это заказ, который некому отдать. */
+    function ktoZaberet() {
+      skazat('bot', 'Кто заберёт заказ?');
+      pokazatKnopki([
+        { t: 'Заберу сам', v: 'sam' },
+        { t: 'Курьер или водитель', i: 'оставим его телефон', v: 'kurer' }
+      ], function (k) {
+        skazat('ya', k.t);
+        put.push('Забирает: ' + k.t);
+        obnovitChek();
+
+        var kurer = document.getElementById('sekKurerPole');
+        if (kurer) kurer.hidden = (k.v !== 'kurer');
+        var chas = document.getElementById('sekChasPole');
+        if (chas) chas.hidden = false;
+
         /* Про файл говорим СЛОВАМИ, а не надеемся, что человек заметит
            поле внизу. И называем его так, как называет человек: тот, кто
            несёт паспорт на копию, не ищет глазами слово «макет». */
@@ -1464,6 +1493,15 @@
       var zadacha = document.getElementById('sekZadacha');
       zadacha = zadacha ? zadacha.value.trim() : '';
 
+      /* Телефон курьера и час готовности — в заявку отдельными строками.
+         Час — самое важное из двух: по нему заказ встаёт в очередь.
+         Если человек забирает сам, поле курьера скрыто и пусто. */
+      var kurerPole = document.getElementById('sekKurer');
+      var kurer = (kurerPole && !document.getElementById('sekKurerPole').hidden)
+        ? kurerPole.value.trim() : '';
+      var chasPole = document.getElementById('sekChas');
+      var chas = chasPole ? chasPole.value.trim() : '';
+
       var polya = {
         contact: tel,
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
@@ -1479,6 +1517,8 @@
                  zamerMaketa.koef + ')' +
                  (zamerMaketa.storon > 1 ? ' — среднее по ' + zamerMaketa.storon + ' сторонам' : '')]
               : [])
+            .concat(chas ? ['Нужно готово к ' + chas] : [])
+            .concat(kurer ? ['Заберёт курьер, его телефон: ' + kurer] : [])
             .concat(zadacha ? ['Клиент написал: ' + zadacha] : [])
             .concat(['Согласие на обработку персональных данных получено'])
         ),

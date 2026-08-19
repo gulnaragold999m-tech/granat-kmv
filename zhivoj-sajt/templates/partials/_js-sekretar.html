@@ -1047,6 +1047,18 @@
       }
     }
 
+    /* Просим ли предоплату вообще. На мелком заказе — нет: 19.08.2026
+       секретарь посчитал распечатку на 65 ₽ и попросил внести 20 ₽.
+       Это не защита, а лишний шаг, на котором человек бросает
+       оформление. Смысл предоплаты — покрыть материалы, закупаемые
+       вперёд; на 65 ₽ покрывать нечего. */
+    function nuzhnaPredoplata() {
+      var o = C.oplata || {};
+      var summa = itog && itog.summa ? itog.summa : 0;
+      if (!o.predoplataOt) return true;
+      return summa >= o.predoplataOt;
+    }
+
     function procentPredoplaty() {
       var o = C.oplata || {};
       /* На большом тираже материалы закупаются ДО печати, и 30% их
@@ -1085,8 +1097,10 @@
       var proc = procentPredoplaty();
       var bolshoj = bolshojTirazh();
 
-      var pro = 'Печать запускаем после предоплаты ' + proc + '%.';
-      if (bolshoj) pro += '<br>На тираже от ' + o.bolshojOt +
+      var pro = nuzhnaPredoplata()
+        ? 'Печать запускаем после предоплаты ' + proc + '%.'
+        : 'Предоплата не нужна — рассчитаетесь при получении.';
+      if (bolshoj && nuzhnaPredoplata()) pro += '<br>На тираже от ' + o.bolshojOt +
         ' штук предоплата половина: бумагу и чернила на такой объём закупаем до печати.';
       skazat('bot', '<b>Оформляем по этой цене?</b><br>' + pro);
 
@@ -1564,9 +1578,9 @@
         // по 152-ФЗ мы должны уметь показать, что человек его давал.
         path: put.concat(stroCkiOplaty()).concat(
           [fajly.length
-            ? (fajly.length === 1 ? 'Макет приложен к заявке: ' : 'Макетов приложено ' +
+            ? (fajly.length === 1 ? 'Файл приложен к заявке: ' : 'Файлов приложено ' +
                fajly.length + ': ') + fajly.map(function (f) { return f.name; }).join(', ')
-            : 'Макет к заявке не приложен']
+            : 'Файл к заявке не приложен']
             .concat(zamerMaketa
               ? ['Замер по файлу: краски ' + zamerMaketa.procent + '%, ' +
                  zamerMaketa.nazvanie.toLowerCase() + ' заполнение (коэффициент ' +
@@ -1641,6 +1655,13 @@
       var o = C.oplata || {};
       if (!itog || itog.summa == null || !o.procent) return [];
 
+      if (!nuzhnaPredoplata()) {
+        return [
+          'Итого по расчёту: ' + rub(itog.summa),
+          'Предоплата не нужна — мелкий заказ, оплата при получении'
+        ];
+      }
+
       var procent = procentPredoplaty();
       var bolshoj = bolshojTirazh();
 
@@ -1668,7 +1689,8 @@
       var o = C.oplata || {};
       var itogo = itog && itog.summa ? itog.summa : null;
       var proc = procentPredoplaty();
-      var predoplata = itogo ? Math.round(itogo * proc / 100) : null;
+      var predoplata = (itogo && nuzhnaPredoplata())
+        ? Math.round(itogo * proc / 100) : null;
 
       /* КОНЕЦ РАЗГОВОРА РЕШАЕТ, ПРИДЁТ ЧЕЛОВЕК ИЛИ УЙДЁТ.
          Здесь стояло одно «перезвоним в рабочие часы» на все услуги.

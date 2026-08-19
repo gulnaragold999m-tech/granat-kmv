@@ -153,6 +153,8 @@ const CENY = {
     /* Половина вперёд на тиражах от 200 штук: 30% не покрывают
        материалы, а купить их надо до печати. */
     procentBolshoj: OPLATA.predoplataBolshojTirazh,
+    // Ниже этой суммы предоплату не просим — платят при получении.
+    predoplataOt: OPLATA.predoplataOt,
     bolshojOt: OPLATA.bolshojTirazhOt,
     nomer: OPLATA.nomer,
     ssylka: OPLATA.ssylka,

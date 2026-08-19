@@ -464,9 +464,17 @@
             { t: 'Копия А3, ч/б', v: 'A3, ч/б, ксерокопия' },
             { t: 'Цветная печать А3', v: 'A3, цветная печать' }
           ] },
-          { id: 'kolvo', vopros: 'Сколько листов?', varianty: [
-            { t: '1–5', v: 3 }, { t: '10', v: 10 }, { t: '50', v: 50 },
-            { t: '100 и больше', v: 100 }
+          // Число, а не кнопки: человек с документом знает точное
+          // количество страниц, а «1–5 / 10 / 50» заставляет округлять.
+          { id: 'kolvo', vopros: 'Сколько страниц?', chislo: true,
+            edinica: 'стр.', podskazka: 'например, 24' },
+          // Одна сторона или две — вопрос, который клиенты задают сами,
+          // а секретарь до 18.08.2026 не спрашивал вовсе. Он молча
+          // печатал сноску «двусторонняя считается как два листа»,
+          // и человек не понимал, сколько заплатит.
+          { id: 'storony', vopros: 'Печать с одной стороны или с двух?', varianty: [
+            { t: 'С одной стороны', i: 'каждая страница на своём листе', v: 'odna' },
+            { t: 'С двух сторон', i: 'бумаги вдвое меньше, документ тоньше', v: 'dve' }
           ] },
           // Срочность спрашиваем и здесь. До 17.08.2026 её не было
           // у копий и ламинации — а именно за ними чаще всего и бегут
@@ -475,14 +483,32 @@
           { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
         ],
         schet: function (o) {
-          var zaList = poTirazhu(C.kopii, o.stroka, o.kolvo);
-          var summa = zaList * o.kolvo, zametki = [];
+          var stranic = Number(o.kolvo) || 1;
+          var zaStranicu = poTirazhu(C.kopii, o.stroka, stranic);
+          var summa = zaStranicu * stranic, zametki = [];
           if (summa < C.minimalki.kopii) {
             summa = C.minimalki.kopii;
             zametki.push('Минимальный заказ на копирование и распечатку — ' + rub(C.minimalki.kopii) + '.');
           }
-          zametki.push('Двусторонняя печать считается как два листа.');
-          return { summa: summa, stroki: [o.stroka + ' — ' + rub(zaList) + ' за лист'], zametki: zametki };
+          /* Цена считается по СТРАНИЦАМ, а не по листам бумаги: краска
+             и прогон тратятся на каждую сторону одинаково. Говорим это
+             прямо, иначе двусторонняя печать выглядит как обман —
+             «бумаги вдвое меньше, а цена та же». */
+          if (o.storony === 'dve') {
+            var listov = Math.ceil(stranic / 2);
+            zametki.push(stranic + ' страниц лягут на ' + listov + ' листах — печать с двух сторон. ' +
+                         'Цена считается по страницам: краска и прогон уходят на каждую сторону. ' +
+                         'Зато бумаги вдвое меньше и документ тоньше.');
+          } else {
+            zametki.push(stranic + ' страниц — ' + stranic + ' листов, печать с одной стороны. ' +
+                         'С двух сторон вышло бы ' + Math.ceil(stranic / 2) + ' листов по той же цене.');
+          }
+          zametki.push('Документ приложите прямо здесь, в поле ниже — напечатаем к вашему приезду.');
+          return {
+            summa: summa,
+            stroki: [o.stroka + ' — ' + rub(zaStranicu) + ' за страницу'],
+            zametki: zametki
+          };
         }
       },
 
@@ -663,6 +689,8 @@
       sgib: 'Сгиб',
       otdelka: 'Отделка',
       maket: 'Макет',
+      kolvo: 'Количество',
+      storony: 'Стороны',
       srok: 'Срок',
       stroka: 'Что печатаем',
       usluga: 'Услуга'
@@ -695,6 +723,43 @@
         });
         knopki.appendChild(b);
       });
+    }
+
+    /* ЧИСЛОВОЙ ШАГ. Кнопками «1–5 / 10 / 50» нельзя сказать «двадцать
+       четыре страницы», а человек с документом знает точное число.
+       Округление вверх до кнопки — это счёт за то, чего не печатали;
+       округление вниз — работа даром. 18.08.2026 владелица сказала
+       прямо: «надо было спросить сколько страниц». */
+    function pokazatChislo(shag, gotovo) {
+      knopki.innerHTML = '';
+      var obertka = document.createElement('div');
+      obertka.className = 'sek-chislo';
+
+      var pole = document.createElement('input');
+      pole.type = 'number';
+      pole.min = '1';
+      pole.inputMode = 'numeric';
+      pole.placeholder = shag.podskazka || 'например, 24';
+
+      var knopka = document.createElement('button');
+      knopka.type = 'button';
+      knopka.innerHTML = '<span>Дальше</span>';
+
+      function otpravit() {
+        var n = parseInt(pole.value, 10);
+        if (!n || n < 1) { pole.focus(); return; }
+        knopki.innerHTML = '';
+        gotovo(n);
+      }
+      knopka.addEventListener('click', otpravit);
+      pole.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); otpravit(); }
+      });
+
+      obertka.appendChild(pole);
+      obertka.appendChild(knopka);
+      knopki.appendChild(obertka);
+      pole.focus();
     }
 
     function obnovitChek() {
@@ -754,6 +819,20 @@
         : shag.varianty;
 
       skazat('bot', typeof shag.vopros === 'function' ? shag.vopros(vybor) : shag.vopros);
+
+      if (shag.chislo) {
+        pokazatChislo(shag, function (n) {
+          vybor[shag.id] = n;
+          var podpis = (PODPISI[shag.id] ? PODPISI[shag.id] + ': ' : '') +
+                       n + (shag.edinica ? ' ' + shag.edinica : '');
+          put.push(podpis);
+          obnovitChek();
+          skazat('ya', n + (shag.edinica ? ' ' + shag.edinica : ''));
+          shagIndex++;
+          sleduyushchijShag();
+        });
+        return;
+      }
 
       function otvet(v) {
         // «Не знаю, посоветуйте» — объясняем и спрашиваем снова,
@@ -1192,7 +1271,10 @@
         предложение «взять больше» шло от прайса, а не от фантазии. */
     function sleduyushchijTirazh() {
       var shag = scen.shagi.filter(function (s) { return s.id === 'kolvo'; })[0];
-      if (!shag || !vybor.kolvo) return null;
+      // У числового шага вариантов нет вовсе, и предлагать «следующий
+      // тираж» там нечего: человек назвал точное число страниц.
+      if (!shag || !vybor.kolvo || shag.chislo ||
+          typeof shag.varianty !== 'object') return null;
       var bolshie = shag.varianty
         .map(function (v) { return v.v; })
         .filter(function (n) { return typeof n === 'number' && n > vybor.kolvo; });

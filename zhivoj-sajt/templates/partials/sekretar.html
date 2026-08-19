@@ -166,6 +166,16 @@
         display: block; font-style: normal; font-size: 12px; font-weight: 400; opacity: .65;
       }
 
+      /* Числовой ответ: поле и кнопка в одну строку, рядом с обычными
+         кнопками ответов. Клавиатура телефона открывается цифровой. */
+      .sek-chislo { display: flex; gap: 8px; width: 100%; }
+      .sek-chislo input {
+        flex: 1; min-width: 0; border: 1.5px solid rgba(74,14,23,.25);
+        border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 16px;
+        color: #2A1013; background: #fff;
+      }
+      .sek-chislo button { flex: none; }
+
       .sek-forma { padding: 0 18px 20px; display: grid; gap: 10px; }
       .sek-forma textarea {
         width: 100%; border: 1.5px solid rgba(74,14,23,.2); border-radius: 10px;

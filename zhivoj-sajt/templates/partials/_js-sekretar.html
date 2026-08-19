@@ -928,13 +928,30 @@
        попросила распечатать документы, водитель уже ехал забирать —
        а секретарь не дал приложить файл и пообещал связаться позже.
        Она ответила «спасибо, не надо, я в другом месте». */
-    var SROCHNYE_USLUGI = ['kopii', 'foto', 'laminaciya'];
+    var SROCHNYE_USLUGI = ['kopii', 'foto', 'laminaciya', 'dokfoto'];
 
     function studiyaOtkryta() {
       var d = new Date();
       var chas = d.getHours();
       // Вс — до 19:00, остальные дни с 09:00 до 20:00.
       return d.getDay() === 0 ? (chas >= 10 && chas < 19) : (chas >= 9 && chas < 20);
+    }
+
+    /* Поле «своими словами». В сценарии «Другая задача» оно обязательно:
+       там больше ничего и нет — ни формата, ни тиража, ни цены. В прочих
+       сценариях необязательно и служит для того, чего кнопками не скажешь:
+       «отдать курьеру до 14:00», «сшить пружиной». */
+    function nastroitPoleZadachi() {
+      var pole = document.getElementById('sekZadacha');
+      var podpis = document.getElementById('sekZadachaPodpis');
+      if (!pole) return;
+      var drugoe = kodScenariya() === 'drugoe';
+      pole.required = drugoe;
+      if (podpis) {
+        podpis.textContent = drugoe
+          ? 'Расскажите задачу: что напечатать, сколько, к какому сроку'
+          : 'Что нужно — своими словами, если есть что добавить';
+      }
     }
 
     function procentPredoplaty() {
@@ -954,9 +971,16 @@
        это не заказ, а работа на удачу. */
     function soglasieSCenoj() {
       if (itog.summa == null) {          // «другая задача» — считаем вручную
-        skazat('bot', 'Оставьте телефон — перезвоним и посчитаем вместе.');
+        /* «Другая задача» упиралась в тупик: секретарь просил рассказать
+           задачу, а рассказать было некуда — поля не существовало.
+           Человек уходил молча, и мы даже не узнавали, чего он хотел. */
+        nastroitPoleZadachi();
+        skazat('bot', 'Расскажите задачу в поле ниже — что напечатать, ' +
+                      'сколько и к какому сроку. Файл можно приложить тут же. ' +
+                      'Посчитаем и ответим.');
         forma.hidden = false;
-        document.getElementById('sekTel').focus();
+        document.getElementById('sekZadacha') &&
+          document.getElementById('sekZadacha').focus();
         return;
       }
 
@@ -1044,6 +1068,7 @@
            поле внизу. И называем его так, как называет человек: тот, кто
            несёт паспорт на копию, не ищет глазами слово «макет». */
         var srochnaya = SROCHNYE_USLUGI.indexOf(kodScenariya()) !== -1;
+        nastroitPoleZadachi();
         skazat('bot', srochnaya
           ? 'Принято. <b>Приложите файл прямо здесь</b>, в поле ниже — ' +
             'и оставьте телефон. Файл у нас — печатаем, приезжать можно ' +
@@ -1345,6 +1370,9 @@
                               : 'Отправляем заявку и макеты...')
         : 'Отправляем...';
 
+      var zadacha = document.getElementById('sekZadacha');
+      zadacha = zadacha ? zadacha.value.trim() : '';
+
       var polya = {
         contact: tel,
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
@@ -1360,6 +1388,7 @@
                  zamerMaketa.koef + ')' +
                  (zamerMaketa.storon > 1 ? ' — среднее по ' + zamerMaketa.storon + ' сторонам' : '')]
               : [])
+            .concat(zadacha ? ['Клиент написал: ' + zadacha] : [])
             .concat(['Согласие на обработку персональных данных получено'])
         ),
         total: itog && itog.summa ? Math.round(itog.summa) : 0,

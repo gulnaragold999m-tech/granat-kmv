@@ -71,6 +71,16 @@
                        accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,.ai,.eps,.psd,.cdr,.zip,.rar,.doc,.docx" />
                 <em id="sekFajlPodpis">Документ, макет, фото — можно выбрать несколько файлов сразу. Целую папку — архивом ZIP. До 20 МБ каждый файл.</em>
               </label>
+              <!-- Поле «своими словами». До 18.08.2026 его не было вовсе,
+                   и сценарий «Другая задача» упирался в тупик: секретарь
+                   говорил «расскажите задачу», а рассказать было НЕКУДА —
+                   в форме только телефон, согласие и файл. Человек уходил
+                   молча, и мы даже не знали, чего он хотел. -->
+              <label class="sek-pole">
+                <span id="sekZadachaPodpis">Что нужно — своими словами, если есть что добавить</span>
+                <textarea id="sekZadacha" rows="2"
+                          placeholder="Например: сшить и заламинировать, отдать курьеру до 14:00"></textarea>
+              </label>
               <button type="submit" class="btn-gold sek-otpravit" id="sekOtpravit">Отправить заявку</button>
               <p class="sek-msg" id="sekMsg" role="status"></p>
             </form>
@@ -157,6 +167,11 @@
       }
 
       .sek-forma { padding: 0 18px 20px; display: grid; gap: 10px; }
+      .sek-forma textarea {
+        width: 100%; border: 1.5px solid rgba(74,14,23,.2); border-radius: 10px;
+        padding: 10px 12px; font: inherit; font-size: 15px; color: #2A1013;
+        background: #fff; resize: vertical; min-height: 44px;
+      }
       /* Без этой строки форма НЕ скрывается: display:grid из правила выше
          перебивает атрибут hidden, и поле телефона торчит с самого начала
          диалога. 16.08.2026 из-за этого заявку отправили, не дойдя до цены,

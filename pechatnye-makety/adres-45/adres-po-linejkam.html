@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Адрес по линейкам бланка — 45 лет</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap">
+<style>
+/* Второй вариант: текст ложится НА линейки бланка, а не между ними.
+   Нужен, если бланк печатается с линейками — тогда строки обязаны
+   совпасть с ними, иначе разнобой видно сразу.
+
+   Геометрия бланка А4: девять линеек, первая на 118 мм от верха,
+   шаг 8,6 мм, последняя на 187 мм. Обращение стоит выше линеек,
+   в свободном поле под виньеткой; подпись и дата — ниже последней
+   линейки, до золотой волны там ещё 20 мм. */
+:root{
+  --pervaya: 118mm;
+  --shag: 8.6mm;
+  --bok: 39mm;
+  --chernila: #111111;
+  --kegl: 3.60mm;
+}
+@page{ size: A4 portrait; margin: 0; }
+*{ box-sizing: border-box; margin: 0; }
+body{ font-family: 'Golos Text', Arial, Helvetica, sans-serif; color: var(--chernila); background:#fff; }
+.list{ position: relative; width: 210mm; height: 297mm; margin: 0 auto; background:#fff; overflow: hidden; }
+
+.obrashchenie{
+  position: absolute; top: 92mm; left: var(--bok); right: var(--bok);
+  text-align: center; font-size: calc(var(--kegl) * 1.36); line-height: 1.25; font-weight: 600;
+}
+
+/* Каждая строка привязана к своей линейке: сидит НА ней, приподнявшись
+   на 1,4 мм — иначе буквы с хвостиками (у, р, д) упрутся в линию. */
+.stroki{ position: absolute; left: var(--bok); right: var(--bok); top: 0; }
+.stroki p{
+  position: absolute; left: 0; right: 0;
+  text-align: center; font-size: var(--kegl); line-height: 1.1;
+  white-space: nowrap;
+}
+.stroki p:nth-child(1){ top: calc(var(--pervaya) + var(--shag) * 0 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(2){ top: calc(var(--pervaya) + var(--shag) * 1 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(3){ top: calc(var(--pervaya) + var(--shag) * 2 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(4){ top: calc(var(--pervaya) + var(--shag) * 3 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(5){ top: calc(var(--pervaya) + var(--shag) * 4 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(6){ top: calc(var(--pervaya) + var(--shag) * 5 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(7){ top: calc(var(--pervaya) + var(--shag) * 6 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(8){ top: calc(var(--pervaya) + var(--shag) * 7 - var(--kegl) - 1.4mm); }
+.stroki p:nth-child(9){ top: calc(var(--pervaya) + var(--shag) * 8 - var(--kegl) - 1.4mm); }
+.vozrast{ font-weight: 600; }
+
+.podval{
+  position: absolute; left: var(--bok); right: var(--bok);
+  top: calc(var(--pervaya) + var(--shag) * 9 + 3mm);
+  text-align: center; font-size: var(--kegl); line-height: 1.5;
+}
+.podval .podpis{ font-weight: 600; }
+.podval .data{ font-size: calc(var(--kegl) * .92); }
+
+/* Экранная имитация линеек — видно попадание. Не печатается. */
+.linejki{
+  position: absolute; left: var(--bok); right: var(--bok);
+  top: var(--pervaya); height: calc(var(--shag) * 8);
+  background: repeating-linear-gradient(to bottom,
+    rgba(0,0,0,.25) 0, rgba(0,0,0,.25) .25mm, transparent .25mm, transparent var(--shag));
+}
+@media print{ .linejki{ display: none; } }
+</style>
+</head>
+<body>
+<div class="list">
+  <div class="linejki"></div>
+
+  <p class="obrashchenie">Дорогому, моему сокровищу,<br>моей любимой дочери</p>
+
+  <div class="stroki">
+    <p>С безграничной любовью поздравляю тебя с прекрасным юбилеем — <span class="vozrast">45 лет!</span></p>
+    <p>Ты наше с папой самое лучшее произведение! Ты достигла расцвета</p>
+    <p>женской красоты, стала самодостаточной, уверенной в себе,</p>
+    <p>успешной, очаровательной женщиной. Ты научилась быть нежной</p>
+    <p>и заботливой, терпеливой и доброй!</p>
+    <p>Я хочу выразить тебе свою благодарность за всё: за твою заботу</p>
+    <p>и понимание, за твою улыбку и тёплые объятия.</p>
+    <p>Ты — моя гордость, моя радость. Желаю тебе, моя спелая ягодка,</p>
+    <p>крепкого здоровья, чувствовать себя счастливой, любимой и нужной!</p>
+  </div>
+
+  <div class="podval">
+    <p class="podpis">С любовью и нежностью, твоя мама</p>
+    <p class="data">21.08.2026</p>
+  </div>
+</div>
+</body>
+</html>

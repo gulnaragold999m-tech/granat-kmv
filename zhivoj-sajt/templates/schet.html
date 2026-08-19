@@ -58,6 +58,7 @@
     <table class="rekv">
       <tr><td class="imya">Получатель</td><td><b>{{ postavshchik.nazvanie }}</b></td></tr>
       <tr><td class="imya">ИНН</td><td>{{ postavshchik.inn }}</td></tr>
+      {% if postavshchik.ogrnip %}<tr><td class="imya">ОГРНИП</td><td>{{ postavshchik.ogrnip }}</td></tr>{% endif %}
       <tr><td class="imya">Расчётный счёт</td><td>{{ postavshchik.schet }}</td></tr>
       <tr><td class="imya">Банк</td><td>{{ postavshchik.bank }}</td></tr>
       <tr><td class="imya">БИК</td><td>{{ postavshchik.bik }}</td></tr>
@@ -90,6 +91,12 @@
     </div>
     <div class="propisyu">Всего к оплате: {{ propisyu }}</div>
     <div class="nds">{{ nds }}</div>
+    <!-- Назначение платежа: без него бухгалтерия плательщика пишет
+         своё, и платёж потом не привязывается к заказу. -->
+    <table class="rekv" style="margin-top:16px;">
+      <tr><td class="imya">Назначение платежа</td><td>{{ naznachenie }}</td></tr>
+      <tr><td class="imya">Срок оплаты</td><td>{{ srok_scheta }}</td></tr>
+    </table>
 
     {% if sostav %}
     <div class="zametka">

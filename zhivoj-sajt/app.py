@@ -1049,6 +1049,9 @@ REKVIZITY = {
     "bank": os.getenv("REKV_BANK", "АО «ТБанк»"),
     "bik": os.getenv("REKV_BIK", "044525974"),
     "korschet": os.getenv("REKV_KORSCHET", "30101810145250000974"),
+    # ОГРНИП законом в счёте не требуется, но бухгалтерии его часто
+    # просят. Пусто — строка в счёте просто не печатается.
+    "ogrnip": os.getenv("REKV_OGRNIP", ""),
     "adres": os.getenv("REKV_ADRES", "г. Лермонтов, ул. Нагорная 2/1, этаж 2"),
     "telefon": os.getenv("REKV_TELEFON", "+7 (999) 244-99-99"),
 }
@@ -1177,6 +1180,11 @@ def schet(lead_id):
         summa_str="{:,}".format(summa).replace(",", " "),
         propisyu=summa_propisyu(summa),
         nds=NDS_STROKA,
+        naznachenie=("Оплата по счёту № {} от {}. {}"
+                     .format(lead_id, now_msk().strftime("%d.%m.%Y"),
+                             NDS_STROKA.rstrip("."))),
+        srok_scheta=os.getenv("REKV_SROK_SCHETA",
+                              "Счёт действителен для оплаты 3 банковских дня."),
         sostav=" · ".join(sostav[1:]) if len(sostav) > 1 else "",
     )
 

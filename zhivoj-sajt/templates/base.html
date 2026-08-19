@@ -113,8 +113,8 @@
         },
         {
           "@type": "Offer",
-          "itemOffered": { "@type": "Service", "name": "Печать сертификатов" },
-          "price": "300",
+          "itemOffered": { "@type": "Service", "name": "Печать сертификатов, дипломов и грамот" },
+          "price": "180",
           "priceCurrency": "RUB"
         },
         {
@@ -526,17 +526,23 @@
         <span class="brand-logo" role="img" aria-label="Логотип студии Гранат" style="width:40px;height:40px;"></span>
         <span class="studio-logo-gold text-xl">Гранат</span>
       </a>
-      <nav class="hidden md:flex items-center gap-8 text-xs font-semibold tracking-widest uppercase text-white/80">
-        <a href="/pechat" class="nav-link hover:text-white">Печать, дизайн и полиграфия</a>
-        <a href="/cifra" class="nav-link hover:text-white">Сайты и боты</a>
-        <a href="/raboty" class="nav-link hover:text-white" data-goal="portfolio_view">Работы</a>
+      <!-- gap-6 вместо gap-8 и короткие подписи: 19.08.2026 пятым
+           пунктом добавились «Документы», строка перестала помещаться
+           и меню съехало на две строки, прижав логотип. Новые классы
+           Tailwind брать нельзя — файл стилей собран заранее и на её
+           компьютере не пересобирается, поэтому обходимся теми,
+           что уже есть. -->
+      <nav class="hidden md:flex items-center gap-6 text-xs font-semibold tracking-widest uppercase text-white/80">
+        <a href="/pechat" class="nav-link hover:text-white whitespace-nowrap">Печать и дизайн</a>
+        <a href="/cifra" class="nav-link hover:text-white whitespace-nowrap">Сайты и боты</a>
+        <a href="/raboty" class="nav-link hover:text-white whitespace-nowrap" data-goal="portfolio_view">Работы</a>
         <!-- ДОКУМЕНТЫ в меню с 19.08.2026. Владелица спросила дважды:
              «а где для иностранных граждан страница, как в неё попасть».
              Попасть можно было только с карточки на странице печати
              и из поиска — то есть человек, пришедший на главную,
              её не находил. Пункт короткий, в строку влезает. -->
-        <a href="/dokumenty" class="nav-link hover:text-white">Документы</a>
-        <a href="/kak-rabotaem" class="nav-link hover:text-white">Как работаем</a>
+        <a href="/dokumenty" class="nav-link hover:text-white whitespace-nowrap">Документы</a>
+        <a href="/kak-rabotaem" class="nav-link hover:text-white whitespace-nowrap">Как работаем</a>
         <!-- Ведём к СЕКРЕТАРЮ, а не к форме внизу. 18.08.2026 девушка
              из Краснодара нажала эту кнопку, попала в форму без поля
              для файла и прочитала «отвечаем в течение дня» — при том
@@ -545,7 +551,7 @@
         <!-- data-goal ловится metrika-goals.js: в Метрике будет видно
              нажатия именно этой кнопки, а не «переходы по сайту» вообще. -->
         <a href="#sekretar" class="btn-gold" data-goal="price_click_shapka"
-           style="padding:11px 22px;">Узнать цену и заказать</a>
+           style="padding:11px 22px; white-space:nowrap;">Узнать цену</a>
       </nav>
       <a href="#sekretar" class="md:hidden btn-gold" data-goal="price_click_shapka"
          style="padding:10px 16px;">Цена и заказ</a>

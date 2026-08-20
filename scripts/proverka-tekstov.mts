@@ -90,8 +90,19 @@ const KORNI_NET: { koren: string; polnoe: string }[] = [
   { koren: 'фотосесс', polnoe: 'фотосессия' },
 ];
 
+/* Отрицание рядом со словом — не обещание. В разборе конкурента мы
+   прямо пишем «офсет копировать нельзя, его у нас нет», и первая версия
+   правила кричала СТОП на этой самой фразе. Та же логика, что и
+   у горячего тиснения: проверка не должна ругаться на признание
+   в отсутствии услуги. */
+function estOtricanie(gde: number, dlina: number): boolean {
+  const okno = nizhnij.slice(Math.max(0, gde - 120), gde + dlina + 160);
+  return /(^|[^а-яё])(нет|не делаем|не бывает|не обещаем|нельзя|у них|чужа)/i.test(okno);
+}
+
 for (const { koren, polnoe } of KORNI_NET) {
-  if (nizhnij.includes(koren)) {
+  const gde = nizhnij.indexOf(koren);
+  if (gde !== -1 && !estOtricanie(gde, koren.length)) {
     nahodki.push({
       urgh: 'СТОП',
       chto: `упомянуто «${koren}…» — похоже на «${polnoe}»`,
@@ -229,7 +240,10 @@ if (/скидк|акци|−\s*\d+\s*%|-\s*\d+\s*%/i.test(tekst)) {
    подключается строкой include и в тексте страницы не виден. Считаем
    его за CTA: он и есть кнопка «посчитать и заказать». */
 const CTA = /позвоните|напишите|заходите|приходите|пришлите|опишите|оставьте|откройте|посчитаем при вас|скажите секретарю|partials\/sekretar\.html/i;
-if (!CTA.test(tekst)) {
+/* Исследование рынка — внутренний документ, а не объявление. Призыва
+   к действию в нём быть и не должно: его читаем мы, а не клиент. */
+const issledovanie = /market-research/.test(put);
+if (!CTA.test(tekst) && !issledovanie) {
   nahodki.push({
     urgh: 'ПРОВЕРИТЬ',
     chto: 'не нашёл призыва к действию',

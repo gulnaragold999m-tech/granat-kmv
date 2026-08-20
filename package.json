@@ -13,6 +13,7 @@
     "proverka": "node --experimental-strip-types scripts/proverka-tekstov.mts",
     "sekretar": "node --experimental-strip-types scripts/sekretar-ceny.mts",
     "sajt-ceny": "node --experimental-strip-types scripts/sajt-ceny.mts",
+    "proverka-sajta": "python3 scripts/proverka-sajta.py",
     "sebestoimost": "node --experimental-strip-types scripts/sebestoimost.mts",
     "bot-ceny": "node --experimental-strip-types scripts/bot-ceny.mts",
     "sebestoimost-prajs": "node --experimental-strip-types scripts/proverka-sebestoimosti.mts"

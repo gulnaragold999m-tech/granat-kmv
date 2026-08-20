@@ -11,11 +11,23 @@ from zoneinfo import ZoneInfo
 
 import requests
 from flask import (Flask, send_from_directory, request, jsonify, redirect,
-                   render_template)
+                   render_template, Response)
 
 import bots
 import contact
 import leads
+import uslugi
+
+# Цены для страниц услуг. Читаются один раз при старте: файл собирается
+# командой `npm run sajt-ceny` из data/prices.ts, и в рантайме не меняется.
+# Нет файла — страницы услуг всё равно открываются, просто без таблиц:
+# сайт не должен падать из-за несобранного прайса.
+try:
+    with open("ceny.json", encoding="utf-8") as _f:
+        CENY_STRANIC = json.load(_f)
+except (OSError, ValueError) as _e:
+    print("ceny.json не прочитан (%s) — таблицы цен на страницах услуг скрыты" % _e)
+    CENY_STRANIC = {}
 
 # ── TELEGRAM СНЯТ 15.08.2026 ─────────────────────────────────────────────
 # Решение владелицы, её словами: «Телеграм как трафик для заявок снимаем.
@@ -450,6 +462,30 @@ def pechat():
     return render_template("pechat.html")
 
 
+@app.route("/pechat/<slug>")
+def stranica_uslugi(slug):
+    """Страница одной услуги.
+
+    Заведено 21.08.2026. До этого пятнадцать услуг прайса жили на одной
+    странице /pechat, и она не могла ранжироваться ни по одному запросу
+    как следует: у человека с фото на паспорт и у человека с чертежом А0
+    разные запросы и разные ожидания.
+
+    Маршрут один на все услуги, описания лежат в uslugi.py. Новая
+    услуга — это запись в словаре, а не правка этого файла.
+    """
+    dannye = uslugi.usluga(slug)
+    if dannye is None:
+        return render_template("404.html"), 404
+    return render_template(
+        "usluga.html",
+        u=dannye,
+        slug=slug,
+        ceny=CENY_STRANIC,
+        drugie=[x for x in uslugi.spisok() if x["slug"] != slug],
+    )
+
+
 @app.route("/cifra")
 def cifra():
     return render_template("cifra.html")
@@ -491,12 +527,44 @@ def templates_are_not_public(_ignored):
 # Здесь тип и кодировка заданы прямо, поэтому гадать больше нечего.
 @app.route("/sitemap.xml")
 def sitemap():
-    return send_from_directory(".", "sitemap.xml", mimetype="application/xml")
+    """Карта сайта СОБИРАЕТСЯ, а не лежит файлом.
+
+    До 21.08.2026 здесь стояла отдача файла с диска. Файла этого
+    в репозитории не было вовсе — то есть либо он жил только в Amvera
+    и терялся при любой чистой выкатке, либо адрес отдавал 404
+    и поисковик не получал карту сайта совсем.
+
+    Собранная карта не может устареть: добавили страницу услуги
+    в uslugi.py — она появилась в карте сама.
+    """
+    adresa = ["/", "/pechat", "/cifra", "/raboty", "/kak-rabotaem", "/kontakty"]
+    adresa += ["/pechat/" + u["slug"] for u in uslugi.spisok()]
+    segodnya = datetime.now().strftime("%Y-%m-%d")
+    xml = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for a in adresa:
+        xml.append("  <url><loc>https://granat-kmv.ru%s</loc>"
+                   "<lastmod>%s</lastmod></url>" % (a, segodnya))
+    xml.append("</urlset>")
+    return Response("\n".join(xml), mimetype="application/xml")
 
 
 @app.route("/robots.txt")
 def robots():
-    return send_from_directory(".", "robots.txt", mimetype="text/plain")
+    """robots.txt собирается тут же и по той же причине, что и карта сайта:
+    файла на диске не было, а отсутствующий robots.txt — это 404 на адресе,
+    который робот запрашивает первым делом.
+
+    ИИ-краулеры намеренно НЕ закрыты: страницы студии должны попадать
+    в ответы нейропоиска, а закрытый доступ обнуляет эту возможность."""
+    return Response(
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "\n"
+        "Sitemap: https://granat-kmv.ru/sitemap.xml\n",
+        mimetype="text/plain",
+    )
 
 
 # Свой экран вместо служебной страницы Flask: с меню, ссылками на разделы и

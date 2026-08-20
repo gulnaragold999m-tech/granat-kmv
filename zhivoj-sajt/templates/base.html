@@ -172,7 +172,12 @@
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Главная", "item": "https://granat-kmv.ru/" },
+      {%- if crumb_parent %}
+      { "@type": "ListItem", "position": 2, "name": "{{ crumb_parent }}", "item": "https://granat-kmv.ru{{ crumb_parent_url }}" },
+      { "@type": "ListItem", "position": 3, "name": "{{ crumb }}", "item": "https://granat-kmv.ru{{ self.path() }}" }
+      {%- else %}
       { "@type": "ListItem", "position": 2, "name": "{{ crumb }}", "item": "https://granat-kmv.ru{{ self.path() }}" }
+      {%- endif %}
     ]
   }
   </script>
@@ -537,6 +542,10 @@
       <div class="max-w-6xl mx-auto px-6 text-xs" style="color:rgba(74,14,23,.65);">
         <a href="/" class="hover:underline">Главная</a>
         <span aria-hidden="true"> · </span>
+        {%- if crumb_parent %}
+        <a href="{{ crumb_parent_url }}" class="hover:underline">{{ crumb_parent }}</a>
+        <span aria-hidden="true"> · </span>
+        {%- endif %}
         <span>{{ crumb }}</span>
       </div>
     </nav>

@@ -17,32 +17,50 @@
           <p class="kicker mb-3" style="color:#4A0E17;">Направление 1 · Печать, дизайн и полиграфия</p>
           <h1 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Печать и полиграфия в Лермонтове и на КМВ</h1>
           <p class="serif italic gold-grad mt-3" style="font-size:clamp(1.1rem,2.2vw,1.5rem);">Полиграфия, которую видно и приятно держать в руках</p>
-          <p class="text-lg opacity-75 mt-4">Типография в Лермонтове: приглашения ручной сборки, сертификаты с золотым тиснением, визитки, высокоточная плоттерная резка — и повседневная печать документов.</p>
+          <p class="text-lg opacity-75 mt-4">Типография в Лермонтове: грамоты и сертификаты от одной штуки, приглашения с тиснением фольгой, визитки, чертежи до формата А0 — и повседневная печать документов. Работаем по всему КМВ: Пятигорск, Ессентуки, Кисловодск, Минеральные Воды.</p>
         </div>
         <div class="grid md:grid-cols-3 gap-6 mt-12">
-          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
-            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Печать приглашений и открыток</h3>
-            <p class="opacity-70 text-sm leading-relaxed">Свадебные и детские приглашения, пригласительные открытки: дизайнерская бумага, ажурная резка, конгревное тиснение золотой фольгой, сургучная печать, лента. От 200 ₽/шт.</p>
-          </article>
-          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
-            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Печать сертификатов</h3>
-            <p class="opacity-70 text-sm leading-relaxed">Подарочные сертификаты для салонов, студий и магазинов: акцент на фактуру и тиснение. Выглядит дороже своего номинала. От 300 ₽.</p>
-          </article>
-          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
-            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Плоттерная резка</h3>
-            <p class="opacity-70 text-sm leading-relaxed">Ажурные узоры, трафареты, кастомные конверты, наклейки Oracal. Точность 0,1 мм. От 300 ₽.</p>
-          </article>
-          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
-            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Печать визиток, логотип, меню</h3>
-            <p class="opacity-70 text-sm leading-relaxed">Фирменный стиль и печать: разработка логотипа, визитки, меню для кафе, флаеры, этикетки — под характер вашего дела.</p>
-          </article>
-          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
-            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Ксерокопия, печать документов, ламинирование</h3>
-            <p class="opacity-70 text-sm leading-relaxed">Копии и распечатка документов, ламинирование, фотопечать — быстро и аккуратно, в офисе на Нагорной, 2/1.</p>
-          </article>
-          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+          <!-- КАРТОЧКИ ПЕРЕПИСАНЫ 21.08.2026, и это была не косметика.
+
+               До правки страница обещала пять услуг, которых у студии нет:
+               ажурную и контурную резку (нужен режущий плоттер, у нас
+               печатающий), конгревное тиснение, разработку логотипа
+               и фирменного стиля, наклейки Oracal. Все они прямо стоят
+               в NET_V_PRAJSE — списке того, чего обещать нельзя.
+
+               И две цены разошлись с прайсом: сертификаты «от 300 ₽»
+               при рознице от 150 ₽, приглашения «от 200 ₽/шт» при
+               реальных 32–65 ₽ за штуку в тираже.
+
+               Это нарушение главного правила владелицы — не обещать
+               того, чего нет. Человек приезжает за ажурной резкой,
+               а её не существует.
+
+               Теперь каждая карточка ведёт на свою страницу услуги:
+               и человеку понятнее, и страницы перестают быть сиротами. -->
+          <a href="/pechat/gramoty" class="product-card reveal border rounded-2xl p-7 block" style="border-color:rgba(74,14,23,.12); color:inherit;">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Грамоты, дипломы и сертификаты</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Плотная матовая бумага, вёрстка под ваш текст, тиснение фольгой. Печатаем от одной штуки — школе, саду, секции, предприятию.</p>
+          </a>
+          <a href="/pechat/priglasheniya" class="product-card reveal border rounded-2xl p-7 block" style="border-color:rgba(74,14,23,.12); color:inherit;">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Приглашения и открытки</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Свадьба, юбилей, выпускной. Плотная матовая бумага, полноцвет с двух сторон, биговка и сгиб, тиснение фольгой. Макет согласуем онлайн.</p>
+          </a>
+          <a href="/pechat/vizitki" class="product-card reveal border rounded-2xl p-7 block" style="border-color:rgba(74,14,23,.12); color:inherit;">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Визитки</h3>
+            <p class="opacity-70 text-sm leading-relaxed">90×50 мм, мелованная бумага 250–260 г/м², полноцвет, с резкой. Цена за тираж целиком. Разработаем макет или поправим готовый.</p>
+          </a>
+          <a href="/pechat/chertezhi" class="product-card reveal border rounded-2xl p-7 block" style="border-color:rgba(74,14,23,.12); color:inherit;">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Чертежи и плакаты до А0</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Плоттер Canon imagePROGRAF TM-340, ширина до 914 мм. Чертежи, схемы, проектная документация, афиши и постеры. Сложим в А4.</p>
+          </a>
+          <a href="/pechat/foto-na-dokumenty" class="product-card reveal border rounded-2xl p-7 block" style="border-color:rgba(74,14,23,.12); color:inherit;">
             <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Фото на документы</h3>
-            <p class="opacity-70 text-sm leading-relaxed">Паспорт, загранпаспорт, виза, 3×4. Сделаем на месте за несколько минут, поможем с форматом.</p>
+            <p class="opacity-70 text-sm leading-relaxed">Паспорт, загранпаспорт, виза, 3×4. Готовый файл печатаем при вас. Соберём лист из вашей фотографии и отретушируем. Съёмки у нас нет.</p>
+          </a>
+          <article class="product-card reveal border rounded-2xl p-7" style="border-color:rgba(74,14,23,.12);">
+            <h3 class="text-xl font-bold mb-2" style="color:#4A0E17;">Копии, распечатка, ламинация</h3>
+            <p class="opacity-70 text-sm leading-relaxed">Ксерокопия и печать документов, ламинация до А3, брошюровка на пружину, фотопечать. Быстро и аккуратно, на Нагорной, 2/1.</p>
           </article>
         </div>
       </div>

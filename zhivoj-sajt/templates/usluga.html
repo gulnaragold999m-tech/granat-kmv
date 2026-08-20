@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{#
+  ОДИН ШАБЛОН НА ВСЕ СТРАНИЦЫ УСЛУГ. Заведено 21.08.2026.
+
+  Что здесь важно для поиска и чего не было на /pechat:
+  · цена набрана ОБЫЧНЫМ ТЕКСТОМ в таблице, а не считается в браузере.
+    Секретарь считает точную сумму, но его цифры живут в JavaScript,
+    и робот их читает плохо. Запрос «сколько стоит напечатать грамоту»
+    закрывается только ценой в HTML;
+  · блок вопросов с разметкой FAQPage — в выдаче он занимает втрое
+    больше места, чем обычная строчка конкурента. Вопросы настоящие,
+    их задают клиенты боту и секретарю;
+  · разметка Service с привязкой к организации и к городам КМВ;
+  · перелинковка на соседние услуги — чтобы ни одна страница
+    не осталась сиротой, на которую никто не ссылается;
+  · город в H1, в title и в тексте, а не только в подвале.
+#}
+{% block title %}{{ u.title }}{% endblock %}
+{% block description %}{{ u.description }}{% endblock %}
+{% block path %}/pechat/{{ slug }}{% endblock %}
+{% set crumb = u.krumb %}
+{% set crumb_parent = "Печать и полиграфия" %}
+{% set crumb_parent_url = "/pechat" %}
+
+{% block content %}
+<!-- Разметка услуги. Цены здесь не дублируются числами: расхождение
+     разметки с текстом страницы считается обманом робота и работает
+     против сайта. Даём тип, исполнителя и географию. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": {{ u.h1 | tojson }},
+  "description": {{ u.description | tojson }},
+  "serviceType": {{ u.krumb | tojson }},
+  "provider": { "@id": "https://granat-kmv.ru/#organization" },
+  "areaServed": ["Лермонтов", "Пятигорск", "Ессентуки", "Кисловодск", "Минеральные Воды", "Железноводск"],
+  "url": "https://granat-kmv.ru/pechat/{{ slug }}"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {%- for v, o in u.voprosy %}
+    { "@type": "Question", "name": {{ v | tojson }},
+      "acceptedAnswer": { "@type": "Answer", "text": {{ o | tojson }} } }{{ "," if not loop.last }}
+    {%- endfor %}
+  ]
+}
+</script>
+
+<section class="py-16" style="background:#4A0E17;">
+  <div class="max-w-4xl mx-auto px-6">
+    <p class="kicker mb-4">Студия «Гранат» · Лермонтов · работаем по КМВ</p>
+    <h1 class="text-white font-bold leading-tight" style="font-size:clamp(1.7rem,4.2vw,2.9rem);">{{ u.h1 }}</h1>
+    {% for p in u.vvodnaya %}
+    <p class="text-white/75 mt-5 text-lg leading-relaxed">{{ p }}</p>
+    {% endfor %}
+    <div class="flex flex-wrap gap-4 mt-9">
+      <a href="#sekretar" class="btn-gold" data-goal="usluga_raschet">Рассчитать цену за минуту</a>
+      <a href="tel:+79992449999" class="btn-outline">+7 999 244-99-99</a>
+    </div>
+  </div>
+</section>
+
+{% set t = ceny.get(u.tablica) if ceny else None %}
+{% if t and t.stroki is defined %}
+<section class="py-16" style="background:#F9F3EB;">
+  <div class="max-w-4xl mx-auto px-6">
+    <h2 class="text-2xl md:text-3xl font-bold" style="color:#4A0E17;">{{ t.zagolovok }}</h2>
+    <p class="text-sm mt-2" style="color:rgba(74,14,23,.6);">{{ t.edinica }}</p>
+    <div class="mt-6 overflow-x-auto">
+      <table class="w-full text-left" style="border-collapse:collapse; color:#4A0E17;">
+        <thead>
+          <tr>
+            <th class="py-3 pr-4 text-sm font-semibold" style="border-bottom:2px solid rgba(74,14,23,.2);">{{ t.pervyjStolbec }}</th>
+            {% for k in t.kolonki %}
+            <th class="py-3 pr-4 text-sm font-semibold" style="border-bottom:2px solid rgba(74,14,23,.2);">{{ k }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in t.stroki %}
+          <tr>
+            <td class="py-3 pr-4 font-semibold" style="border-bottom:1px solid rgba(74,14,23,.1);">{{ s.nazvanie }}</td>
+            {% for c in s.ceny %}
+            <td class="py-3 pr-4" style="border-bottom:1px solid rgba(74,14,23,.1);">{{ c }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% for p in t.primechaniya %}
+    <p class="text-sm mt-3 leading-relaxed" style="color:rgba(74,14,23,.7);">{{ p }}</p>
+    {% endfor %}
+  </div>
+</section>
+{% elif t and t.pozicii is defined %}
+<section class="py-16" style="background:#F9F3EB;">
+  <div class="max-w-4xl mx-auto px-6">
+    <h2 class="text-2xl md:text-3xl font-bold" style="color:#4A0E17;">{{ t.zagolovok }}</h2>
+    {% if t.vvodnaya %}<p class="mt-3" style="color:rgba(74,14,23,.72);">{{ t.vvodnaya }}</p>{% endif %}
+    <ul class="mt-6">
+      {% for p in t.pozicii %}
+      <li class="flex justify-between gap-6 py-3" style="border-bottom:1px solid rgba(74,14,23,.1); color:#4A0E17;">
+        <span>{{ p.nazvanie }}</span><b>{{ p.cena }}</b>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+<section class="py-16" style="background:#fff;">
+  <div class="max-w-4xl mx-auto px-6">
+    <h2 class="text-2xl md:text-3xl font-bold" style="color:#4A0E17;">Что важно знать заранее</h2>
+    <ul class="mt-6">
+      {% for v in u.vazhno %}
+      <li class="py-3 leading-relaxed" style="border-bottom:1px solid rgba(74,14,23,.08); color:rgba(74,14,23,.85);">{{ v }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="py-16" style="background:#F9F3EB;">
+  <div class="max-w-4xl mx-auto px-6">
+    <h2 class="text-2xl md:text-3xl font-bold" style="color:#4A0E17;">Частые вопросы</h2>
+    <div class="mt-6">
+      {% for v, o in u.voprosy %}
+      <div class="py-4" style="border-bottom:1px solid rgba(74,14,23,.1);">
+        <p class="font-semibold" style="color:#4A0E17;">{{ v }}</p>
+        <p class="mt-2 leading-relaxed" style="color:rgba(74,14,23,.78);">{{ o }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% include "partials/sekretar.html" %}
+
+<section class="py-14" style="background:#fff;">
+  <div class="max-w-4xl mx-auto px-6">
+    <h2 class="text-xl font-bold" style="color:#4A0E17;">Другие услуги печати</h2>
+    <div class="flex flex-wrap gap-3 mt-5">
+      {% for d in drugie %}
+      <a href="/pechat/{{ d.slug }}" class="btn-outline" style="color:#4A0E17; border-color:rgba(74,14,23,.25);">{{ d.krumb }}</a>
+      {% endfor %}
+      <a href="/pechat" class="btn-outline" style="color:#4A0E17; border-color:rgba(74,14,23,.25);">Весь прайс</a>
+    </div>
+  </div>
+</section>
+
+{% include "partials/zayavka.html" %}
+{% endblock %}
+
+{# Скрипты секретаря НЕ подключаем здесь: partials/sekretar.html тянет их
+   сам, в конце себя. Подключить второй раз — значит запустить диалог
+   дважды на одной странице. #}

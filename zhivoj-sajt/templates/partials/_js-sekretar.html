@@ -33,6 +33,40 @@
     var msgEl   = document.getElementById('sekMsg');
     var zanovoB = document.getElementById('sekZanovo');
 
+    /* ── Замер: доходит ли до секретаря хоть кто-нибудь ──────────────
+       20.08.2026. За 16–20 августа глубина просмотра упала до 1,09
+       страницы, а средний визит — до 43 секунд. Секретарь стоит шестым
+       блоком главной, и вопрос «работает ли он» ответа не имел вовсе:
+       в тысяче с лишним строк этого файла не было ни одной цели
+       Метрики. Про заявку мы узнаём из почты, а сколько человек
+       начали разговор и бросили — не знал никто.
+
+       Ступени намеренно повторяют разговор: увидел → выбрал услугу →
+       получил цену → согласился → оставил телефон. Проседает одна
+       ступень — видно, какая именно, а не «сайт не заходит».
+
+       Цели надо ОДИН РАЗ завести в Метрике (тип «JavaScript-событие»),
+       иначе они уходят в пустоту. Список — в TASKS.md за 20.08.2026. */
+    function cel(imya, params) {
+      if (typeof window.granatGoal === 'function') window.granatGoal(imya, params || {});
+    }
+
+    /* Секретарь показался на экране. Главная цифра всей затеи: если
+       показов сильно меньше визитов — виноват не секретарь, а его место
+       на странице, и чинить надо место. */
+    (function () {
+      var blok = document.getElementById('sekretar');
+      if (!blok || !window.IntersectionObserver) return;
+      var nabl = new IntersectionObserver(function (zapisi) {
+        zapisi.forEach(function (z) {
+          if (!z.isIntersecting) return;
+          nabl.disconnect();
+          cel('sekretar_viden');
+        });
+      }, { threshold: 0.3 });
+      nabl.observe(blok);
+    })();
+
     /* ── Счёт ──────────────────────────────────────────────────────── */
 
     /** Цена за штуку по тиражу: берём последний столбец, чей порог достигнут. */
@@ -719,6 +753,8 @@
           put.push(scen.imya);
           obnovitChek();
           skazat('ya', v.t);
+          // Разговор начался. Отсюда и дальше человек уже не читатель.
+          cel('sekretar_vybor', { usluga: scen.imya });
           skazat('bot', scen.privet);
           // Про акцию говорим сразу, а не в конце: человек должен узнать
           // о скидке до того, как услышит цену, — иначе она не работает.
@@ -877,6 +913,9 @@
         skazat('bot', text);
         summaEl.textContent = rub(itog.summa);
         podpisEl.textContent = 'по прайсу студии';
+        // Человек дошёл до цены — это главный полезный шаг секретаря
+        // даже без заявки: он для этого и сделан.
+        cel('sekretar_cena', { usluga: scen ? scen.imya : '' });
       } else {
         skazat('bot', 'Такую задачу считаем вручную — она того стоит.');
         summaEl.textContent = 'считаем';
@@ -925,6 +964,7 @@
         // уже не будет.
         put.push('Цену подтвердил: ' + rub(itog.summa));
         obnovitChek();
+        cel('sekretar_da', { summa: Math.round(itog.summa) });
         podpisEl.textContent = 'цена подтверждена';
         skazat('bot', 'Принято. Оставьте телефон — передам заявку в студию, и мы подтвердим срок. Макет проверяем до печати.');
         forma.hidden = false;
@@ -946,6 +986,11 @@
         { t: 'Просто смотрю', v: 'smotryu' }
       ], function (p) {
         skazat('ya', p.t);
+        // Причина отказа уезжает и в заявку, и в Метрику. В заявке её
+        // видит владелица по одному человеку, в Метрике — по сотне:
+        // «дорого» у половины и «просто смотрю» у половины требуют
+        // разных решений.
+        cel('sekretar_net', { prichina: p.t, summa: itog && itog.summa ? Math.round(itog.summa) : 0 });
 
         if (p.v === 'smotryu') {
           skazat('bot', 'Хорошо, никаких обязательств. Цена по прайсу и не изменится — будет нужно, возвращайтесь.<br>+7 (999) 244-99-99, Пн–Сб 09:00–20:00, Вс 10:00–19:00.');
@@ -1274,6 +1319,11 @@
       forma.hidden = true;
       knopki.innerHTML = '';
       msgEl.textContent = '';
+
+      // Цель шлём здесь, а не по нажатию кнопки: заявка засчитана
+      // только тогда, когда сервер её принял. Иначе в Метрике будут
+      // заявки, которых нет ни в почте, ни в журнале.
+      cel('sekretar_zayavka', { summa: itog && itog.summa ? Math.round(itog.summa) : 0 });
 
       var o = C.oplata || {};
       var itogo = itog && itog.summa ? itog.summa : null;

@@ -28,6 +28,7 @@ import {
   LAMINACIYA,
   PRIGLASHENIE_INDIVIDUALNOE,
   MATERIAL_I_OTDELKA,
+  DOSTAVKA,
   RABOTA_S_MAKETOM,
   KAK_SCHITAEM,
   NET_V_PRAJSE,
@@ -185,6 +186,15 @@ const html = `<!doctype html>
   <ul class="pl">
     ${MATERIAL_I_OTDELKA.stroki.map((s) => `<li><span>${ekr(s.nazvanie)}</span><b>${ekr(s.znachenie)}</b></li>`).join('')}
   </ul>
+</section>
+
+<section>
+  <h2>Доставка — называть вместе с ценой</h2>
+  <ul class="pl">
+    ${DOSTAVKA.stroki.map((d) => `<li><span>${ekr(d.nazvanie)}</span><b>${ekr(d.znachenie)}</b></li>`).join('')}
+  </ul>
+  <div class="note">Не назвали — значит отдали даром. В июле заказ увезли
+  такси за счёт студии, потому что строки о доставке в прайсе не было.</div>
 </section>
 
 <section>

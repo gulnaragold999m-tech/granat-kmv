@@ -117,7 +117,6 @@ ${zalivka.join('\n')}
 ADDONS_NOVYE = {
     "handwork":  ("Ручная отделка: глиттер, стразы, ленты", ${OTDELKA.ruchnayaOtdelka}, "per_piece"),
     "hard_pack": ("Жёсткая упаковка: файл, конверт, подложка", ${OTDELKA.zhestkayaUpakovka}, "per_piece"),
-    "delivery":  ("Доставка по Лермонтову", ${DOSTAVKA.poLermontovu}, "per_order"),
 }
 DOSTAVKA_BESPLATNO_OT = ${DOSTAVKA.besplatnoOt}
 

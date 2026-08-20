@@ -68,7 +68,6 @@ COEFFICIENTS = {
 ADDONS_NOVYE = {
     "handwork":  ("Ручная отделка: глиттер, стразы, ленты", 150, "per_piece"),
     "hard_pack": ("Жёсткая упаковка: файл, конверт, подложка", 50, "per_piece"),
-    "delivery":  ("Доставка по Лермонтову", 200, "per_order"),
 }
 DOSTAVKA_BESPLATNO_OT = 5000
 

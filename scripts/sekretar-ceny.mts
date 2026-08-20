@@ -34,6 +34,7 @@ import {
   AKCII,
   OPLATA,
   OTDELKA,
+  DOSTAVKA,
   BIGOVKA,
   FOLGIROVANIE,
   NACENKA_ZA_PLOTNOST,
@@ -124,6 +125,16 @@ const CENY = {
 
   /* Отделка — за штуку, добавляется к базовой цене. */
   otdelka: OTDELKA,
+
+  /* Доставка. Заведена в прайс 18.08.2026, но до 20.08 секретарь о ней
+     не знал и потому не спрашивал — то есть отдавал даром ровно так же,
+     как в июле, когда владелица вызвала такси и не поставила это в счёт.
+     Правило оттуда же: услуга, которой нет в расчёте, отдаётся бесплатно. */
+  dostavka: {
+    poLermontovu: DOSTAVKA.poLermontovu,
+    besplatnoOt: DOSTAVKA.besplatnoOt,
+    stroki: DOSTAVKA.stroki,
+  },
   bigovka: BIGOVKA,
   folgirovanie: FOLGIROVANIE,
   plotnosti: NACENKA_ZA_PLOTNOST.stroki,

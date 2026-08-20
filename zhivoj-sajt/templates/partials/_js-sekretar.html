@@ -694,6 +694,7 @@
       stroka: 'Что печатаем',
       usluga: 'Услуга'
     };
+    var posledniyZakazchik = 'Частное лицо';  // для цели Метрики, ставится при отправке
     var scen = null;     // выбранный сценарий
     var shagIndex = 0;
     var itog = null;
@@ -923,7 +924,92 @@
       }
 
       if (itog.zametki.length) skazat('bot', itog.zametki.join('<br>'));
-      soglasieSCenoj();
+      sprositPoluchenie();
+    }
+
+    /* СПОСОБ ПОЛУЧЕНИЯ. Заведено 20.08.2026.
+    
+       Доставка появилась в прайсе 18.08 после июльского случая: владелица
+       вызвала такси, отправила работу и не поставила это в счёт. Правило
+       оттуда — «услуга, которой нет в расчёте, отдаётся бесплатно».
+       Но в прайс её завели, а секретаря спросить не научили, и он два дня
+       отдавал доставку даром ровно по тому же правилу.
+
+       Вопрос стоит ПОСЛЕ цены и ДО «оформляем?»: доставка бесплатна
+       от 5 000 ₽, значит спрашивать раньше расчёта нельзя — мы не знали
+       бы, платная она или нет. И человек должен подтверждать ПОЛНУЮ
+       сумму, а не ту, к которой потом что-то прибавится.
+
+       Второе назначение вопроса — сегмент. Город клиента до 20.08 не
+       спрашивался нигде, и понять, окупается ли геореклама по КМВ или
+       только по Лермонтову, было не по чему. Теперь город уезжает
+       и в заявку, и в Метрику. */
+    function sprositPoluchenie() {
+      // Считаем вручную — доставку обсудим голосом, вместе с ценой.
+      if (!itog || itog.summa == null) return soglasieSCenoj();
+
+      var d = C.dostavka || {};
+      var besplatno = d.besplatnoOt && itog.summa >= d.besplatnoOt;
+      var cenaLerm = besplatno ? 0 : (d.poLermontovu || 0);
+
+      skazat('bot', 'Как удобно получить заказ?');
+      pokazatKnopki([
+        { t: 'Заберу сам', i: 'Лермонтов, Нагорная 2/1 — бесплатно', v: 'samovyvoz' },
+        { t: 'Доставка по Лермонтову',
+          i: besplatno ? 'бесплатно: заказ от ' + rub(d.besplatnoOt) : rub(cenaLerm),
+          v: 'lermontov' },
+        { t: 'Доставка по КМВ', i: 'Пятигорск, Ессентуки, Кисловодск, Минводы', v: 'kmv' }
+      ], function (v) {
+        skazat('ya', v.t);
+        vybor.poluchenie = v.v;
+
+        if (v.v === 'kmv') return sprositGorod();
+
+        vybor.gorod = 'Лермонтов';
+        if (v.v === 'samovyvoz') {
+          put.push('Получение: самовывоз, Лермонтов');
+        } else if (cenaLerm > 0) {
+          // Доставка прибавляется к сумме отдельной строкой разбора:
+          // человек должен видеть, из чего сложилась новая цифра.
+          dobavitVSchet('Доставка по Лермонтову', cenaLerm);
+          put.push('Получение: доставка по Лермонтову — ' + rub(cenaLerm));
+        } else {
+          put.push('Получение: доставка по Лермонтову — бесплатно, заказ от ' + rub(d.besplatnoOt));
+        }
+        obnovitChek();
+        cel('sekretar_poluchenie', { sposob: v.t, gorod: vybor.gorod });
+        soglasieSCenoj();
+      });
+    }
+
+    /* Города КМВ — те же, что в прайсе и в подвале сайта. Список берётся
+       из строки доставки прайса, а не пишется здесь руками. */
+    function sprositGorod() {
+      var goroda = ['Пятигорск', 'Ессентуки', 'Кисловодск', 'Минеральные Воды', 'Железноводск', 'Другой город КМВ'];
+      skazat('bot', 'В какой город везём?');
+      pokazatKnopki(goroda.map(function (g) { return { t: g, v: g }; }), function (v) {
+        skazat('ya', v.t);
+        vybor.gorod = v.v;
+        // Сумму по КМВ не называем: в прайсе стоит «по тарифу такси»,
+        // а выдуманная цифра здесь — это обещание, которое нечем закрыть.
+        put.push('Получение: доставка в ' + v.v + ' — по тарифу такси, сумму подтвердим');
+        obnovitChek();
+        skazat('bot', 'Доставка в ' + v.v + ' считается по тарифу такси — назовём точную сумму, ' +
+                      'когда подтвердим заказ. В цене ниже её пока нет.');
+        cel('sekretar_poluchenie', { sposob: 'Доставка по КМВ', gorod: v.v });
+        soglasieSCenoj();
+      });
+    }
+
+    /** Прибавить строку к итогу и показать новую сумму. */
+    function dobavitVSchet(nazvanie, summa) {
+      if (!itog.razbor.length) { itog.razbor.push({ t: 'Стоимость заказа', v: itog.summa }); }
+      else { itog.razbor = itog.razbor.filter(function (r) { return !r.itogo; }); }
+      itog.summa = itog.summa + summa;
+      itog.razbor.push({ t: nazvanie, v: summa });
+      itog.razbor.push({ t: 'Итого', v: itog.summa, itogo: true });
+      summaEl.textContent = rub(itog.summa);
+      skazat('bot', nazvanie + ' — ' + rub(summa) + '.<br><b>Итого: ' + rub(itog.summa) + '</b>');
     }
 
     /* Подтверждение цены — отдельный шаг, и он обязателен.
@@ -1229,6 +1315,16 @@
       msgEl.style.color = '#4A0E17';
       msgEl.textContent = fajl ? 'Отправляем заявку и макет...' : 'Отправляем...';
 
+      // Кто заказывает. Уезжает строкой в заявку: организации нужны
+      // закрывающие документы, и увидеть это владелица должна сразу,
+      // а не после печати.
+      var ktoEl = forma.querySelector('input[name="sekKto"]:checked');
+      var kto = ktoEl ? ktoEl.value : 'Частное лицо';
+      posledniyZakazchik = kto;
+      put.push('Заказчик: ' + kto);
+      if (kto !== 'Частное лицо') put.push('Нужны закрывающие документы');
+      obnovitChek();
+
       var polya = {
         contact: tel,
         // Факт согласия уезжает вместе с заявкой и ложится в журнал:
@@ -1323,7 +1419,18 @@
       // Цель шлём здесь, а не по нажатию кнопки: заявка засчитана
       // только тогда, когда сервер её принял. Иначе в Метрике будут
       // заявки, которых нет ни в почте, ни в журнале.
-      cel('sekretar_zayavka', { summa: itog && itog.summa ? Math.round(itog.summa) : 0 });
+      // Сегмент уезжает вместе с целью. Ровно эти три параметра
+      // разделяют клиентов студии на разные предложения: частник
+      // с одной грамотой и кафе с меню — это разные деньги, разный
+      // срок и разная реклама. До 20.08 отличить их в отчётах было
+      // нечем: в Метрику уходила одна сумма.
+      cel('sekretar_zayavka', {
+        summa: itog && itog.summa ? Math.round(itog.summa) : 0,
+        zakazchik: posledniyZakazchik,
+        gorod: vybor.gorod || 'не указан',
+        poluchenie: vybor.poluchenie || 'не указан',
+        usluga: scen ? scen.imya : ''
+      });
 
       var o = C.oplata || {};
       var itogo = itog && itog.summa ? itog.summa : null;

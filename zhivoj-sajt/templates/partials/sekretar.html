@@ -40,6 +40,24 @@
                  названа: просить телефон до расчёта — значит терять тех,
                  кто пришёл просто узнать стоимость. -->
             <form class="sek-forma" id="sekForma" hidden>
+              <!-- КТО ЗАКАЗЫВАЕТ. Заведено 20.08.2026.
+
+                   Стоит в форме, а не в диалоге, и это осознанно: на цену
+                   печати тип клиента не влияет, значит удлинять им путь
+                   до цены нельзя — правило владелицы «зачем пустая
+                   переписка».
+
+                   Зачем спрашиваем. Первое: организации нужны закрывающие
+                   документы, и узнать об этом лучше сейчас, чем после
+                   печати. Второе, важнее: малый бизнес — единственный
+                   сегмент студии с повторными покупками (меню
+                   перепечатывают, визитки кончаются), и до 20.08 отличить
+                   его в заявках было нечем. -->
+              <fieldset class="sek-kto">
+                <legend>Кто заказывает</legend>
+                <label><input type="radio" name="sekKto" value="Частное лицо" checked /><span>Частное лицо</span></label>
+                <label><input type="radio" name="sekKto" value="Организация или ИП" /><span>Организация или ИП</span></label>
+              </fieldset>
               <label class="sek-pole">
                 <span>Ваш телефон</span>
                 <input type="tel" id="sekTel" inputmode="tel" autocomplete="tel"
@@ -164,6 +182,13 @@
         border: 1.5px solid rgba(74,14,23,.2); border-radius: 10px;
       }
       .sek-pole input:focus-visible { outline: 2px solid #D4AF37; outline-offset: 1px; }
+      .sek-kto { border: 0; padding: 0; margin: 0; }
+      .sek-kto legend { font-size: 13px; font-weight: 600; color: #4A0E17; padding: 0; }
+      .sek-kto label {
+        display: inline-flex; gap: 7px; align-items: center; margin: 6px 12px 0 0;
+        font-size: 14px; color: #4A0E17; cursor: pointer;
+      }
+      .sek-kto input:focus-visible { outline: 2px solid #D4AF37; outline-offset: 2px; }
       .sek-soglasie { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; opacity: .8; }
       .sek-otpravit { width: 100%; padding: 13px; font-size: 15px; }
       .sek-fajl input[type=file] {

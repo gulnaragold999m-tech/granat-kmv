@@ -133,6 +133,13 @@ const CENY = {
   dostavka: {
     poLermontovu: DOSTAVKA.poLermontovu,
     besplatnoOt: DOSTAVKA.besplatnoOt,
+    /* Два способа по КМВ и их сроки. Секретарь предлагает выбор,
+       а не одну цифру: разница 350 ₽ и полтора дня — это то, чем
+       ему разрешено удешевлять заказ вместо скидки. */
+    poKmvKurer: DOSTAVKA.poKmvKurer,
+    poKmvKurerSrok: DOSTAVKA.poKmvKurerSrok,
+    poKmvPvz: DOSTAVKA.poKmvPvz,
+    poKmvPvzSrok: DOSTAVKA.poKmvPvzSrok,
     stroki: DOSTAVKA.stroki,
   },
   bigovka: BIGOVKA,

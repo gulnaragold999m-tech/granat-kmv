@@ -121,6 +121,14 @@ ADDONS_NOVYE = {
 }
 DOSTAVKA_BESPLATNO_OT = ${DOSTAVKA.besplatnoOt}
 
+# Доставка по КМВ — два способа. Цифры с живой отправки Пятигорск —
+# Лермонтов, поэтому называть их только со словом «от»: до Кисловодска
+# дальше и выйдет дороже.
+DOSTAVKA_KMV = {
+    "kurer": (${DOSTAVKA.poKmvKurer}, "${DOSTAVKA.poKmvKurerSrok}"),
+    "pvz_ozon": (${DOSTAVKA.poKmvPvz}, "${DOSTAVKA.poKmvPvzSrok}"),
+}
+
 # ── Оплата ───────────────────────────────────────────────────────────
 # На тиражах от ${OPLATA.bolshojTirazhOt} штук предоплата выше: материалы
 # закупаются ДО печати, а ${OPLATA.predoplataProcent}% их не покрывают.

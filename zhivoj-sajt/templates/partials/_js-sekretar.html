@@ -982,38 +982,57 @@
       });
     }
 
-    /* Города КМВ — те же, что в прайсе и в подвале сайта. Список берётся
-       из строки доставки прайса, а не пишется здесь руками. */
+    /* Города КМВ. Список литералом и это осознанно: в прайсе города
+       перечислены одной строкой текста, разбирать её на кнопки — значит
+       ломаться от каждой запятой. Меняете список — правьте и строку
+       доставки в data/prices.ts, чтобы они не разошлись. */
     function sprositGorod() {
       var goroda = ['Пятигорск', 'Ессентуки', 'Кисловодск', 'Минеральные Воды', 'Железноводск', 'Другой город КМВ'];
       skazat('bot', 'В какой город везём?');
       pokazatKnopki(goroda.map(function (g) { return { t: g, v: g }; }), function (v) {
         skazat('ya', v.t);
         vybor.gorod = v.v;
-        // Чем везём — берём из прайса, а не пишем здесь словами.
-        // 20.08.2026 формулировку сменили с «по тарифу такси» на
-        // «Яндекс Доставкой», и в трёх местах кода она бы разъехалась
-        // с прайсом ровно так же, как разъезжались цены.
-        var kakVezem = kmvStroka();
-        // Сумму не называем: её считает сервис по адресу и габаритам,
-        // а выдуманная цифра здесь — обещание, которое нечем закрыть.
-        put.push('Получение: доставка в ' + v.v + ' — ' + kakVezem + ', сумму подтвердим');
-        obnovitChek();
-        skazat('bot', 'Доставка в ' + v.v + ' — ' + kakVezem + '. Назовём точную сумму, ' +
-                      'когда подтвердим заказ: она считается по адресу и размеру посылки. ' +
-                      'В цене ниже её пока нет.');
-        cel('sekretar_poluchenie', { sposob: 'Доставка по КМВ', gorod: v.v });
-        soglasieSCenoj();
+        sprositSposobKmv();
       });
     }
 
-    /** Чем и почём везём по КМВ — строкой из прайса. */
-    function kmvStroka() {
-      var stroki = (C.dostavka && C.dostavka.stroki) || [];
-      for (var i = 0; i < stroki.length; i++) {
-        if (stroki[i].nazvanie.indexOf('По КМВ') === 0) return stroki[i].znachenie;
-      }
-      return 'по тарифу службы доставки';
+    /* ЧЕМ ВЕЗЁМ ПО КМВ. Заведено 20.08.2026 по цифрам владелицы: так ей
+       возили бумагу из фотоцентра Пятигорска Яндекс Доставкой, и это
+       суммы отправителя, а не объявление сервиса.
+
+       Два способа, а не один, — сознательно. Разница 350 ₽ и полтора дня
+       это ровно тот рычаг, которым секретарю разрешено удешевлять заказ
+       вместо скидки: по правилу владелицы дешевле выходит только
+       за счёт параметров заказа — срока, бумаги, тиража.
+
+       Обе суммы «от»: замер сделан на направлении Пятигорск — Лермонтов,
+       это около десяти километров. До Кисловодска втрое дальше, и цена
+       там будет другая. Ставить 600 ₽ точной суммой на весь КМВ значит
+       обещать то, что нечем закрыть. */
+    function sprositSposobKmv() {
+      var d = C.dostavka || {};
+      skazat('bot', 'Чем везём в ' + vybor.gorod + '?');
+      pokazatKnopki([
+        { t: 'Курьером', i: 'от ' + rub(d.poKmvKurer) + ' · ' + d.poKmvKurerSrok, v: 'kurer' },
+        { t: 'Через пункт выдачи Ozon', i: 'от ' + rub(d.poKmvPvz) + ' · ' + d.poKmvPvzSrok, v: 'pvz' }
+      ], function (v) {
+        skazat('ya', v.t);
+        vybor.sposobKmv = v.v;
+        var cena = v.v === 'kurer' ? d.poKmvKurer : d.poKmvPvz;
+        var srok = v.v === 'kurer' ? d.poKmvKurerSrok : d.poKmvPvzSrok;
+        var nazvanie = (v.v === 'kurer' ? 'Курьером в ' : 'До пункта Ozon в ') + vybor.gorod;
+
+        dobavitVSchet(nazvanie + ' — от', cena);
+        put.push('Получение: ' + nazvanie + ' — от ' + rub(cena) + ', ' + srok);
+        obnovitChek();
+        // «От» проговариваем вслух, а не прячем в подпись: до Кисловодска
+        // дальше, чем до Пятигорска, и человек должен знать это заранее,
+        // а не узнать из счёта.
+        skazat('bot', 'В счёте нижняя граница: точную сумму сервис считает по адресу ' +
+                      'и размеру посылки, подтвердим её при оформлении. Срок — ' + srok + '.');
+        cel('sekretar_poluchenie', { sposob: v.t, gorod: vybor.gorod });
+        soglasieSCenoj();
+      });
     }
 
     /** Прибавить строку к итогу и показать новую сумму. */
@@ -1131,6 +1150,21 @@
             v: 'foto'
           });
         }
+        // Доставка — тоже параметр заказа, и по КМВ разница ощутимая.
+        // Заведено 20.08.2026: курьер от 600 ₽ день в день, пункт выдачи
+        // Ozon от 250 ₽ за 1–2 дня. Человеку, которому дорого, честнее
+        // предложить подождать полтора дня, чем торговаться о цене печати.
+        if (vybor.sposobKmv === 'kurer') {
+          var dd = C.dostavka || {};
+          varianty.push({
+            t: 'Забрать в пункте Ozon',
+            i: 'станет ' + rub(itog.summa - dd.poKmvKurer + dd.poKmvPvz) +
+               ' — доставка от ' + rub(dd.poKmvPvz) + ' вместо ' + rub(dd.poKmvKurer) +
+               ', срок ' + dd.poKmvPvzSrok,
+            v: 'pvz'
+          });
+        }
+
         var bolshe = sleduyushchijTirazh();
         if (bolshe) {
           var probaT = probnyj({ kolvo: bolshe });
@@ -1154,6 +1188,25 @@
         pokazatKnopki(varianty, function (v2) {
           skazat('ya', v2.t);
           if (v2.v === 'kak_est') return soglasieSCenoj();
+
+          if (v2.v === 'pvz') {
+            var d2 = C.dostavka || {};
+            vybor.sposobKmv = 'pvz';
+            // Меняем строку доставки в чеке, а не добавляем вторую:
+            // иначе в заявке окажутся оба способа сразу.
+            put = put.filter(function (str) { return str.indexOf('Получение: Курьером') !== 0; });
+            put.push('Получение: До пункта Ozon в ' + vybor.gorod + ' — от ' +
+                     rub(d2.poKmvPvz) + ', ' + d2.poKmvPvzSrok);
+            itog.razbor = itog.razbor.filter(function (r) {
+              return !r.itogo && r.t.indexOf('Курьером в') !== 0;
+            });
+            itog.summa = itog.summa - d2.poKmvKurer;
+            obnovitChek();
+            dobavitVSchet('До пункта Ozon в ' + vybor.gorod + ' — от', d2.poKmvPvz);
+            skazat('bot', 'Поменял на пункт выдачи Ozon: срок ' + d2.poKmvPvzSrok +
+                          '. Печать по той же цене — дешевле вышла доставка, а не работа.');
+            return soglasieSCenoj();
+          }
 
           if (v2.v === 'ne_srochno') {
             vybor.srok = 'obychno';

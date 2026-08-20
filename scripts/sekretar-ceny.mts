@@ -37,6 +37,10 @@ import {
   BIGOVKA,
   FOLGIROVANIE,
   TISNENIE,
+  CHERTEZHI,
+  MINIMUM_PLOTTER,
+  FALCOVKA,
+  PLOTNAYA_BUMAGA_KOEF,
   NACENKA_ZA_PLOTNOST,
   type TirazhTablica,
   type Yacheyka,
@@ -127,6 +131,23 @@ const CENY = {
     adaptaciyaDo: 500,
     slozhnyjOt: 600,
     sNulyaOt: 1000,
+  },
+
+  /* Плоттер. Таблица не тиражная: столбцы — это заливка листа,
+     а не количество. Поэтому выгружаем как есть, без порогов. */
+  plotter: {
+    formaty: CHERTEZHI.stroki.map((s) => s.nazvanie),
+    zalivki: CHERTEZHI.kolonki,
+    ceny: Object.fromEntries(
+      CHERTEZHI.stroki.map((s) => [s.nazvanie, s.ceny.map(chislo)]),
+    ),
+    minimum: MINIMUM_PLOTTER,
+    falcovka: FALCOVKA,
+    plotnayaKoef: PLOTNAYA_BUMAGA_KOEF,
+    /* А0 печатается только на широком рулоне 914 мм, а он у нас
+       офисный 80 г/м². Плотного А0 предложить нельзя — секретарь
+       должен сказать это до расчёта, а не после. */
+    a0TolkoObychnaya: true,
   },
 
   /* Отделка — за штуку, добавляется к базовой цене. */

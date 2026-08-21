@@ -265,6 +265,16 @@ def main():
     proverit_slagi()
     proverit_kartu(stranicy)
 
+    # Машинный вывод для панели: та же проверка, только в JSON.
+    if "--json" in sys.argv:
+        print(json.dumps({
+            "stranic": len(stranicy),
+            "kritichno": [{"stranica": a, "tekst": b} for a, b in KRITICHNO],
+            "vazhno": [{"stranica": a, "tekst": b} for a, b in VAZHNO],
+            "potom": [{"stranica": a, "tekst": b} for a, b in POTOM],
+        }, ensure_ascii=False))
+        return 1 if KRITICHNO else 0
+
     print()
     print("ПРОВЕРКА САЙТА · страниц собрано: %d" % len(stranicy))
     print("=" * 66)

@@ -371,23 +371,30 @@ def redirect_old_domain():
 # такому ноль. Виджет рисует Яндекс из своей базы: и оценка, и число
 # отзывов там те же, что в справочнике, подделать их нельзя.
 #
-# ЧТО СЮДА КЛАСТЬ. В кабинете Яндекс Бизнеса: Отзывы → Виджет отзывов →
-# «Скопировать код». Годится и весь код целиком, и один номер карточки
-# из него — разберём оба варианта.
+# ЧТО СЮДА КЛАСТЬ. Годится любое из трёх:
+#   1. Код виджета из кабинета Яндекс Бизнеса: Отзывы → Виджет отзывов →
+#      «Скопировать код». Лучший вариант: отзывы видны прямо на странице.
+#   2. Один номер карточки из этого кода.
+#   3. Ссылка на карточку в Яндекс Картах, в том числе короткая вида
+#      yandex.ru/maps/-/XXXXXXXX. Номера в ней нет, поэтому виджет
+#      не собрать — блок покажет заголовок и кнопку на карточку.
 #
 # ГДЕ ЗАДАТЬ. Проще всего переменной приложения в Amvera: granat-site →
 # Переменные окружения → YANDEX_REVIEWS. Тогда файл заново загружать
-# не нужно, хватит перезапуска. Можно и прямо в строке ниже.
-YANDEX_REVIEWS_CODE = ""
+# не нужно, хватит перезапуска. Переменная главнее строки ниже.
+YANDEX_REVIEWS_CODE = "https://yandex.ru/maps/-/CTFBZ4kK"
 YANDEX_REVIEWS = os.getenv("YANDEX_REVIEWS", "").strip() or YANDEX_REVIEWS_CODE.strip()
 
 
 def yandex_reviews():
-    """Адреса виджета и ссылок на карточку. None — если номер не задан.
+    """Адреса виджета и ссылок на карточку. None — если ничего не задано.
 
-    Пока номера нет, блок отзывов на страницах не рисуется вовсе: пустая
-    рамка посреди страницы — это дырка в вёрстке и лишний запрос к чужому
-    домену.
+    Возвращает `frame` (адрес рамки с отзывами; None, если номер карточки
+    неизвестен), `page` — куда идти читать, `add` — куда идти писать.
+
+    Пока не задано ничего, блок отзывов на страницах не рисуется вовсе:
+    пустая рамка посреди страницы — дырка в вёрстке и лишний запрос
+    к чужому домену.
 
     Чужой код в страницу как есть не вставляем: вместе с ним приезжают
     чужие размеры, от которых вёрстка разъезжается на телефоне. Берём
@@ -401,26 +408,42 @@ def yandex_reviews():
     src = (found_src.group(1) if found_src else raw).strip()
 
     if src.isdigit():
-        org = src
-    else:
-        if src.startswith("//"):
-            src = "https:" + src
-        try:
-            parts = urlparse(src)
-        except ValueError:
-            return None
-        host = (parts.hostname or "").lower()
-        # Только https и только Яндекс: в рамке посреди страницы не должно
-        # оказаться неизвестно что, если код скопировали не оттуда.
-        if parts.scheme != "https":
-            return None
-        if host != "yandex.ru" and not host.endswith(".yandex.ru"):
-            return None
-        found_id = re.search(r"\bid=(\d+)", parts.query) or re.search(r"/(\d+)", parts.path)
-        if not found_id:
-            return None
-        org = found_id.group(1)
+        return reviews_by_org(src)
 
+    if src.startswith("//"):
+        src = "https:" + src
+    try:
+        parts = urlparse(src)
+    except ValueError:
+        return None
+
+    # Только https и только Яндекс: в рамке посреди страницы не должно
+    # оказаться неизвестно что, если код скопировали не оттуда.
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https":
+        return None
+    if host != "yandex.ru" and not host.endswith(".yandex.ru"):
+        return None
+
+    # Номер ищем только там, где он действительно номер карточки. Просто
+    # «первые цифры в адресе» брать нельзя: в ссылке на карту сначала идёт
+    # номер региона, и по нему открылась бы чужая организация.
+    found_id = (
+        re.search(r"\bid=(\d+)", parts.query)
+        or re.search(r"/org/[^/]+/(\d+)", parts.path)
+        or re.search(r"/rating-badge/(\d+)", parts.path)
+    )
+    if found_id:
+        return reviews_by_org(found_id.group(1))
+
+    # Номера нет — например, дали короткую ссылку. Виджет без номера
+    # не собрать, но отправить человека на карточку можно: это честнее,
+    # чем молча ничего не показать.
+    return {"frame": None, "page": src, "add": src}
+
+
+def reviews_by_org(org):
+    """Три адреса по номеру карточки: рамка, чтение, написать отзыв."""
     return {
         "frame": f"https://yandex.ru/maps-reviews-widget/?id={org}",
         "page": f"https://yandex.ru/maps/org/{org}/reviews/",

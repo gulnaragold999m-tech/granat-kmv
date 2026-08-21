@@ -662,12 +662,82 @@ def _expand_short_link(url):
 
 
 def reviews_by_org(org):
-    """Три адреса по номеру карточки: рамка, чтение, написать отзыв."""
+    """Три адреса по номеру карточки: рамка, чтение, написать отзыв.
+
+    Рамку отдаём, только если Яндекс разрешает вставить её к нам. Он
+    разрешает не всегда: 21.08.2026 на живом сайте виджет ответил
+    ERR_BLOCKED_BY_RESPONSE — то есть страница пришла, но с запретом
+    показывать её внутри чужого сайта. На странице получалась белая
+    дыра в 560 пикселей под заголовком «Что о нас пишут».
+
+    Не разрешает — вместо рамки кнопка на карточку. Отправить человека
+    в Яндекс честнее, чем показать ему пустое место.
+    """
+    frame = f"https://yandex.ru/maps-reviews-widget/?id={org}"
     return {
-        "frame": f"https://yandex.ru/maps-reviews-widget/?id={org}",
+        "frame": frame if vidzhet_pustyat(frame) else None,
         "page": f"https://yandex.ru/maps/org/{org}/reviews/",
         "add": f"https://yandex.ru/maps/org/{org}/reviews/?add-review=true",
     }
+
+
+# Пустит ли Яндекс виджет к нам на страницу. Спрашиваем один раз
+# и держим ответ в памяти: на каждый показ страницы в Яндекс не ходим.
+_VIDZHET = {"url": "", "mozhno": False, "sprosili": False, "pochemu": "ещё не спрашивали"}
+
+
+def vidzhet_pustyat(url):
+    """True — рамку можно рисовать. Первому посетителю отвечаем «нет».
+
+    Спрашиваем в фоновом потоке: посетитель не должен ждать чужой сервер.
+    Пока ответа нет, показываем кнопку — это верный ответ по умолчанию,
+    потому что пустая рамка хуже кнопки.
+    """
+    if _VIDZHET["url"] != url:
+        _VIDZHET.update({"url": url, "mozhno": False, "sprosili": False,
+                         "pochemu": "ещё не спрашивали"})
+
+    if not _VIDZHET["sprosili"]:
+        _VIDZHET["sprosili"] = True
+        NOTIFY_POOL.submit(_proverit_vidzhet, url)
+
+    return _VIDZHET["mozhno"]
+
+
+def _proverit_vidzhet(url):
+    """Сходить за виджетом и посмотреть, разрешено ли встраивание."""
+    try:
+        resp = requests.get(url, timeout=8,
+                            headers={"User-Agent": "Mozilla/5.0 (granat-kmv.ru)",
+                                     "Referer": NEW_DOMAIN + "/"})
+        if resp.status_code != 200:
+            _zapisat_vidzhet(False, f"Яндекс ответил {resp.status_code}")
+            return
+
+        # X-Frame-Options: DENY или SAMEORIGIN — это и есть запрет,
+        # который браузер показывает как ERR_BLOCKED_BY_RESPONSE.
+        xfo = resp.headers.get("X-Frame-Options", "").strip().upper()
+        if xfo in ("DENY", "SAMEORIGIN"):
+            _zapisat_vidzhet(False, f"Яндекс запрещает вставку: X-Frame-Options {xfo}")
+            return
+
+        # То же самое, но новым способом: frame-ancestors в CSP.
+        csp = resp.headers.get("Content-Security-Policy", "")
+        found = re.search(r"frame-ancestors([^;]*)", csp, re.I)
+        if found:
+            komu = found.group(1).lower()
+            if "granat-kmv.ru" not in komu and "*" not in komu:
+                _zapisat_vidzhet(False, "Яндекс запрещает вставку: frame-ancestors")
+                return
+
+        _zapisat_vidzhet(True, "Яндекс пускает виджет")
+    except Exception as e:
+        _zapisat_vidzhet(False, f"виджет не проверить: {type(e).__name__}")
+
+
+def _zapisat_vidzhet(mozhno, pochemu):
+    _VIDZHET.update({"mozhno": mozhno, "pochemu": pochemu})
+    print(f"[отзывы] {pochemu}", flush=True)
 
 
 @app.context_processor
@@ -953,8 +1023,10 @@ def reviews_state():
         return "выключены: не задан YANDEX_REVIEWS"
     if got["frame"]:
         return f"виджет с отзывами, карточка {got['frame'].rsplit('=', 1)[-1]}"
-    if _SHORT_LINK["org"]:
-        return "виджет появится на следующей странице"
+    if _SHORT_LINK["org"] or _VIDZHET["url"]:
+        # Номер карточки есть, а рамки нет — значит виджет не пустили.
+        # Пишем прямо почему: иначе непонятно, поломка это или так задумано.
+        return f"кнопка на карточку: {_VIDZHET['pochemu']}"
     return "кнопка на карточку: номер карточки ещё не известен"
 
 

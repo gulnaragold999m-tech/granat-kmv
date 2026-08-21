@@ -273,7 +273,11 @@
     }
     @keyframes comet-pulse { 0%,100% { box-shadow: 0 0 16px 4px rgba(230,192,74,0.2), 0 0 34px 10px rgba(212,175,55,0.1); } 50% { box-shadow: 0 0 24px 7px rgba(230,192,74,0.36), 0 0 52px 16px rgba(212,175,55,0.2); } }
     @media (prefers-reduced-motion: reduce) { .ai-orb { animation: none; } .comet-dot { display: none; } }
-    .reveal { opacity: 0; transform: translateY(26px); transition: opacity 600ms var(--ease-smooth), transform 600ms var(--ease-smooth); }
+    /* Прячем только при работающем JavaScript: класс js-anim ставит сам
+       скрипт внизу страницы. Без него .reveal остаётся видимым — иначе
+       одна ошибка в скрипте стирает со страницы всё, кроме первого экрана
+       и подвала. 21.08.2026 проверено: без JS пропадало 18 блоков из 18. */
+    .js-anim .reveal { opacity: 0; transform: translateY(26px); transition: opacity 600ms var(--ease-smooth), transform 600ms var(--ease-smooth); }
     .reveal.visible { opacity: 1; transform: translateY(0); }
     .kicker {
       text-transform: uppercase; letter-spacing: .22em; font-size: 11px; font-weight: 700; display: inline-block;
@@ -308,7 +312,7 @@
     @media (prefers-reduced-motion: reduce) {
       .orbit-ring, .logo-orbit .logo-img { animation: none; }
     }
-    @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+    @media (prefers-reduced-motion: reduce) { .js-anim .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
     a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #D4AF37; outline-offset: 3px; }
   .brand-logo{background:url(/logo.png) center/cover no-repeat;border-radius:50%;display:inline-block;}
     .port-cat { margin-top: 42px; }
@@ -628,11 +632,50 @@
   </footer>
 
   <script>
-    // Scroll reveal
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
-    }, { threshold: 0.12 });
-    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+    // Блоки появляются по мере прокрутки.
+    //
+    // 21.08.2026 владелица не нашла на странице блок отзывов. Причина
+    // оказалась здесь: порог 0.12 требовал, чтобы в окно попало 12%
+    // блока, и наблюдатель не срабатывал вовсе, если экран проскочил
+    // мимо блока между двумя кадрами. Замеры: при быстром листании
+    // пальцем невидимыми оставались 5-6 блоков из 18, при мгновенном
+    // переходе (возврат «назад» с восстановлением позиции) — все 18.
+    // Невидимыми НАВСЕГДА: блок не появляется позже, он ждёт, пока
+    // человек прокрутит обратно.
+    //
+    // Поэтому: прячем блоки сами, порог нулевой, и вдобавок при каждой
+    // прокрутке помечаем всё, что уже выше низа экрана, — это ловит и то,
+    // мимо чего проехали.
+    (function () {
+      var vse = document.querySelectorAll('.reveal');
+      if (!vse.length) return;
+      document.documentElement.classList.add('js-anim');
+
+      function pokazat(el) { el.classList.add('visible'); }
+
+      // Всё, что уже в поле зрения или выше него, показываем сразу.
+      function dognat() {
+        for (var i = 0; i < vse.length; i++) {
+          if (!vse[i].classList.contains('visible') &&
+              vse[i].getBoundingClientRect().top < innerHeight) pokazat(vse[i]);
+        }
+      }
+
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (spisok) {
+          spisok.forEach(function (e) {
+            if (e.isIntersecting) { pokazat(e.target); io.unobserve(e.target); }
+          });
+        }, { threshold: 0 });
+        for (var i = 0; i < vse.length; i++) io.observe(vse[i]);
+      }
+
+      // Страховка на случай, когда наблюдатель не успел: он пропускает
+      // блок, через который экран пролетел за один кадр.
+      addEventListener('scroll', dognat, { passive: true });
+      addEventListener('resize', dognat, { passive: true });
+      dognat();
+    })();
   </script>
   <!-- ИИ-проводник -->
   <div class="ai-orb" id="aiOrb" role="button" tabindex="0" aria-label="Помощник студии — оформить заявку">

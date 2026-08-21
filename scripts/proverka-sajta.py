@@ -49,6 +49,25 @@ import uslugi  # noqa: E402
 KRITICHNO, VAZHNO, POTOM = [], [], []
 
 
+ZAPRESHCHENO = [
+    "ажурная резка", "ажурной резки", "контурная резка", "контурной резки",
+    "фигурная резка", "фигурной резки", "плоттерная резка", "плоттерной резки",
+    "режущий плоттер",
+    "конгрев", "блинтовое тиснение", "слепое тиснение", "уф-лак",
+    "разработка логотипа", "разработку логотипа", "создание логотипа",
+    "фирменный стиль", "фирменного стиля",
+    "наклейки oracal", "оракал",
+    "офсетная печать",
+    "квартальный календарь", "квартальные календари", "перекидной календарь",
+    "съёмка на документы", "фотосъёмка", "сфотографируем",
+]
+RAZRESHENO = [
+    "тиснение фольгой", "тиснением фольгой", "горячее тиснение",
+    "логотип студии", "логотипа студии",
+    "google-календар", "настенный календарь",
+]
+
+
 def zamechanie(uroven, stranica, tekst):
     uroven.append((stranica, tekst))
 
@@ -139,6 +158,83 @@ def proverit_razmetku(stranicy):
             zamechanie(POTOM, put, "нет разметки FAQPage — блок вопросов не попадёт в выдачу")
 
 
+KRITICHNO_ID, VAZHNO_ID = "kritichno", "vazhno"
+
+
+def ceny_iz_razmetki(uzel, sobrano):
+    """Все price, priceRange и названия услуг из дерева JSON-LD.
+       Идём рекурсивно: каталог предложений вложен на три уровня,
+       и плоский поиск по верхним ключам его не достаёт."""
+    if isinstance(uzel, dict):
+        for k, v in uzel.items():
+            if k in ("price", "priceRange") and isinstance(v, (str, int, float)):
+                for n in re.findall(r"\d[\d\s\u00a0]*", str(v)):
+                    sobrano["ceny"].add(int(n.replace(" ", "").replace("\u00a0", "")))
+            elif k == "name" and isinstance(v, str):
+                sobrano["imena"].append(v)
+            else:
+                ceny_iz_razmetki(v, sobrano)
+    elif isinstance(uzel, list):
+        for v in uzel:
+            ceny_iz_razmetki(v, sobrano)
+
+
+def proverit_razmetku_ceny(stranicy, prajs_ceny):
+    """ЦЕНЫ И УСЛУГИ ВНУТРИ МИКРОРАЗМЕТКИ.
+
+    ЗАЧЕМ ОТДЕЛЬНАЯ ПРОВЕРКА. 21.08.2026 в hasOfferCatalog нашлись
+    «Плоттерная резка, 300 ₽» — услуги не существует — и «Печать
+    сертификатов, 300 ₽» при рознице 150 ₽. Лежало это на ВСЕХ
+    страницах сразу, потому что блок общий, в base.html.
+
+    Почему не поймали раньше. proverit_ceny ищет суммы в ВИДИМОМ
+    тексте по знаку ₽ (bez_sluzhebnogo вырезает script целиком),
+    а proverit_razmetku смотрит только, разбирается ли JSON.
+    Внутрь не смотрел никто.
+
+    И это дороже обычной опечатки: разметка — то, что Яндекс
+    показывает в выдаче, то есть цена, которую человек видит
+    ДО захода на сайт."""
+    # Замечания сначала копим, потом схлопываем. Каталог предложений
+    # лежит в base.html, то есть на КАЖДОЙ странице, и без этого
+    # одна ошибка печатается одиннадцать раз. Проверка, кричащая
+    # впустую, хуже отсутствующей — правило поймано 20.08 и держится.
+    najdennoe = {}
+    for put, html in stranicy.items():
+        sobrano = {"ceny": set(), "imena": []}
+        for b in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S):
+            try:
+                ceny_iz_razmetki(json.loads(b), sobrano)
+            except ValueError:
+                continue  # сломанный блок уже назван в proverit_razmetku
+
+        chuzhie = sorted(c for c in sobrano["ceny"] if c not in prajs_ceny)
+        if chuzhie:
+            najdennoe.setdefault(
+                (VAZHNO_ID, "в разметке цены, которых нет в прайсе: %s"
+                            % ", ".join(str(c) for c in chuzhie)), []).append(put)
+
+        imena = " · ".join(sobrano["imena"]).lower()
+        for r in RAZRESHENO:
+            imena = imena.replace(r, " ")
+        zapret = sorted({z for z in ZAPRESHCHENO if z in imena})
+        if zapret:
+            najdennoe.setdefault(
+                (KRITICHNO_ID, "разметка предлагает то, чего у студии нет: %s"
+                               % ", ".join(zapret)), []).append(put)
+
+    for (uroven_id, tekst), puti in najdennoe.items():
+        uroven = KRITICHNO if uroven_id == KRITICHNO_ID else VAZHNO
+        if len(puti) == len(stranicy):
+            # Одинаково везде — значит источник общий шаблон, а не страница.
+            zamechanie(uroven, "весь сайт · base.html", tekst)
+        elif len(puti) > 3:
+            zamechanie(uroven, "%d страниц" % len(puti), tekst)
+        else:
+            for put in puti:
+                zamechanie(uroven, put, tekst)
+
+
 def proverit_obeshchaniya(stranicy, net_v_prajse):
     """ГЛАВНАЯ НАША ПРОВЕРКА. Сайт не должен обещать того, чего нет.
 
@@ -152,23 +248,6 @@ def proverit_obeshchaniya(stranicy, net_v_prajse):
     пропускают настоящие. Поэтому ищем ТОЧНЫЕ ФРАЗЫ, а рядом держим
     список разрешённого."""
 
-    ZAPRESHCHENO = [
-        "ажурная резка", "ажурной резки", "контурная резка", "контурной резки",
-        "фигурная резка", "фигурной резки", "плоттерная резка", "плоттерной резки",
-        "режущий плоттер",
-        "конгрев", "блинтовое тиснение", "слепое тиснение", "уф-лак",
-        "разработка логотипа", "разработку логотипа", "создание логотипа",
-        "фирменный стиль", "фирменного стиля",
-        "наклейки oracal", "оракал",
-        "офсетная печать",
-        "квартальный календарь", "квартальные календари", "перекидной календарь",
-        "съёмка на документы", "фотосъёмка", "сфотографируем",
-    ]
-    RAZRESHENO = [
-        "тиснение фольгой", "тиснением фольгой", "горячее тиснение",
-        "логотип студии", "логотипа студии",
-        "google-календар", "настенный календарь",
-    ]
 
     for put, html in stranicy.items():
         tekst = bez_sluzhebnogo(html).lower()
@@ -258,6 +337,7 @@ def main():
     stranicy = sobrat_stranicy(env, ceny)
     proverit_mety(stranicy)
     proverit_razmetku(stranicy)
+    proverit_razmetku_ceny(stranicy, prajs_ceny)
     proverit_obeshchaniya(stranicy, net_v_prajse)
     proverit_ceny(stranicy, prajs_ceny)
     proverit_sirot(stranicy)

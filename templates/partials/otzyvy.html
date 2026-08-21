@@ -54,11 +54,16 @@
       </a>
     </div>
     {% else %}
-    <!-- Номера карточки нет — рамку собрать не из чего. Отправляем на карточку
-         одной кнопкой: это честнее, чем показать пустое место. -->
+    <!-- Рамки нет: либо номер карточки ещё не известен, либо Яндекс не пускает
+         виджет к нам на страницу (21.08.2026 он ответил ERR_BLOCKED_BY_RESPONSE
+         и под заголовком получалась белая дыра в 560 пикселей). Отправляем
+         на карточку кнопками — это честнее, чем показать пустое место. -->
     <div class="flex flex-wrap gap-4 justify-center mt-10 reveal">
-      <a class="btn-gold" href="{{ reviews.page }}" target="_blank" rel="noopener">
-        Читать и оставить отзыв на Яндекс Картах
+      <a class="btn-gold" href="{{ reviews.add }}" target="_blank" rel="noopener">
+        Оставить отзыв
+      </a>
+      <a class="btn-outline" href="{{ reviews.page }}" target="_blank" rel="noopener">
+        Читать отзывы на Яндекс Картах
       </a>
     </div>
     {% endif %}

@@ -455,6 +455,52 @@ def deliver(subject, text, vlozhenie=None):
         return vk.result(), mail.result()
 
 
+# ── Что можно отдавать из корня ─────────────────────────────────────────
+# ЗАЧЕМ. Flask поднят с static_folder="." (см. начало файла), поэтому из
+# корня наружу уходит ВСЁ, что там лежит, — а лежит там сама программа.
+# 21.08.2026 проверкой с чужого компьютера скачались app.py, leads.py,
+# bots.py, contact.py, fraud_check.py, amvera.yaml, .env.example, журнал
+# работ и папка .git целиком. Ключей в файлах нет, они читаются из
+# переменных Amvera, — но наружу ушло устройство сайта и все 45 КБ
+# правил проверки мошенников. Правила, которые видно, обходятся.
+#
+# Разрешаем по списку, а не запрещаем по списку: новый служебный файл
+# в корне появится рано или поздно, и он не должен открыться сам собой.
+# Адреса страниц (/pechat, /api/health) сюда не попадают — у них нет
+# расширения, и они уходят дальше, в маршруты.
+MOZHNO_OTDAVAT = (
+    ".html", ".htm", ".css", ".js", ".map",
+    ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".ico", ".avif",
+    ".xml", ".webmanifest", ".pdf", ".mp4", ".woff", ".woff2", ".ttf",
+)
+# Из .txt наружу нужен ровно один файл — его просит поисковик.
+MOZHNO_TXT = {"robots.txt"}
+
+
+@app.before_request
+def ne_otdavat_sluzhebnoe():
+    """Служебные файлы и папку .git наружу не отдаём."""
+    put = request.path.lstrip("/")
+    if not put:
+        return None
+
+    # .git, .env, .htaccess — любой файл или папка, начинающиеся с точки.
+    if any(chast.startswith(".") for chast in put.split("/")):
+        return "Not Found", 404
+
+    nizhnij = put.lower()
+    if nizhnij.endswith(".txt"):
+        return None if nizhnij in MOZHNO_TXT else ("Not Found", 404)
+
+    # Расширения нет — это адрес страницы, а не файл: пропускаем дальше.
+    imya = nizhnij.rsplit("/", 1)[-1]
+    if "." not in imya:
+        return None
+
+    if not nizhnij.endswith(MOZHNO_OTDAVAT):
+        return "Not Found", 404
+
+
 @app.before_request
 def redirect_old_domain():
     if request.host.lower() == OLD_HOST:

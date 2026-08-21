@@ -60,7 +60,11 @@
     "email": "gulnaravibecoder999@yandex.ru",
     "address": {
       "@type": "PostalAddress",
-      "streetAddress": "ул. Нагорная, д. 2/1",
+      {# Адрес списан из кабинета Яндекс Бизнеса 21.08.2026 слово в слово:
+         «городской округ Лермонтов, Лермонтов, Нагорная улица, 2/1».
+         Расхождение с карточкой мешает поиску склеить сайт и карточку,
+         а до 21.08 адрес был написан на сайте семью разными способами. #}
+      "streetAddress": "Нагорная улица, 2/1",
       "addressLocality": "Лермонтов",
       "addressRegion": "Ставропольский край",
       "postalCode": "357340",
@@ -71,7 +75,11 @@
       "latitude": 44.107635,
       "longitude": 42.979023
     },
-    "hasMap": "https://yandex.ru/maps/?text=Лермонтов, Нагорная улица, 2/1",
+    {# Ведём на карточку, а не на поиск по адресу: связка «сайт ↔ карточка» —
+       то, чем местный бизнес попадает в ответ на «где в Лермонтове
+       напечатать приглашения». В прежнем адресе вдобавок стояли пробелы
+       и кириллица без кодирования — как ссылка он был недействителен. #}
+    "hasMap": "https://yandex.ru/maps/org/237257245054/",
     "founder": {
       "@type": "Person",
       "name": "Мелконян Гульнара Рифкатовна"
@@ -150,6 +158,7 @@
       ]
     },
     "sameAs": [
+      "https://yandex.ru/maps/org/237257245054/",
       "https://vk.com/club238836731",
       "https://wa.me/79992449999"
     ]
@@ -178,7 +187,7 @@
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Главная", "item": "https://granat-kmv.ru/" },
-      { "@type": "ListItem", "position": 2, "name": "{{ crumb }}", "item": "https://granat-kmv.ru{{ self.path() }}" }
+      { "@type": "ListItem", "position": 2, "name": {{ crumb | tojson }}, "item": "https://granat-kmv.ru{{ self.path() }}" }
     ]
   }
   </script>
@@ -593,7 +602,7 @@
         </div>
         <div class="text-sm leading-relaxed">
           <p class="text-white font-semibold mb-2 uppercase tracking-widest text-xs">Контакты</p>
-          <p>Россия, Ставропольский край,<br />г. Лермонтов, ул. Нагорная, д. 2/1</p>
+          <p>Россия, Ставропольский край,<br />г. Лермонтов, Нагорная улица, 2/1</p>
           <!-- Часы работы должны совпадать с микроразметкой в <head>.
                Меняете здесь — правьте и там, иначе Яндекс покажет в выдаче
                одно, а на сайте будет другое. -->

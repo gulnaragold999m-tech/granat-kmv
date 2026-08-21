@@ -100,7 +100,8 @@ for adres in ("/pechat", "/cifra"):
 print("10. Второй этаж в контактах")
 html = c.get("/kontakty", base_url="https://granat-kmv.ru").get_data(as_text=True)
 proverit("этаж", True, "второй этаж" in html)
-proverit("адрес как в карточке", True, "г. Лермонтов, ул. Нагорная, д. 2/1" in html)
+proverit("адрес как в карточке Яндекса", True, "г. Лермонтов, Нагорная улица, 2/1" in html)
+proverit("старого написания не осталось", 0, html.count("ул. Нагорная"))
 
 print("11. /api/health говорит про отзывы")
 proverit("строка otzyvy", "виджет с отзывами, карточка 1234567890", app.reviews_state())

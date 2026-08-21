@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Страница не найдена — Студия Гранат{% endblock %}
 {% block description %}Такой страницы на сайте нет. Печать и полиграфия, сайты и Telegram-боты, работы и контакты студии «Гранат» в Лермонтове.{% endblock %}
+{# Без своего пути и canonical, и og:url собирались из base.html и
+   указывали на главную: каждый битый адрес объявлял себя главной. #}
+{% block path %}/404{% endblock %}
 {% block content %}
     <section class="py-20" style="background:#4A0E17;">
       <div class="max-w-3xl mx-auto px-6 text-center">

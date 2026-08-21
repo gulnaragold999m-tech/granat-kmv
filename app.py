@@ -2,13 +2,14 @@ import os
 import hashlib
 import hmac
 import json
+import re
 import smtplib
 import socket
 import ssl
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timedelta
 from email.message import EmailMessage
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -485,6 +486,150 @@ def tolko_https():
                         code=301)
 
 
+# ── Отзывы с Яндекс Карт ────────────────────────────────────────────────
+# ЗАЧЕМ. Отзывы клиенты уже написали, но видит их только тот, кто дошёл до
+# Яндекс Карт. На сайте они работают как доказательство: человек читает их
+# там же, где решает, заказывать или нет.
+#
+# Показываем официальным виджетом Яндекса, а не своим списком. Свой список
+# — это слова студии о самой себе: написать в нём можно что угодно, и цена
+# такому ноль. Виджет рисует Яндекс из своей базы: и оценка, и число
+# отзывов там те же, что в справочнике, подделать их нельзя.
+#
+# ЧТО СЮДА КЛАСТЬ. Годится любое из трёх:
+#   1. Код виджета из кабинета Яндекс Бизнеса: Отзывы → Виджет отзывов →
+#      «Скопировать код». Лучший вариант: отзывы видны прямо на странице.
+#   2. Один номер карточки из этого кода.
+#   3. Ссылка на карточку в Яндекс Картах, в том числе короткая вида
+#      yandex.ru/maps/-/XXXXXXXX. Номера в ней нет, поэтому виджет
+#      не собрать — блок покажет заголовок и кнопку на карточку.
+#
+# ГДЕ ЗАДАТЬ. Проще всего переменной приложения в Amvera: granat-site →
+# Переменные окружения → YANDEX_REVIEWS. Тогда файл заново загружать
+# не нужно, хватит перезапуска. Переменная главнее строки ниже.
+YANDEX_REVIEWS_CODE = "https://yandex.ru/maps/-/CTFBZ4kK"
+YANDEX_REVIEWS = os.getenv("YANDEX_REVIEWS", "").strip() or YANDEX_REVIEWS_CODE.strip()
+
+
+def yandex_reviews():
+    """Адреса виджета и ссылок на карточку. None — если ничего не задано.
+
+    Возвращает `frame` (адрес рамки с отзывами; None, если номер карточки
+    неизвестен), `page` — куда идти читать, `add` — куда идти писать.
+
+    Пока не задано ничего, блок отзывов на страницах не рисуется вовсе:
+    пустая рамка посреди страницы — дырка в вёрстке и лишний запрос
+    к чужому домену.
+
+    Чужой код в страницу как есть не вставляем: вместе с ним приезжают
+    чужие размеры, от которых вёрстка разъезжается на телефоне. Берём
+    из него только номер карточки, остальное собираем сами.
+    """
+    raw = YANDEX_REVIEWS
+    if not raw:
+        return None
+
+    found_src = re.search(r"""src\s*=\s*["']([^"']+)["']""", raw)
+    src = (found_src.group(1) if found_src else raw).strip()
+
+    if src.isdigit():
+        return reviews_by_org(src)
+
+    if src.startswith("//"):
+        src = "https:" + src
+    try:
+        parts = urlparse(src)
+    except ValueError:
+        return None
+
+    # Только https и только Яндекс: в рамке посреди страницы не должно
+    # оказаться неизвестно что, если код скопировали не оттуда.
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https":
+        return None
+    if host != "yandex.ru" and not host.endswith(".yandex.ru"):
+        return None
+
+    # Номер ищем только там, где он действительно номер карточки. Просто
+    # «первые цифры в адресе» брать нельзя: в ссылке на карту сначала идёт
+    # номер региона, и по нему открылась бы чужая организация.
+    found_id = (
+        re.search(r"\bid=(\d+)", parts.query)
+        or re.search(r"/org/[^/]+/(\d+)", parts.path)
+        or re.search(r"/rating-badge/(\d+)", parts.path)
+    )
+    if found_id:
+        return reviews_by_org(found_id.group(1))
+
+    # Номера нет — дали короткую ссылку вида yandex.ru/maps/-/XXXXXXXX.
+    # Разворачиваем её сами, в фоне: сервер в интернете, а хозяйка сайта
+    # с телефона адресную строку посмотреть не может.
+    org = short_link_org(src)
+    if org:
+        return reviews_by_org(org)
+
+    # Пока не развернулась (или Яндекс не дал развернуть) — отправляем
+    # человека на карточку кнопкой. Это честнее, чем показать пустоту.
+    return {"frame": None, "page": src, "add": src}
+
+
+# Что вернула короткая ссылка: номер карточки или пусто. Держим в памяти,
+# чтобы не ходить в Яндекс на каждый показ страницы.
+_SHORT_LINK = {"url": "", "org": "", "asked": False}
+
+
+def short_link_org(url):
+    """Номер карточки из короткой ссылки. Пусто — пока не развернулась.
+
+    Первый посетитель ждать не должен, поэтому в Яндекс идём в фоновом
+    потоке, а страницу отдаём сразу — с кнопкой вместо рамки. Развернётся
+    — рамка появится у следующего посетителя.
+    """
+    if _SHORT_LINK["url"] != url:
+        _SHORT_LINK.update({"url": url, "org": "", "asked": False})
+
+    if _SHORT_LINK["org"]:
+        return _SHORT_LINK["org"]
+
+    if not _SHORT_LINK["asked"]:
+        _SHORT_LINK["asked"] = True
+        NOTIFY_POOL.submit(_expand_short_link, url)
+
+    return ""
+
+
+def _expand_short_link(url):
+    """Сходить по короткой ссылке и запомнить номер карточки из адреса."""
+    try:
+        resp = requests.get(url, timeout=8, allow_redirects=True,
+                            headers={"User-Agent": "Mozilla/5.0 (granat-kmv.ru)"})
+        where = resp.url or ""
+        found = re.search(r"/org/[^/]+/(\d+)", where) or re.search(r"/org/[^/]+/(\d+)", resp.text[:200000])
+        if found:
+            _SHORT_LINK["org"] = found.group(1)
+            print(f"[отзывы] короткая ссылка развернулась, карточка {found.group(1)}", flush=True)
+        else:
+            print(f"[отзывы] в адресе {where[:120]} номера карточки нет — "
+                  f"оставляем кнопку на карточку", flush=True)
+    except Exception as e:
+        print(f"[отзывы] короткую ссылку развернуть не вышло: {e}", flush=True)
+
+
+def reviews_by_org(org):
+    """Три адреса по номеру карточки: рамка, чтение, написать отзыв."""
+    return {
+        "frame": f"https://yandex.ru/maps-reviews-widget/?id={org}",
+        "page": f"https://yandex.ru/maps/org/{org}/reviews/",
+        "add": f"https://yandex.ru/maps/org/{org}/reviews/?add-review=true",
+    }
+
+
+@app.context_processor
+def inject_reviews():
+    """Отзывы нужны и на главной, и в контактах — разбираем номер один раз."""
+    return {"reviews": yandex_reviews()}
+
+
 # ── Страницы сайта ──────────────────────────────────────────────────────
 # Раньше сайт был одностраничным: все разделы жили в index.html и
 # открывались якорями (#pechat, #cifra). Для поиска это одна страница с
@@ -749,7 +894,24 @@ def health():
         # Джарвис живёт отдельным приложением и в Telegram остаётся —
         # показываем его состояние справочно.
         bots=bots_state.result(),
+        # В каком виде на страницах стоят отзывы. Проверять по этой строке
+        # удобнее, чем искать в логах: она открывается с телефона.
+        otzyvy=reviews_state(),
     )
+
+
+def reviews_state():
+    """Одной строкой: что сейчас показывает блок отзывов и почему."""
+    got = yandex_reviews()
+    if not got:
+        return "выключены: не задан YANDEX_REVIEWS"
+    if got["frame"]:
+        return f"виджет с отзывами, карточка {got['frame'].rsplit('=', 1)[-1]}"
+    if _SHORT_LINK["org"]:
+        return "виджет появится на следующей странице"
+    return "кнопка на карточку: номер карточки ещё не известен"
+
+
 
 
 def follow_up(channel, lead_id, name):

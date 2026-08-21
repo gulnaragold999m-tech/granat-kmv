@@ -42,10 +42,14 @@
       msg.textContent = 'Отправляем...';
       const data = Object.fromEntries(new FormData(form).entries());
       try {
+        // Шлём форму как есть, вместе с приложенным файлом. Заголовок
+        // Content-Type не ставим намеренно: браузер добавит его сам
+        // с границей многочастного тела, а руками поставленный ломает
+        // разбор на сервере. Текстовые поля приходят в request.form —
+        // ровно там же, где сервер их и искал раньше.
         const res = await fetch('/api/order', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
+          body: new FormData(form),
         });
         const json = await res.json();
         if (res.ok && json.ok) {

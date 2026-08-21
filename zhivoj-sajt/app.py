@@ -111,6 +111,61 @@ MAKET_RASSHIRENIYA = {
     ".ai", ".eps", ".psd", ".cdr", ".zip", ".rar", ".doc", ".docx",
 }
 
+def prinyat_maket(fajl):
+    """Разобрать файл, приложенный к заявке. Возвращает (имя, байты, причина
+    отказа).
+
+    Заведено 21.08.2026 после потерянного клиента: женщина из Краснодара
+    не смогла приложить документы — форма файлов не принимала, а бот такой
+    услуги не предлагал. Она ушла к другим. Приём файла именно в форме
+    закрывает этот случай: человеку из другого города больше некуда деться,
+    почта по телефону диктуется плохо, а мессенджер сжимает картинку.
+
+    Отказ возвращаем текстом, а не молчанием: заявка уходит в любом случае,
+    но Гульнара должна увидеть, что файл был и почему не дошёл.
+    """
+    if not (fajl and fajl.filename):
+        return "", None, ""
+
+    # Браузеры на Windows иногда шлют полный путь с обратными слешами,
+    # а os.path.basename на Linux их за разделитель не считает — имя
+    # выходило вроде «CUsersАняграмота.jpg».
+    ish = os.path.basename(fajl.filename.replace("\\", "/"))
+    rasshirenie = os.path.splitext(ish)[1].lower()
+    if rasshirenie not in MAKET_RASSHIRENIYA:
+        return "", None, (f"файл {ish} не принят: расширение "
+                          f"{rasshirenie or 'без расширения'}")
+
+    bajty = fajl.read(MAX_MAKET + 1)
+    if len(bajty) > MAX_MAKET:
+        return "", None, (f"файл {ish} не принят: больше "
+                          f"{MAX_MAKET // 1024 // 1024} МБ")
+
+    # Имя клиента в имя файла на диске не берём: там бывает что угодно,
+    # вплоть до путей. Своё имя, а клиентское — в письме.
+    bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
+    try:
+        os.makedirs(MAKETY_DIR, exist_ok=True)
+    except OSError as e:
+        print(f"[maket] не создать папку: {e}", flush=True)
+    return (bezopasnoe or ("maket" + rasshirenie)), bajty, ""
+
+
+def sohranit_maket(lead_id, imya, bajty):
+    """Положить макет на диск под номером заявки. Возвращает (путь, причина).
+
+    Кладём ДО всякой отправки: почта может молчать, а файл клиента
+    единственный — второй раз он его не пришлёт.
+    """
+    put = os.path.join(MAKETY_DIR, f"{lead_id}_{imya}")
+    try:
+        with open(put, "wb") as f:
+            f.write(bajty)
+        return put, ""
+    except OSError as e:
+        return "", f"файл {imya} не сохранён на диск: {e}"
+
+
 # Контейнер живёт по Гринвичу, а смотреть на заявки нам по-московски.
 TZ = ZoneInfo("Europe/Moscow")
 
@@ -502,6 +557,22 @@ def robots():
 # Свой экран вместо служебной страницы Flask: с меню, ссылками на разделы и
 # телефоном. Человек, попавший на битую ссылку, остаётся на сайте, а не
 # закрывает вкладку с надписью «Not Found» на английском.
+@app.errorhandler(413)
+def slishkom_bolshoj(_e):
+    """Файл больше предела. Без этого обработчика Flask отдаёт свою
+    страницу на английском, форма показывает «не удалось отправить»,
+    и человек не понимает, что дело в размере макета, — а он у него
+    единственный и переслать его нечем.
+    """
+    predel = MAX_MAKET // 1024 // 1024
+    return jsonify(
+        ok=False, field="maket",
+        error=f"Файл больше {predel} МБ — столько форма не принимает. "
+              f"Отправьте заявку без файла, а макет пришлите на почту "
+              f"или во ВКонтакте: мы свяжем его с вашей заявкой."
+    ), 413
+
+
 @app.errorhandler(404)
 def page_not_found(_e):
     return render_template("404.html"), 404
@@ -718,6 +789,19 @@ def order():
     # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
     lead_id = leads.next_id()
     payload["lead"] = lead_id
+
+    # ── Макет, если клиент приложил его прямо в форме ────────────────────
+    maket_imya, maket_bajty, maket_zametka = prinyat_maket(request.files.get("maket"))
+    if maket_bajty is not None:
+        put_na_diske, oshibka = sohranit_maket(lead_id, maket_imya, maket_bajty)
+        if put_na_diske:
+            payload["maket"] = put_na_diske
+        else:
+            maket_zametka = oshibka
+            print(f"[maket] {oshibka}", flush=True)
+    if maket_zametka:
+        payload["maket_zametka"] = maket_zametka
+
     leads.log(lead_id, "created", source="site_form", **payload)
 
     lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
@@ -731,6 +815,10 @@ def order():
         lines.append(f"🛍 Услуга: {service}")
     if notes:
         lines.append(f"📝 Пожелания: {notes}")
+    if maket_bajty is not None:
+        lines.append(f"📎 Макет приложен к письму: {maket_imya}")
+    elif maket_zametka:
+        lines.append(f"⚠️ {maket_zametka} — попросите прислать другим способом")
 
     if risk and risk["flags"]:
         lines.append("")
@@ -757,7 +845,8 @@ def order():
         """Разослать заявку по каналам и записать результат. Возвращает,
         дошла ли она хоть куда-нибудь."""
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка с сайта №{lead_id} — {name}", text
+            f"Заявка с сайта №{lead_id} — {name}", text,
+            vlozhenie=(maket_imya, maket_bajty) if maket_bajty is not None else None
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,

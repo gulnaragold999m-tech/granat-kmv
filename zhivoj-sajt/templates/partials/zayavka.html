@@ -59,6 +59,21 @@
             <span class="text-white/70 text-xs uppercase tracking-widest">Пожелания</span>
             <textarea name="notes" rows="3" class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink ym-disable-keys" placeholder="Коротко опишите задачу, тираж, сроки"></textarea>
           </label>
+          <!-- Приём файла прямо в форме. Заведено 21.08.2026 после
+               потерянного клиента: женщина из Краснодара не смогла
+               приложить документы — форма файлов не принимала, а бот
+               такой услуги не предлагал, и она ушла к другим. Человеку
+               из другого города приехать нельзя, почта по телефону
+               диктуется плохо, мессенджер сжимает картинку. Значит
+               файл должен приниматься там, где он уже стоит и заполняет
+               заявку. -->
+          <label class="block">
+            <span class="text-white/70 text-xs uppercase tracking-widest">Макет или документ</span>
+            <input type="file" name="maket" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,.ai,.eps,.psd,.cdr,.zip,.rar,.doc,.docx"
+                   class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink" />
+            <span class="block text-white/40 text-xs mt-2">Необязательно. Можно приложить прямо сейчас: PDF, фото, документ Word, архив — до 20 МБ. Так мы посчитаем точнее и быстрее.</span>
+          </label>
+
           <div>
             <span class="text-white/70 text-xs uppercase tracking-widest">Где вам удобнее общаться? *</span>
             <div class="ch-pick mt-2">

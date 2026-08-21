@@ -436,10 +436,58 @@ def yandex_reviews():
     if found_id:
         return reviews_by_org(found_id.group(1))
 
-    # Номера нет — например, дали короткую ссылку. Виджет без номера
-    # не собрать, но отправить человека на карточку можно: это честнее,
-    # чем молча ничего не показать.
+    # Номера нет — дали короткую ссылку вида yandex.ru/maps/-/XXXXXXXX.
+    # Разворачиваем её сами, в фоне: сервер в интернете, а хозяйка сайта
+    # с телефона адресную строку посмотреть не может.
+    org = short_link_org(src)
+    if org:
+        return reviews_by_org(org)
+
+    # Пока не развернулась (или Яндекс не дал развернуть) — отправляем
+    # человека на карточку кнопкой. Это честнее, чем показать пустоту.
     return {"frame": None, "page": src, "add": src}
+
+
+# Что вернула короткая ссылка: номер карточки или пусто. Держим в памяти,
+# чтобы не ходить в Яндекс на каждый показ страницы.
+_SHORT_LINK = {"url": "", "org": "", "asked": False}
+
+
+def short_link_org(url):
+    """Номер карточки из короткой ссылки. Пусто — пока не развернулась.
+
+    Первый посетитель ждать не должен, поэтому в Яндекс идём в фоновом
+    потоке, а страницу отдаём сразу — с кнопкой вместо рамки. Развернётся
+    — рамка появится у следующего посетителя.
+    """
+    if _SHORT_LINK["url"] != url:
+        _SHORT_LINK.update({"url": url, "org": "", "asked": False})
+
+    if _SHORT_LINK["org"]:
+        return _SHORT_LINK["org"]
+
+    if not _SHORT_LINK["asked"]:
+        _SHORT_LINK["asked"] = True
+        NOTIFY_POOL.submit(_expand_short_link, url)
+
+    return ""
+
+
+def _expand_short_link(url):
+    """Сходить по короткой ссылке и запомнить номер карточки из адреса."""
+    try:
+        resp = requests.get(url, timeout=8, allow_redirects=True,
+                            headers={"User-Agent": "Mozilla/5.0 (granat-kmv.ru)"})
+        where = resp.url or ""
+        found = re.search(r"/org/[^/]+/(\d+)", where) or re.search(r"/org/[^/]+/(\d+)", resp.text[:200000])
+        if found:
+            _SHORT_LINK["org"] = found.group(1)
+            print(f"[отзывы] короткая ссылка развернулась, карточка {found.group(1)}", flush=True)
+        else:
+            print(f"[отзывы] в адресе {where[:120]} номера карточки нет — "
+                  f"оставляем кнопку на карточку", flush=True)
+    except Exception as e:
+        print(f"[отзывы] короткую ссылку развернуть не вышло: {e}", flush=True)
 
 
 def reviews_by_org(org):
@@ -644,7 +692,22 @@ def health():
         # Джарвис живёт отдельным приложением и в Telegram остаётся —
         # показываем его состояние справочно.
         bots=bots_state.result(),
+        # В каком виде на страницах стоят отзывы. Проверять по этой строке
+        # удобнее, чем искать в логах: она открывается с телефона.
+        otzyvy=reviews_state(),
     )
+
+
+def reviews_state():
+    """Одной строкой: что сейчас показывает блок отзывов и почему."""
+    got = yandex_reviews()
+    if not got:
+        return "выключены: не задан YANDEX_REVIEWS"
+    if got["frame"]:
+        return f"виджет с отзывами, карточка {got['frame'].rsplit('=', 1)[-1]}"
+    if _SHORT_LINK["org"]:
+        return "виджет появится на следующей странице"
+    return "кнопка на карточку: номер карточки ещё не известен"
 
 
 def follow_up(channel, lead_id, name):

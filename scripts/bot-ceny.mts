@@ -23,7 +23,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import {
   FLAERY, VIZITKI, NACENKA_ZA_PLOTNOST, ZAPOLNENIE_MAKETA,
-  OPLATA, OTDELKA, DOSTAVKA, MAKSIMALNAYA_PLOTNOST,
+  OPLATA, OTDELKA, DOSTAVKA, PODAROCHNOE_OFORMLENIE, MAKSIMALNAYA_PLOTNOST,
 } from '../data/prices.ts';
 
 const cena = (v: unknown) =>
@@ -116,10 +116,17 @@ ${zalivka.join('\n')}
 # из этих строк в прайсе не было, и в счёт они не попали.
 ADDONS_NOVYE = {
     "handwork":  ("Ручная отделка: глиттер, стразы, ленты", ${OTDELKA.ruchnayaOtdelka}, "per_piece"),
-    "hard_pack": ("Жёсткая упаковка: файл, конверт, подложка", ${OTDELKA.zhestkayaUpakovka}, "per_piece"),
-    "delivery":  ("Доставка по Лермонтову", ${DOSTAVKA.poLermontovu}, "per_order"),
+    "hard_pack": ("Подарочное оформление: конверт или коробка, знак студии", ${PODAROCHNOE_OFORMLENIE.varianty[2].cena}, "per_order"),
 }
-DOSTAVKA_BESPLATNO_OT = ${DOSTAVKA.besplatnoOt}
+
+# ── Доставка ─────────────────────────────────────────────────────────
+# 22.08.2026, слова владелицы: «мы не знаем сколько по Лермонтову стоит
+# доставка, это расчёт от поставщика услуг». Раньше здесь стояли 200 ₽,
+# и бот называл их как обещание — а везёт такси, и цену назначает оно.
+# Своей цены доставки у студии нет, поэтому числа тут быть не должно:
+# любое число бот произнесёт вслух как окончательное.
+DOSTAVKA_SVOEJ_CENY_NET = True
+DOSTAVKA_KAK_SCHITAEM = "${DOSTAVKA.kakSchitaem}"
 
 # ── Оплата ───────────────────────────────────────────────────────────
 # На тиражах от ${OPLATA.bolshojTirazhOt} штук предоплата выше: материалы

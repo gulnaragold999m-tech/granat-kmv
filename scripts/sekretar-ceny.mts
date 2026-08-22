@@ -35,6 +35,7 @@ import {
   OPLATA,
   OTDELKA,
   BAZOVAYA_ZASHCHITA,
+  DOSTAVKA,
   PODAROCHNOE_OFORMLENIE,
   DOSTAVKA_PODAROCHNOGO,
   BIGOVKA,
@@ -156,6 +157,7 @@ const CENY = {
   /* Отделка — за штуку, добавляется к базовой цене. */
   otdelka: OTDELKA,
   zashchita: BAZOVAYA_ZASHCHITA,
+  dostavka: DOSTAVKA,
   oformlenie: PODAROCHNOE_OFORMLENIE,
   dostavkaPodarochnogo: DOSTAVKA_PODAROCHNOGO,
   bigovka: BIGOVKA,

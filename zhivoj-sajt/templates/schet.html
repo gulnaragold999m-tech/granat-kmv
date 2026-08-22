@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Счёт № {{ nomer }} от {{ data }} — {{ postavshchik.nazvanie }}</title>
+  <style>
+    /* Счёт печатают и отдают в бухгалтерию, поэтому вёрстка простая
+       и чёрно-белая: цветной фон на печати съедает тонер и читается хуже.
+       Никаких шрифтов из интернета — счёт должен открыться и распечататься
+       в любом кабинете, где интернет за корпоративным прокси. */
+    * { box-sizing: border-box; }
+    body {
+      font: 14px/1.45 Arial, Helvetica, sans-serif; color: #111;
+      background: #f4f4f4; margin: 0; padding: 24px 12px;
+    }
+    .list {
+      max-width: 800px; margin: 0 auto; background: #fff; padding: 32px;
+      border: 1px solid #ddd;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .pod { color: #555; margin: 0 0 22px; }
+    table { width: 100%; border-collapse: collapse; }
+    .rekv td { padding: 5px 8px; border: 1px solid #999; vertical-align: top; }
+    .rekv .imya { width: 34%; color: #444; }
+    .tovar { margin-top: 22px; }
+    .tovar th, .tovar td { border: 1px solid #999; padding: 7px 8px; text-align: left; }
+    .tovar th { background: #eee; font-weight: 700; }
+    .tovar td.chislo, .tovar th.chislo { text-align: right; white-space: nowrap; }
+    .itogo { margin-top: 14px; text-align: right; font-size: 16px; }
+    .itogo b { font-size: 20px; }
+    .propisyu { margin-top: 6px; color: #444; }
+    .nds { margin-top: 4px; color: #444; }
+    .podpis { margin-top: 40px; display: flex; justify-content: space-between; gap: 24px; }
+    .podpis div { flex: 1; border-top: 1px solid #999; padding-top: 6px; color: #555; }
+    .zametka { margin-top: 26px; padding: 12px 14px; background: #f7f3ea; border: 1px solid #e0d6c0; color: #4a3a1a; }
+    .knopka {
+      display: inline-block; margin: 0 0 18px; padding: 10px 18px; border: 1px solid #111;
+      background: #111; color: #fff; text-decoration: none; border-radius: 6px; cursor: pointer;
+      font: inherit;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .list { border: 0; padding: 0; max-width: none; }
+      .knopka, .zametka { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="list">
+    <button class="knopka" onclick="window.print()">Распечатать или сохранить в PDF</button>
+
+    <h1>Счёт на оплату № {{ nomer }} от {{ data }}</h1>
+    <p class="pod">Оплата этого счёта означает согласие с условиями заказа.
+      Заказ запускается в работу после поступления оплаты.</p>
+
+    <table class="rekv">
+      <tr><td class="imya">Получатель</td><td><b>{{ postavshchik.nazvanie }}</b></td></tr>
+      <tr><td class="imya">ИНН</td><td>{{ postavshchik.inn }}</td></tr>
+      {% if postavshchik.ogrnip %}<tr><td class="imya">ОГРНИП</td><td>{{ postavshchik.ogrnip }}</td></tr>{% endif %}
+      <tr><td class="imya">Расчётный счёт</td><td>{{ postavshchik.schet }}</td></tr>
+      <tr><td class="imya">Банк</td><td>{{ postavshchik.bank }}</td></tr>
+      <tr><td class="imya">БИК</td><td>{{ postavshchik.bik }}</td></tr>
+      <tr><td class="imya">Корр. счёт</td><td>{{ postavshchik.korschet }}</td></tr>
+      <tr><td class="imya">Адрес</td><td>{{ postavshchik.adres }}</td></tr>
+      <tr><td class="imya">Телефон</td><td>{{ postavshchik.telefon }}</td></tr>
+    </table>
+
+    <table class="rekv" style="margin-top:14px;">
+      <tr><td class="imya">Плательщик</td><td>{{ platelshchik }}</td></tr>
+    </table>
+
+    <table class="tovar">
+      <tr>
+        <th style="width:40px;">№</th>
+        <th>Наименование работ, услуг</th>
+        <th class="chislo" style="width:110px;">Кол-во</th>
+        <th class="chislo" style="width:130px;">Сумма, ₽</th>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td>{{ naimenovanie }}</td>
+        <td class="chislo">1</td>
+        <td class="chislo">{{ summa_str }}</td>
+      </tr>
+    </table>
+
+    <div class="itogo">
+      Итого: <b>{{ summa_str }} ₽</b>
+    </div>
+    <div class="propisyu">Всего к оплате: {{ propisyu }}</div>
+    <div class="nds">{{ nds }}</div>
+    <!-- Назначение платежа: без него бухгалтерия плательщика пишет
+         своё, и платёж потом не привязывается к заказу. -->
+    <table class="rekv" style="margin-top:16px;">
+      <tr><td class="imya">Назначение платежа</td><td>{{ naznachenie }}</td></tr>
+      <tr><td class="imya">Срок оплаты</td><td>{{ srok_scheta }}</td></tr>
+    </table>
+
+    {% if sostav %}
+    <div class="zametka">
+      <b>Состав заказа по заявке № {{ nomer }}:</b><br>
+      {{ sostav }}
+    </div>
+    {% endif %}
+
+    <div class="podpis">
+      <div>Руководитель ____________ / {{ postavshchik.familiya }} /</div>
+      <div>Главный бухгалтер ____________ / {{ postavshchik.familiya }} /</div>
+    </div>
+  </div>
+</body>
+</html>

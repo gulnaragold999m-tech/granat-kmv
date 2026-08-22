@@ -8,8 +8,14 @@
        переобход страниц и диагностика. Код выдан для granat-kmv.ru
        03.08.2026, у каждого сайта он свой. -->
   <meta name="yandex-verification" content="4cb0c6f73fcadb40" />
-  <title>{% block title %}Типография и веб-студия в Лермонтове — печать, сайты, Telegram-боты · Гранат{% endblock %}</title>
-  <meta name="description" content="{% block description %}Печать приглашений от 200 ₽, сертификатов и визиток, разработка сайтов от 25 000 ₽, Telegram-боты от 15 000 ₽. Студия «Гранат» в Лермонтове, работаем на весь КМВ: Пятигорск, Ессентуки, Кисловодск, Минеральные Воды.{% endblock %}" />
+  <!-- ЗАГОЛОВОК И ОПИСАНИЕ — это то, что человек читает в поиске, ещё
+       не зайдя на сайт. Владелица 19.08.2026: «надо, чтобы в поиске
+       видели сайт и что там заявку можно оформить, посчитать
+       и оплатить». Раньше сниппет говорил только ЧТО мы печатаем,
+       и человек звонил спрашивать цену — вместо того чтобы зайти
+       и посчитать её сам. -->
+  <title>{% block title %}Типография в Лермонтове — рассчитать и заказать печать онлайн · Гранат{% endblock %}</title>
+  <meta name="description" content="{% block description %}Посчитайте стоимость печати на сайте за минуту и оформите заказ: приглашения, сертификаты, визитки, флаеры, распечатка документов. Приложите файл прямо в заявке и оплатите онлайн. Лермонтов, весь КМВ: Пятигорск, Ессентуки, Кисловодск, Минеральные Воды.{% endblock %}" />
   <!-- Open Graph / превью при шаринге в Telegram, VK, WhatsApp — обнови URL после переезда на короткий домен -->
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ru_RU" />
@@ -45,7 +51,7 @@
     "@id": "https://granat-kmv.ru/#organization",
     "name": "Студия «Гранат»",
     "alternateName": "Дизайн-студия Гранат",
-    "description": "Типография и веб-студия в Лермонтове: печать приглашений, сертификатов и визиток, тиснение золотом, плоттерная резка — и разработка сайтов, Telegram-ботов, автоматизация бизнеса. Работаем в Лермонтове, Пятигорске, Ессентуках, Кисловодске, Минеральных Водах.",
+    "description": "Типография и веб-студия в Лермонтове: печать приглашений, сертификатов и визиток, золотая фольга, плоттерная резка — и разработка сайтов, Telegram-ботов, автоматизация бизнеса. Работаем в Лермонтове, Пятигорске, Ессентуках, Кисловодске, Минеральных Водах.",
     "priceRange": "от 200 ₽",
     "url": "https://granat-kmv.ru/",
     "logo": "https://granat-kmv.ru/logo.png",
@@ -54,7 +60,11 @@
     "email": "gulnaravibecoder999@yandex.ru",
     "address": {
       "@type": "PostalAddress",
-      "streetAddress": "ул. Нагорная, д. 2/1",
+      {# Адрес списан из кабинета Яндекс Бизнеса 21.08.2026 слово в слово:
+         «городской округ Лермонтов, Лермонтов, Нагорная улица, 2/1».
+         Расхождение с карточкой мешает поиску склеить сайт и карточку,
+         а до 21.08 адрес был написан на сайте семью разными способами. #}
+      "streetAddress": "Нагорная улица, 2/1",
       "addressLocality": "Лермонтов",
       "addressRegion": "Ставропольский край",
       "postalCode": "357340",
@@ -65,7 +75,11 @@
       "latitude": 44.107635,
       "longitude": 42.979023
     },
-    "hasMap": "https://yandex.ru/maps/?text=Лермонтов, Нагорная улица, 2/1",
+    {# Ведём на карточку, а не на поиск по адресу: связка «сайт ↔ карточка» —
+       то, чем местный бизнес попадает в ответ на «где в Лермонтове
+       напечатать приглашения». В прежнем адресе вдобавок стояли пробелы
+       и кириллица без кодирования — как ссылка он был недействителен. #}
+    "hasMap": "https://yandex.ru/maps/org/237257245054/",
     "founder": {
       "@type": "Person",
       "name": "Мелконян Гульнара Рифкатовна"
@@ -107,8 +121,8 @@
         },
         {
           "@type": "Offer",
-          "itemOffered": { "@type": "Service", "name": "Печать сертификатов" },
-          "price": "300",
+          "itemOffered": { "@type": "Service", "name": "Печать сертификатов, дипломов и грамот" },
+          "price": "180",
           "priceCurrency": "RUB"
         },
         {
@@ -120,13 +134,13 @@
         {
           "@type": "Offer",
           "itemOffered": { "@type": "Service", "name": "Разработка сайта-лендинга" },
-          "price": "25000",
+          "price": "35000",
           "priceCurrency": "RUB"
         },
         {
           "@type": "Offer",
-          "itemOffered": { "@type": "Service", "name": "Разработка многостраничного сайта" },
-          "price": "40000",
+          "itemOffered": { "@type": "Service", "name": "Разработка сайта на 5–10 страниц" },
+          "price": "90000",
           "priceCurrency": "RUB"
         },
         {
@@ -144,6 +158,7 @@
       ]
     },
     "sameAs": [
+      "https://yandex.ru/maps/org/237257245054/",
       "https://vk.com/club238836731",
       "https://wa.me/79992449999"
     ]
@@ -172,7 +187,7 @@
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Главная", "item": "https://granat-kmv.ru/" },
-      { "@type": "ListItem", "position": 2, "name": "{{ crumb }}", "item": "https://granat-kmv.ru{{ self.path() }}" }
+      { "@type": "ListItem", "position": 2, "name": {{ crumb | tojson }}, "item": "https://granat-kmv.ru{{ self.path() }}" }
     ]
   }
   </script>
@@ -258,7 +273,11 @@
     }
     @keyframes comet-pulse { 0%,100% { box-shadow: 0 0 16px 4px rgba(230,192,74,0.2), 0 0 34px 10px rgba(212,175,55,0.1); } 50% { box-shadow: 0 0 24px 7px rgba(230,192,74,0.36), 0 0 52px 16px rgba(212,175,55,0.2); } }
     @media (prefers-reduced-motion: reduce) { .ai-orb { animation: none; } .comet-dot { display: none; } }
-    .reveal { opacity: 0; transform: translateY(26px); transition: opacity 600ms var(--ease-smooth), transform 600ms var(--ease-smooth); }
+    /* Прячем только при работающем JavaScript: класс js-anim ставит сам
+       скрипт внизу страницы. Без него .reveal остаётся видимым — иначе
+       одна ошибка в скрипте стирает со страницы всё, кроме первого экрана
+       и подвала. 21.08.2026 проверено: без JS пропадало 18 блоков из 18. */
+    .js-anim .reveal { opacity: 0; transform: translateY(26px); transition: opacity 600ms var(--ease-smooth), transform 600ms var(--ease-smooth); }
     .reveal.visible { opacity: 1; transform: translateY(0); }
     .kicker {
       text-transform: uppercase; letter-spacing: .22em; font-size: 11px; font-weight: 700; display: inline-block;
@@ -293,7 +312,7 @@
     @media (prefers-reduced-motion: reduce) {
       .orbit-ring, .logo-orbit .logo-img { animation: none; }
     }
-    @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+    @media (prefers-reduced-motion: reduce) { .js-anim .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
     a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #D4AF37; outline-offset: 3px; }
   .brand-logo{background:url(/logo.png) center/cover no-repeat;border-radius:50%;display:inline-block;}
     .port-cat { margin-top: 42px; }
@@ -520,14 +539,35 @@
         <span class="brand-logo" role="img" aria-label="Логотип студии Гранат" style="width:40px;height:40px;"></span>
         <span class="studio-logo-gold text-xl">Гранат</span>
       </a>
-      <nav class="hidden md:flex items-center gap-8 text-xs font-semibold tracking-widest uppercase text-white/80">
-        <a href="/pechat" class="nav-link hover:text-white">Печать, дизайн и полиграфия</a>
-        <a href="/cifra" class="nav-link hover:text-white">Сайты и боты</a>
-        <a href="/raboty" class="nav-link hover:text-white" data-goal="portfolio_view">Работы</a>
-        <a href="/kak-rabotaem" class="nav-link hover:text-white">Как работаем</a>
-        <a href="#zayavka" class="btn-gold" style="padding:11px 22px;">Оставить заявку</a>
+      <!-- gap-6 вместо gap-8 и короткие подписи: 19.08.2026 пятым
+           пунктом добавились «Документы», строка перестала помещаться
+           и меню съехало на две строки, прижав логотип. Новые классы
+           Tailwind брать нельзя — файл стилей собран заранее и на её
+           компьютере не пересобирается, поэтому обходимся теми,
+           что уже есть. -->
+      <nav class="hidden md:flex items-center gap-6 text-xs font-semibold tracking-widest uppercase text-white/80">
+        <a href="/pechat" class="nav-link hover:text-white whitespace-nowrap">Печать и дизайн</a>
+        <a href="/cifra" class="nav-link hover:text-white whitespace-nowrap">Сайты и боты</a>
+        <a href="/raboty" class="nav-link hover:text-white whitespace-nowrap" data-goal="portfolio_view">Работы</a>
+        <!-- ДОКУМЕНТЫ в меню с 19.08.2026. Владелица спросила дважды:
+             «а где для иностранных граждан страница, как в неё попасть».
+             Попасть можно было только с карточки на странице печати
+             и из поиска — то есть человек, пришедший на главную,
+             её не находил. Пункт короткий, в строку влезает. -->
+        <a href="/dokumenty" class="nav-link hover:text-white whitespace-nowrap">Документы</a>
+        <a href="/kak-rabotaem" class="nav-link hover:text-white whitespace-nowrap">Как работаем</a>
+        <!-- Ведём к СЕКРЕТАРЮ, а не к форме внизу. 18.08.2026 девушка
+             из Краснодара нажала эту кнопку, попала в форму без поля
+             для файла и прочитала «отвечаем в течение дня» — при том
+             что водитель уже ехал за готовыми документами. Ушла.
+             Секретарь спрашивает, считает и принимает файл сразу. -->
+        <!-- data-goal ловится metrika-goals.js: в Метрике будет видно
+             нажатия именно этой кнопки, а не «переходы по сайту» вообще. -->
+        <a href="#sekretar" class="btn-gold" data-goal="price_click_shapka"
+           style="padding:11px 22px; white-space:nowrap;">Узнать цену</a>
       </nav>
-      <a href="#zayavka" class="md:hidden btn-gold" style="padding:10px 18px;">Заявка</a>
+      <a href="#sekretar" class="md:hidden btn-gold" data-goal="price_click_shapka"
+         style="padding:10px 16px;">Цена и заказ</a>
     </div>
   </header>
 
@@ -566,7 +606,7 @@
         </div>
         <div class="text-sm leading-relaxed">
           <p class="text-white font-semibold mb-2 uppercase tracking-widest text-xs">Контакты</p>
-          <p>Россия, Ставропольский край,<br />г. Лермонтов, ул. Нагорная, д. 2/1</p>
+          <p>Россия, Ставропольский край,<br />г. Лермонтов, Нагорная улица, 2/1</p>
           <!-- Часы работы должны совпадать с микроразметкой в <head>.
                Меняете здесь — правьте и там, иначе Яндекс покажет в выдаче
                одно, а на сайте будет другое. -->
@@ -592,11 +632,50 @@
   </footer>
 
   <script>
-    // Scroll reveal
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
-    }, { threshold: 0.12 });
-    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+    // Блоки появляются по мере прокрутки.
+    //
+    // 21.08.2026 владелица не нашла на странице блок отзывов. Причина
+    // оказалась здесь: порог 0.12 требовал, чтобы в окно попало 12%
+    // блока, и наблюдатель не срабатывал вовсе, если экран проскочил
+    // мимо блока между двумя кадрами. Замеры: при быстром листании
+    // пальцем невидимыми оставались 5-6 блоков из 18, при мгновенном
+    // переходе (возврат «назад» с восстановлением позиции) — все 18.
+    // Невидимыми НАВСЕГДА: блок не появляется позже, он ждёт, пока
+    // человек прокрутит обратно.
+    //
+    // Поэтому: прячем блоки сами, порог нулевой, и вдобавок при каждой
+    // прокрутке помечаем всё, что уже выше низа экрана, — это ловит и то,
+    // мимо чего проехали.
+    (function () {
+      var vse = document.querySelectorAll('.reveal');
+      if (!vse.length) return;
+      document.documentElement.classList.add('js-anim');
+
+      function pokazat(el) { el.classList.add('visible'); }
+
+      // Всё, что уже в поле зрения или выше него, показываем сразу.
+      function dognat() {
+        for (var i = 0; i < vse.length; i++) {
+          if (!vse[i].classList.contains('visible') &&
+              vse[i].getBoundingClientRect().top < innerHeight) pokazat(vse[i]);
+        }
+      }
+
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (spisok) {
+          spisok.forEach(function (e) {
+            if (e.isIntersecting) { pokazat(e.target); io.unobserve(e.target); }
+          });
+        }, { threshold: 0 });
+        for (var i = 0; i < vse.length; i++) io.observe(vse[i]);
+      }
+
+      // Страховка на случай, когда наблюдатель не успел: он пропускает
+      // блок, через который экран пролетел за один кадр.
+      addEventListener('scroll', dognat, { passive: true });
+      addEventListener('resize', dognat, { passive: true });
+      dognat();
+    })();
   </script>
   <!-- ИИ-проводник -->
   <div class="ai-orb" id="aiOrb" role="button" tabindex="0" aria-label="Помощник студии — оформить заявку">
@@ -634,21 +713,22 @@
       // Реплики — ценность, а не пересказ: лайфхак, частая ошибка, инсайд, ответ на частый вопрос
       var msgs = {
         hero: 'Заметили — сайт живой? Это не магия, это код. Так мы и работаем 👋 Полистайте.',
-        pechat: 'Лайфхак: тиснение заметнее на матовой бумаге, чем на глянце. Мелочь, а «вау» сильнее.',
+        pechat: 'Лайфхак: золотая фольга заметнее на матовой бумаге, чем на глянце. Мелочь, а «вау» сильнее.',
         cifra: 'Между нами: живой сайт держит внимание в разы дольше статичного. Вы это сейчас и чувствуете 😉',
         raboty: 'Частая ошибка — брать шаблон. Мы делаем под характер бренда, поэтому работы не похожи одна на другую.',
         kak: 'Секрет спокойных проектов — чёткое ТЗ на старте. Мы соберём его за вас: вопросами, а не терминами.',
-        zayavka: 'Здесь обычно спрашивают про сроки. Печать — от 1–2 дней, сайт — от нескольких. Точнее посчитаем в заявке.'
+        sekretar: 'Секретарь считает по прайсу студии: спросит формат, тираж, бумагу и срок. Файл можно приложить прямо в разговоре.',
+        zayavka: 'Здесь обычно спрашивают про сроки. Печать — 3–5 рабочих дней, срочно день в день за +30%. Сайт — от 7 дней. Точнее посчитает секретарь.'
       };
       var spoken = {}, autoCount = 0, AUTO_MAX = 3;
       function speak(t) { if (t) bubble.textContent = t; orb.classList.add('speak'); clearTimeout(orb._t); orb._t = setTimeout(function () { orb.classList.remove('speak'); }, 6500); }
 
       // Какой блок сейчас перед глазами
-      var ids = ['pechat', 'cifra', 'raboty', 'kak', 'zayavka'], current = null, dwell = null;
+      var ids = ['pechat', 'cifra', 'raboty', 'kak', 'sekretar', 'zayavka'], current = null, dwell = null;
       var io = new IntersectionObserver(function (es) {
         es.forEach(function (en) {
           if (en.isIntersecting && en.intersectionRatio >= 0.55) current = en.target.id;
-          if (en.target.id === 'zayavka') { if (en.isIntersecting) orb.classList.add('pulse'); else orb.classList.remove('pulse'); }
+          if (en.target.id === 'zayavka' || en.target.id === 'sekretar') { if (en.isIntersecting) orb.classList.add('pulse'); else orb.classList.remove('pulse'); }
         });
         scheduleDwell();
       }, { threshold: [0.55] });
@@ -672,7 +752,7 @@
       var tips = [
         ['a[href*="vk.me"]', 'Во ВКонтакте ответим быстрее всего — там заявку принимает бот.'],
         ['#orderForm button[type="submit"]', 'Смелее — это ни к чему не обязывает. Посчитаем и покажем примеры.'],
-        ['a[href="#zayavka"]', 'Тут без «купи сейчас». Просто расскажете задачу — остальное на нас.']
+        ['a[href="#sekretar"]', 'Секретарь спросит формат, тираж и срок и назовёт цену по прайсу. Сразу, без ожидания.']
       ];
       var hoverCount = 0;
       tips.forEach(function (t) {
@@ -683,7 +763,18 @@
         });
       });
 
-      function go() { var f = document.getElementById('zayavka'); if (f) f.scrollIntoView({ behavior: 'smooth' }); }
+      function go() {
+        var f = document.getElementById('sekretar') || document.getElementById('zayavka');
+        if (f) f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      /* Секретарь есть не на всех страницах: на «Сайтах и ботах» его нет.
+         Там кнопка должна вести в форму, иначе она не сделает ничего. */
+      if (!document.getElementById('sekretar')) {
+        document.querySelectorAll('a[href="#sekretar"]').forEach(function (a) {
+          a.setAttribute('href', '#zayavka');
+        });
+      }
       orb.addEventListener('click', go);
       orb.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
     })();

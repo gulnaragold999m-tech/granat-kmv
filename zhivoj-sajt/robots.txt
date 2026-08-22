@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Демо-страницы бота закрыты от поиска намеренно: они не отвечают
+# ни на один запрос человека, а в выдаче размывают сайт.
+Disallow: /bot-demo.html
+Disallow: /granat-bot-simulator.html
+
+# Заготовки страниц. Человеку они не нужны, а в выдаче дали бы дубли
+# уже существующих страниц вперемешку со служебной разметкой.
+Disallow: /templates/
+
+Sitemap: https://granat-kmv.ru/sitemap.xml
+Host: granat-kmv.ru

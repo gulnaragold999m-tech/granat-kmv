@@ -1,0 +1,462 @@
+  <script>
+  /* Секретарь на сайте — разговор и расчёт.
+
+     Правила, по которым он собран:
+
+     1. ЦЕНЫ НЕ ЖИВУТ ЗДЕСЬ. Всё берётся из window.CENY, который собирает
+        `npm run sekretar` из data/prices.ts. В этом файле нет ни одной
+        суммы в рублях — иначе она разъедется с прайсом, как уже
+        разъезжалась на живом сайте.
+
+     2. ВОПРОСЫ ТЕ ЖЕ, ЧТО У БОТА ВКонтакте. Порядок и формулировки взяты
+        из CATEGORY_BRIEFS бота: сначала то, от чего цена зависит сильнее
+        всего. Человек должен получить одинаковый ответ и здесь, и в ВК.
+
+     3. НЕ ВЫДУМЫВАТЬ. Услуги нет в прайсе — говорим прямо, а не
+        придумываем цену. Список берётся из того же прайса.
+
+     4. ТЕЛЕФОН ПРОСИМ ПОСЛЕДНИМ. Сначала человек получает цену, потом
+        решает, оставлять ли контакт. Наоборот — теряем тех, кто зашёл
+        просто узнать стоимость. */
+
+  (function () {
+    var C = window.CENY;
+    if (!C) return;                       // цены не подставились — блок молчит
+    var feed = document.getElementById('sekFeed');
+    if (!feed) return;
+
+    var knopki  = document.getElementById('sekKnopki');
+    var putEl   = document.getElementById('sekPut');
+    var summaEl = document.getElementById('sekSumma');
+    var podpisEl= document.getElementById('sekPodpis');
+    var forma   = document.getElementById('sekForma');
+    var msgEl   = document.getElementById('sekMsg');
+    var zanovoB = document.getElementById('sekZanovo');
+
+    /* ── Счёт ──────────────────────────────────────────────────────── */
+
+    /** Цена за штуку по тиражу: берём последний столбец, чей порог достигнут. */
+    function poTirazhu(tabl, stroka, kolvo) {
+      var ceny = tabl.stroki[stroka];
+      if (!ceny) return null;
+      var i = 0;
+      for (var k = 0; k < tabl.porogi.length; k++) {
+        if (kolvo >= tabl.porogi[k] && ceny[k] != null) i = k;
+      }
+      return ceny[i];
+    }
+
+    function rub(n) {
+      return Math.round(n).toLocaleString('ru-RU') + ' ₽';
+    }
+
+    /* ── Сценарии ──────────────────────────────────────────────────── */
+
+    var TIRAZH_MALYJ = [
+      { t: '1 штука', v: 1 }, { t: '2–9', v: 5 }, { t: '10', v: 10 },
+      { t: '30', v: 30 }, { t: '50', v: 50 }, { t: '100 и больше', v: 100 }
+    ];
+
+    var SROK = [
+      { t: 'Не срочно', i: 'стандартно 3–5 рабочих дней', v: 'obychno' },
+      { t: 'Сегодня, день в день', i: 'плюс 30% к заказу', v: 'srochno' }
+    ];
+
+    var SCENARII = {
+      sertifikat: {
+        imya: 'Сертификаты, дипломы, грамоты',
+        privet: 'Сертификаты — наша частая работа. Уточню три вещи и назову цену.',
+        shagi: [
+          { id: 'kolvo', vopros: 'Сколько экземпляров нужно?', varianty: TIRAZH_MALYJ },
+          { id: 'material', vopros: 'На чём печатаем?', varianty: [
+            { t: 'Матовая фотобумага 230 г/м²', i: 'плотная, как фотография', v: 'foto' },
+            { t: 'Картон 300 г/м²', i: 'солиднее, как открытка', v: 'karton' },
+            { t: 'Не знаю, посоветуйте', v: 'sovet' }
+          ] },
+          { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
+        ],
+        sovet: {
+          material: 'Если сертификат вручают и вешают на стену — берите картон 300 г/м², он держит форму и выглядит солидно. Если кладут в файл или отправляют почтой — хватит матовой фотобумаги 230 г/м², она дешевле.'
+        },
+        schet: function (o) {
+          var kolvo = o.kolvo, stroki = [], zametki = [], zaShtuku;
+          if (o.material === 'karton') {
+            zaShtuku = kolvo < 10
+              ? C.shtuchnayaA4
+              : poTirazhu(C.otkrytki, 'А4', kolvo);
+            stroki.push('Картон 300 г/м², А4, полноцвет — ' + rub(zaShtuku) + ' за штуку');
+          } else {
+            zaShtuku = poTirazhu(C.foto, 'A4', kolvo) * C.koefficienty.fotobumagaPlotnaya;
+            stroki.push('Матовая фотобумага 230 г/м², А4 — ' + rub(zaShtuku) + ' за штуку');
+          }
+          var summa = zaShtuku * kolvo;
+          if (o.material === 'karton' && summa < C.minimalki.otkrytkaA4) {
+            summa = C.minimalki.otkrytkaA4;
+            zametki.push('Минимальный заказ на штучную А4 из картона — ' + rub(C.minimalki.otkrytkaA4) + '.');
+          }
+          return { summa: summa, stroki: stroki, zametki: zametki };
+        }
+      },
+
+      otkrytki: {
+        imya: 'Открытки и приглашения',
+        privet: 'Печатаем на картоне 300–350 г/м², полноцвет с двух сторон.',
+        shagi: [
+          { id: 'vid', vopros: 'Открытки или приглашения?', varianty: [
+            { t: 'Открытки', i: 'поздравительные, от себя', v: 'otkrytki' },
+            { t: 'Приглашения', i: 'событие с датой и местом', v: 'priglasheniya' }
+          ] },
+          { id: 'format', vopros: 'Какой формат?', varianty: [
+            { t: 'А6', i: '105×148 мм', v: 'А6' },
+            { t: 'Евро', i: '210×97 мм', v: 'Евро' },
+            { t: 'А5', i: '148×210 мм', v: 'А5' }
+          ] },
+          { id: 'kolvo', vopros: 'Какой тираж?', varianty: [
+            { t: '10–20', v: 15 }, { t: '50', v: 50 },
+            { t: '100', v: 100 }, { t: '200 и больше', v: 200 }
+          ] },
+          { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
+        ],
+        schet: function (o) {
+          var tabl = o.vid === 'priglasheniya' ? C.priglasheniya : C.otkrytki;
+          var zaShtuku = poTirazhu(tabl, o.format, o.kolvo);
+          var summa = zaShtuku * o.kolvo, zametki = [];
+          if (summa < C.minimalki.otkrytki) {
+            summa = C.minimalki.otkrytki;
+            zametki.push('Минимальный заказ по этому разделу — ' + rub(C.minimalki.otkrytki) + '.');
+          }
+          return {
+            summa: summa,
+            stroki: [o.format + ', картон 300 г/м² — ' + rub(zaShtuku) + ' за штуку'],
+            zametki: zametki
+          };
+        }
+      },
+
+      foto: {
+        imya: 'Печать фотографий',
+        privet: 'Печатаем на фотобумаге, глянец или мат — по цене одинаково.',
+        shagi: [
+          { id: 'format', vopros: 'Какой размер?', varianty: [
+            { t: '10 × 15', v: '10 × 15' }, { t: '13 × 18', v: '13 × 18' },
+            { t: '15 × 21', v: '15 × 21' }, { t: 'A5', v: 'A5' }, { t: 'A4', v: 'A4' }
+          ] },
+          { id: 'kolvo', vopros: 'Сколько снимков?', varianty: [
+            { t: '1–9', v: 5 }, { t: '10–49', v: 20 },
+            { t: '50–99', v: 60 }, { t: '100 и больше', v: 100 }
+          ] },
+          { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
+        ],
+        schet: function (o) {
+          var zaShtuku = poTirazhu(C.foto, o.format, o.kolvo);
+          return {
+            summa: zaShtuku * o.kolvo,
+            stroki: ['Фото ' + o.format + ' — ' + rub(zaShtuku) + ' за штуку'],
+            zametki: ['Коррекция яркости и цвета — от 30 ₽ за фото, базовая ретушь — от 100 ₽.']
+          };
+        }
+      },
+
+      dokfoto: {
+        imya: 'Фото на документы',
+        privet: 'Самая быстрая услуга: если файл готов — печатаем при вас.',
+        shagi: [
+          { id: 'usluga', vopros: 'Что именно нужно?', varianty: [
+            { t: 'Снять и напечатать', i: 'съёмка в студии, коррекция, 4–6 фото', v: 'Съёмка в студии, базовая коррекция, 4–6 фото' },
+            { t: 'Собрать из моего фото', i: 'компоновка и печать листа', v: 'Компоновка из вашего фото и печать листа' },
+            { t: 'Напечатать готовый файл', i: 'лист 10×15, матовая бумага', v: 'Печать готового сегмента, лист 10×15, матовая бумага' }
+          ] },
+          { id: 'srok', vopros: 'Когда нужно?', varianty: [
+            { t: 'В порядке очереди', v: 'obychno' },
+            { t: 'Срочно, вне очереди', i: 'доплата по прайсу', v: 'srochno' }
+          ] }
+        ],
+        schet: function (o) {
+          var cena = C.dokfoto[o.usluga];
+          return {
+            summa: cena,
+            stroki: [o.usluga + ' — ' + rub(cena)],
+            zametki: ['Электронный файл готового фото — плюс 100 ₽.']
+          };
+        }
+      },
+
+      kopii: {
+        imya: 'Копии и распечатка',
+        privet: 'Считаем по листам: чем больше листов, тем дешевле каждый.',
+        shagi: [
+          { id: 'stroka', vopros: 'Что печатаем?', varianty: [
+            { t: 'Копия А4, ч/б', v: 'A4, ч/б, ксерокопия' },
+            { t: 'Печать с файла А4, ч/б', v: 'A4, ч/б, печать с файла' },
+            { t: 'Цветная печать А4', v: 'A4, цветная печать' },
+            { t: 'Копия А3, ч/б', v: 'A3, ч/б, ксерокопия' },
+            { t: 'Цветная печать А3', v: 'A3, цветная печать' }
+          ] },
+          { id: 'kolvo', vopros: 'Сколько листов?', varianty: [
+            { t: '1–5', v: 3 }, { t: '10', v: 10 }, { t: '50', v: 50 },
+            { t: '100 и больше', v: 100 }
+          ] }
+        ],
+        schet: function (o) {
+          var zaList = poTirazhu(C.kopii, o.stroka, o.kolvo);
+          var summa = zaList * o.kolvo, zametki = [];
+          if (summa < C.minimalki.kopii) {
+            summa = C.minimalki.kopii;
+            zametki.push('Минимальный заказ на копирование и распечатку — ' + rub(C.minimalki.kopii) + '.');
+          }
+          zametki.push('Двусторонняя печать считается как два листа.');
+          return { summa: summa, stroki: [o.stroka + ' — ' + rub(zaList) + ' за лист'], zametki: zametki };
+        }
+      },
+
+      flaery: {
+        imya: 'Листовки и флаеры',
+        privet: 'Мелованная бумага 130 г/м², полноцвет с двух сторон, с резкой.',
+        shagi: [
+          { id: 'format', vopros: 'Какой формат?', varianty: [
+            { t: 'А6', i: '105×148 мм, для раздачи', v: 'А6, 105×148 мм' },
+            { t: 'Евро', i: '210×97 мм, узкие', v: 'Евро, 210×97 мм' },
+            { t: 'А5', i: '148×210 мм, золотая середина', v: 'А5, 148×210 мм' },
+            { t: 'А4', i: '210×297 мм, много текста', v: 'А4, 210×297 мм' }
+          ] },
+          { id: 'kolvo', vopros: 'Какой тираж?', varianty: [
+            { t: '50–100', v: 100 }, { t: '200–300', v: 200 },
+            { t: '500', v: 500 }, { t: '1000', v: 1000 }
+          ] },
+          { id: 'srok', vopros: 'К какому сроку?', varianty: SROK }
+        ],
+        schet: function (o) {
+          var zaShtuku = poTirazhu(C.flaery, o.format, o.kolvo);
+          var summa = zaShtuku * o.kolvo, zametki = [];
+          if (summa < C.minimalki.poligrafiya) {
+            summa = C.minimalki.poligrafiya;
+            zametki.push('Минимальный заказ по полиграфии — ' + rub(C.minimalki.poligrafiya) + '.');
+          }
+          zametki.push('Цена при готовом макете. Плотнее бумага — 150 г/м² плюс 10%, 170 плюс 15%, 200 плюс 25%.');
+          return { summa: summa, stroki: [o.format + ' — ' + rub(zaShtuku) + ' за штуку'], zametki: zametki };
+        }
+      },
+
+      laminaciya: {
+        imya: 'Ламинация',
+        privet: 'Матовая и глянцевая плёнка стоят одинаково — разница в толщине.',
+        shagi: [
+          { id: 'stroka', vopros: 'Формат и плёнка?', varianty: [
+            { t: 'А5, стандарт', i: '80–100 мкм', v: 'А5, 80–100 мкм' },
+            { t: 'А4, стандарт', i: '80–100 мкм, обычные документы', v: 'А4, 80–100 мкм' },
+            { t: 'А4, плотнее', i: '125–150 мкм', v: 'А4, 125–150 мкм' },
+            { t: 'А4, жёсткая', i: '250 мкм, меню и таблички', v: 'А4, 250 мкм' },
+            { t: 'А3, стандарт', i: '80–100 мкм', v: 'А3, 80–100 мкм' }
+          ] },
+          { id: 'kolvo', vopros: 'Сколько листов?', varianty: [
+            { t: '1–10', v: 5 }, { t: '11–50', v: 30 }, { t: '51 и больше', v: 60 }
+          ] }
+        ],
+        schet: function (o) {
+          var zaList = poTirazhu(C.laminaciya, o.stroka, o.kolvo);
+          var summa = zaList * o.kolvo, zametki = [];
+          if (summa < C.minimalki.laminaciya) {
+            summa = C.minimalki.laminaciya;
+            zametki.push('Минимальная стоимость заказа на ламинацию — ' + rub(C.minimalki.laminaciya) + '.');
+          }
+          return { summa: summa, stroki: [o.stroka + ' — ' + rub(zaList) + ' за лист'], zametki: zametki };
+        }
+      },
+
+      drugoe: {
+        imya: 'Другая задача',
+        privet: 'Расскажите задачу — посчитаем и ответим в рабочие часы. Чего мы не делаем: ' + (C.netVPrajse || []).join(', ') + '.',
+        shagi: [],
+        schet: function () {
+          return {
+            summa: null,
+            stroki: [],
+            zametki: ['Оставьте телефон — перезвоним и посчитаем вместе.']
+          };
+        }
+      }
+    };
+
+    /* ── Состояние ─────────────────────────────────────────────────── */
+
+    var vybor = {};      // ответы: id шага → значение
+    var put = [];        // человеческие подписи для чека и заявки
+    var scen = null;     // выбранный сценарий
+    var shagIndex = 0;
+    var itog = null;
+
+    function skazat(kto, html) {
+      var d = document.createElement('div');
+      d.className = kto === 'ya' ? 'sek-msg-ya' : 'sek-msg-bot';
+      d.innerHTML = html;
+      feed.appendChild(d);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function pokazatKnopki(varianty, obrabotchik) {
+      knopki.innerHTML = '';
+      varianty.forEach(function (v) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.innerHTML = '<span>' + v.t + '</span>' + (v.i ? '<i>' + v.i + '</i>' : '');
+        b.addEventListener('click', function () { obrabotchik(v); });
+        knopki.appendChild(b);
+      });
+    }
+
+    function obnovitChek() {
+      putEl.innerHTML = '';
+      put.forEach(function (p) {
+        var li = document.createElement('li');
+        li.textContent = p;
+        putEl.appendChild(li);
+      });
+    }
+
+    /* ── Ход разговора ─────────────────────────────────────────────── */
+
+    function start() {
+      vybor = {}; put = []; scen = null; shagIndex = 0; itog = null;
+      feed.innerHTML = ''; forma.hidden = true; zanovoB.hidden = true;
+      msgEl.textContent = '';
+      summaEl.textContent = '—';
+      podpisEl.textContent = 'ответьте на несколько вопросов';
+      obnovitChek();
+
+      skazat('bot', 'Здравствуйте! Я Джарвис, секретарь студии «Гранат». Скажу цену по прайсу за минуту — что нужно напечатать?');
+      pokazatKnopki(
+        Object.keys(SCENARII).map(function (k) {
+          return { t: SCENARII[k].imya, v: k };
+        }),
+        function (v) {
+          scen = SCENARII[v.v];
+          put.push(scen.imya);
+          obnovitChek();
+          skazat('ya', v.t);
+          skazat('bot', scen.privet);
+          zanovoB.hidden = false;
+          shagIndex = 0;
+          sleduyushchijShag();
+        }
+      );
+    }
+
+    function sleduyushchijShag() {
+      if (shagIndex >= scen.shagi.length) return finish();
+      var shag = scen.shagi[shagIndex];
+      skazat('bot', shag.vopros);
+
+      function otvet(v) {
+        // «Не знаю, посоветуйте» — объясняем и спрашиваем снова,
+        // уже без этой кнопки, чтобы не ходить по кругу.
+        if (v.v === 'sovet') {
+          skazat('ya', v.t);
+          skazat('bot', scen.sovet[shag.id]);
+          pokazatKnopki(
+            shag.varianty.filter(function (x) { return x.v !== 'sovet'; }),
+            otvet
+          );
+          return;
+        }
+        vybor[shag.id] = v.v;
+        put.push(v.t);
+        obnovitChek();
+        skazat('ya', v.t);
+        shagIndex++;
+        sleduyushchijShag();
+      }
+
+      pokazatKnopki(shag.varianty, otvet);
+    }
+
+    function finish() {
+      knopki.innerHTML = '';
+      itog = scen.schet(vybor);
+
+      if (itog.summa != null) {
+        // Срочность множит весь заказ — одна ставка на весь прайс, как у бота.
+        if (vybor.srok === 'srochno') {
+          itog.summa = itog.summa * C.koefficienty.srochno;
+          itog.zametki.push('Срочно, день в день — плюс 30% ко всему заказу.');
+        }
+        var text = '<span class="sek-cifra">' + rub(itog.summa) + '</span>';
+        itog.stroki.forEach(function (s) { text += s + '<br>'; });
+        skazat('bot', text);
+        summaEl.textContent = rub(itog.summa);
+        podpisEl.textContent = 'по прайсу студии';
+      } else {
+        skazat('bot', 'Такую задачу считаем вручную — она того стоит.');
+        summaEl.textContent = 'считаем';
+        podpisEl.textContent = 'ответим в рабочие часы';
+      }
+
+      if (itog.zametki.length) skazat('bot', itog.zametki.join('<br>'));
+      skazat('bot', 'Оставьте телефон — передам заявку в студию, и мы подтвердим срок. Предоплата 50%, макет проверяем до печати.');
+      forma.hidden = false;
+      document.getElementById('sekTel').focus();
+    }
+
+    /* ── Отправка заявки ───────────────────────────────────────────── */
+
+    forma.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var tel = document.getElementById('sekTel').value.trim();
+      var soglasie = document.getElementById('sekSoglasie');
+      var knopka = document.getElementById('sekOtpravit');
+      if (!tel) return;
+      // Галочка стоит required — браузер не даст отправить форму без неё.
+      // Проверяем ещё и здесь: заявка уходит по fetch, и полагаться на одну
+      // только браузерную проверку в деле о персональных данных нельзя.
+      if (!soglasie.checked) {
+        msgEl.style.color = '#8B1A1A';
+        msgEl.textContent = 'Отметьте согласие на обработку персональных данных — без него мы не вправе принять заявку.';
+        return;
+      }
+      knopka.disabled = true; knopka.style.opacity = '.6';
+      msgEl.style.color = '#4A0E17';
+      msgEl.textContent = 'Отправляем...';
+
+      fetch('/api/bot-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact: tel,
+          // Факт согласия уезжает вместе с заявкой и ложится в журнал:
+          // по 152-ФЗ мы должны уметь показать, что человек его давал.
+          path: put.concat(['Согласие на обработку персональных данных получено']),
+          total: itog && itog.summa ? Math.round(itog.summa) : 0,
+          scenario: 'Секретарь на сайте'
+        })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok) {
+            msgEl.style.color = '#4A0E17';
+            msgEl.textContent = 'Заявка принята. Позвоним в рабочие часы: Пн–Сб 09:00–20:00, Вс 10:00–19:00.';
+            forma.querySelector('input[type="tel"]').disabled = true;
+          } else {
+            zapasnojPut(tel);
+          }
+        })
+        .catch(function () { zapasnojPut(tel); });
+    });
+
+    /* Заявка не ушла — клиента не теряем: даём написать самому,
+       текст уже собран. Тот же приём, что у формы заявки на сайте. */
+    function zapasnojPut(tel) {
+      var text = 'Здравствуйте! Заявка с сайта granat-kmv.ru\n' +
+        put.join(' → ') +
+        (itog && itog.summa ? '\nПримерно: ' + rub(itog.summa) : '') +
+        '\nТелефон: ' + tel;
+      msgEl.style.color = '#8B1A1A';
+      msgEl.innerHTML = 'Связь со студией не отвечает. Напишите нам сами — текст уже готов: ' +
+        '<a class="gold-grad" target="_blank" rel="noopener" href="https://vk.me/club238836731">ВКонтакте</a> · ' +
+        '<a class="gold-grad" target="_blank" rel="noopener" href="https://wa.me/79992449999?text=' +
+        encodeURIComponent(text) + '">WhatsApp</a> · ' +
+        '<a class="gold-grad" href="tel:+79992449999">позвонить</a>';
+    }
+
+    zanovoB.addEventListener('click', start);
+    start();
+  })();
+  </script>

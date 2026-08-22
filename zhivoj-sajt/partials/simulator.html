@@ -1,0 +1,48 @@
+    <!-- Симулятор бота с расчётом -->
+    <section id="simulator" class="py-20" style="background:#F9F3EB;">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-2xl reveal">
+          <p class="kicker mb-3" style="color:#4A0E17;">Попробуйте прямо здесь</p>
+          <h2 class="text-3xl md:text-4xl font-bold" style="color:#4A0E17;">Соберите своего бота и сразу увидите цену</h2>
+          <p class="text-lg mt-4" style="color:rgba(74,14,23,.72);">Выберите сферу и нажимайте кнопки внутри чата. Бот показывает, из чего складывается стоимость — без сюрпризов в конце.</p>
+        </div>
+
+        <div class="sim reveal">
+          <div class="sim-side">
+            <div class="sim-side-t">Сценарий</div>
+            <button class="sim-mode is-on" type="button" data-mode="cafe">
+              <span class="sim-ico">🍕</span>
+              <span class="sim-mt"><b>Кафе и доставка</b><i>меню, корзина, оплата</i></span>
+            </button>
+            <button class="sim-mode" type="button" data-mode="beauty">
+              <span class="sim-ico">💅</span>
+              <span class="sim-mt"><b>Салон и услуги</b><i>запись, напоминания, календарь</i></span>
+            </button>
+
+            <div class="sim-total">
+              <span>Собрано на сумму</span>
+              <b id="simTotal">15 000 ₽</b>
+              <em id="simItems">базовая сборка</em>
+            </div>
+            <p class="sim-hint">Стартовая конфигурация. Точную смету считаем после короткого разговора — консультация бесплатная.</p>
+          </div>
+
+          <div class="sim-phone">
+            <div class="sim-notch"></div>
+            <div class="sim-screen">
+              <div class="sim-head">
+                <div class="sim-ava">Д</div>
+                <div class="sim-hi">
+                  <div class="sim-name">Джарвис · ГРАНАТ</div>
+                  <div class="sim-st">online</div>
+                </div>
+              </div>
+              <div class="sim-feed" id="simFeed"></div>
+              <div class="sim-kb" id="simKb"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+{% include "partials/_js-simulator.html" %}

@@ -1,12 +1,15 @@
 import os
+import hashlib
+import hmac
 import json
+import re
 import smtplib
 import socket
 import ssl
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timedelta
 from email.message import EmailMessage
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -72,6 +75,14 @@ socket.getaddrinfo = _getaddrinfo_ipv4_only
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
+# Адрес с косой чертой на конце и без неё — одна и та же страница.
+# Без этой строки Flask отдаёт 404 на `/sertifikaty/`, хотя `/sertifikaty`
+# открывается. 19.08.2026 на это налетел проверяльщик ссылок Яндекс
+# Бизнеса: адрес страницы товара он не принял со словами «добавьте
+# корректную ссылку». Люди тоже дописывают слеш по привычке, и терять
+# на этом посетителя из Карт — дорогое удовольствие.
+app.url_map.strict_slashes = False
+
 # Картинки, логотип и скрипты браузер держит у себя сутки и не запрашивает
 # заново на каждой странице. По умолчанию Flask ставит 12 часов и при каждом
 # переходе всё равно ходит на сервер спрашивать «не изменилось ли». На
@@ -100,7 +111,14 @@ MAX_MAKET = 20 * 1024 * 1024
 # поднимался двадцать минут — NameError на 74-й строке, gunicorn падал
 # в цикле. Ошибка не ловится ни глазами, ни `python -c "import ast"`:
 # синтаксис верный, порядок неверный.
-app.config["MAX_CONTENT_LENGTH"] = MAX_MAKET + 1024 * 1024  # запас на поля формы
+#
+# Сколько файлов берём за одну заявку. Четыре — это лицо и оборот
+# листовки, три панели буклета или обложка с разворотом. Предел нужен
+# не для порядка, а чтобы папка со свадебными фотографиями не приехала
+# к нам целиком: контейнер читает тело в память.
+MAX_MAKETOV = 4
+
+app.config["MAX_CONTENT_LENGTH"] = MAX_MAKET * MAX_MAKETOV + 1024 * 1024  # запас на поля формы
 
 # Расширения, которые принимаем от клиента. Список белый, а не чёрный:
 # запрещать по одному бесполезно, разрешать по одному — надёжно.
@@ -110,6 +128,34 @@ MAKET_RASSHIRENIYA = {
     ".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".heic",
     ".ai", ".eps", ".psd", ".cdr", ".zip", ".rar", ".doc", ".docx",
 }
+
+# ── Свой номер в заявке — это проверка, а не клиент ──────────────────────
+#
+# 18.08.2026 владелица сказала: «у нас уже 27-я заявка, а по сути только
+# одна». Каждая проверка секретаря забирала номер, и по номеру заявки
+# нельзя было понять, сколько людей на самом деле обратилось.
+#
+# Обнулять счётчик нельзя: номера уже стоят в журнале и в именах файлов
+# с макетами на диске, повтор номера склеит два разных заказа. Поэтому
+# не обнуляем, а перестаём тратить: заявка со СВОЕГО телефона номера
+# не получает и в журнал заявок не ложится. Письмо приходит с пометкой,
+# чтобы проверку было видно сразу.
+TEST_PHONES = {"79992449999"}
+_dop_test = os.getenv("TEST_PHONES", "")
+for _t in _dop_test.split(","):
+    _cifry = "".join(c for c in _t if c.isdigit())
+    if _cifry:
+        TEST_PHONES.add(_cifry)
+
+
+def eto_proverka(stroka) -> bool:
+    """Заявка со своего номера. Восьмёрку приводим к семёрке: в форму
+    вводят и так, и так, а телефон это один и тот же."""
+    cifry = "".join(c for c in str(stroka or "") if c.isdigit())
+    if len(cifry) == 11 and cifry.startswith("8"):
+        cifry = "7" + cifry[1:]
+    return cifry in TEST_PHONES
+
 
 # Контейнер живёт по Гринвичу, а смотреть на заявки нам по-московски.
 TZ = ZoneInfo("Europe/Moscow")
@@ -301,8 +347,18 @@ def auth_reason(err):
 def send_to_mail(subject, text, vlozhenie=None):
     """Дубль заявки письмом. Возвращает (ok, причина).
 
-    `vlozhenie` — кортеж (имя_файла, байты) с макетом клиента, если он его
-    приложил. Заведено 17.08.2026: до этого человек доходил до конца
+    `vlozhenie` — СПИСОК кортежей (имя_файла, байты) с макетами клиента.
+    Одиночный кортеж тоже принимается: так вызывали раньше, и ломать
+    старые вызовы ради красоты незачем.
+
+    Список, а не один файл, — с 18.08.2026. Поле принимало ровно один
+    макет, а у листовки две стороны, и клиентка написала прямо: «там
+    загружается только одна картинка, а мне нужно отправить две
+    стороны». Она прислала лицо, была уверена, что отправила обе, —
+    и печатать было нечего. Форма молчала об этом, а выяснилось через
+    сутки.
+
+    Заведено 17.08.2026: до этого человек доходил до конца
     диалога, оставлял телефон — и упирался в вопрос «а куда макет».
     Файл уходил отдельным письмом без параметров заказа, и связать их
     было нечем. Ровно так потерялся заказ 16.08.
@@ -322,11 +378,14 @@ def send_to_mail(subject, text, vlozhenie=None):
     msg.set_content(text)
 
     if vlozhenie:
-        imya, bajty = vlozhenie
-        # Тип не разбираем: почтовым клиентам хватает octet-stream, а угадывать
-        # по расширению — лишний повод ошибиться на .cdr и .psd.
-        msg.add_attachment(bajty, maintype="application", subtype="octet-stream",
-                           filename=imya)
+        # Одиночный кортеж приводим к списку: старые вызовы передавали
+        # именно его, и падать на них нельзя.
+        spisok = vlozhenie if isinstance(vlozhenie, list) else [vlozhenie]
+        for imya, bajty in spisok:
+            # Тип не разбираем: почтовым клиентам хватает octet-stream, а угадывать
+            # по расширению — лишний повод ошибиться на .cdr и .psd.
+            msg.add_attachment(bajty, maintype="application", subtype="octet-stream",
+                               filename=imya)
 
     try:
         with smtplib.SMTP_SSL(MAIL_HOST, MAIL_PORT,
@@ -396,6 +455,52 @@ def deliver(subject, text, vlozhenie=None):
         return vk.result(), mail.result()
 
 
+# ── Что можно отдавать из корня ─────────────────────────────────────────
+# ЗАЧЕМ. Flask поднят с static_folder="." (см. начало файла), поэтому из
+# корня наружу уходит ВСЁ, что там лежит, — а лежит там сама программа.
+# 21.08.2026 проверкой с чужого компьютера скачались app.py, leads.py,
+# bots.py, contact.py, fraud_check.py, amvera.yaml, .env.example, журнал
+# работ и папка .git целиком. Ключей в файлах нет, они читаются из
+# переменных Amvera, — но наружу ушло устройство сайта и все 45 КБ
+# правил проверки мошенников. Правила, которые видно, обходятся.
+#
+# Разрешаем по списку, а не запрещаем по списку: новый служебный файл
+# в корне появится рано или поздно, и он не должен открыться сам собой.
+# Адреса страниц (/pechat, /api/health) сюда не попадают — у них нет
+# расширения, и они уходят дальше, в маршруты.
+MOZHNO_OTDAVAT = (
+    ".html", ".htm", ".css", ".js", ".map",
+    ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".ico", ".avif",
+    ".xml", ".webmanifest", ".pdf", ".mp4", ".woff", ".woff2", ".ttf",
+)
+# Из .txt наружу нужен ровно один файл — его просит поисковик.
+MOZHNO_TXT = {"robots.txt"}
+
+
+@app.before_request
+def ne_otdavat_sluzhebnoe():
+    """Служебные файлы и папку .git наружу не отдаём."""
+    put = request.path.lstrip("/")
+    if not put:
+        return None
+
+    # .git, .env, .htaccess — любой файл или папка, начинающиеся с точки.
+    if any(chast.startswith(".") for chast in put.split("/")):
+        return "Not Found", 404
+
+    nizhnij = put.lower()
+    if nizhnij.endswith(".txt"):
+        return None if nizhnij in MOZHNO_TXT else ("Not Found", 404)
+
+    # Расширения нет — это адрес страницы, а не файл: пропускаем дальше.
+    imya = nizhnij.rsplit("/", 1)[-1]
+    if "." not in imya:
+        return None
+
+    if not nizhnij.endswith(MOZHNO_OTDAVAT):
+        return "Not Found", 404
+
+
 @app.before_request
 def redirect_old_domain():
     if request.host.lower() == OLD_HOST:
@@ -427,6 +532,231 @@ def tolko_https():
                         code=301)
 
 
+# ── Отзывы с Яндекс Карт ────────────────────────────────────────────────
+# ЗАЧЕМ. Отзывы клиенты уже написали, но видит их только тот, кто дошёл до
+# Яндекс Карт. На сайте они работают как доказательство: человек читает их
+# там же, где решает, заказывать или нет.
+#
+# Показываем официальным виджетом Яндекса, а не своим списком. Свой список
+# — это слова студии о самой себе: написать в нём можно что угодно, и цена
+# такому ноль. Виджет рисует Яндекс из своей базы: и оценка, и число
+# отзывов там те же, что в справочнике, подделать их нельзя.
+#
+# ЧТО СЮДА КЛАСТЬ. Годится любое из трёх:
+#   1. Код виджета из кабинета Яндекс Бизнеса: Отзывы → Виджет отзывов →
+#      «Скопировать код». Лучший вариант: отзывы видны прямо на странице.
+#   2. Один номер карточки из этого кода.
+#   3. Ссылка на карточку в Яндекс Картах, в том числе короткая вида
+#      yandex.ru/maps/-/XXXXXXXX. Номера в ней нет, поэтому виджет
+#      не собрать — блок покажет заголовок и кнопку на карточку.
+#
+# ГДЕ ЗАДАТЬ. Проще всего переменной приложения в Amvera: granat-site →
+# Переменные окружения → YANDEX_REVIEWS. Тогда файл заново загружать
+# не нужно, хватит перезапуска. Переменная главнее строки ниже.
+YANDEX_REVIEWS_CODE = "https://yandex.ru/maps/-/CTFBZ4kK"
+YANDEX_REVIEWS = os.getenv("YANDEX_REVIEWS", "").strip() or YANDEX_REVIEWS_CODE.strip()
+
+
+def yandex_reviews():
+    """Адреса виджета и ссылок на карточку. None — если ничего не задано.
+
+    Возвращает `frame` (адрес рамки с отзывами; None, если номер карточки
+    неизвестен), `page` — куда идти читать, `add` — куда идти писать.
+
+    Пока не задано ничего, блок отзывов на страницах не рисуется вовсе:
+    пустая рамка посреди страницы — дырка в вёрстке и лишний запрос
+    к чужому домену.
+
+    Чужой код в страницу как есть не вставляем: вместе с ним приезжают
+    чужие размеры, от которых вёрстка разъезжается на телефоне. Берём
+    из него только номер карточки, остальное собираем сами.
+    """
+    raw = YANDEX_REVIEWS
+    if not raw:
+        return None
+
+    found_src = re.search(r"""src\s*=\s*["']([^"']+)["']""", raw)
+    src = (found_src.group(1) if found_src else raw).strip()
+
+    if src.isdigit():
+        return reviews_by_org(src)
+
+    if src.startswith("//"):
+        src = "https:" + src
+    try:
+        parts = urlparse(src)
+    except ValueError:
+        return None
+
+    # Только https и только Яндекс: в рамке посреди страницы не должно
+    # оказаться неизвестно что, если код скопировали не оттуда.
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https":
+        return None
+    if host != "yandex.ru" and not host.endswith(".yandex.ru"):
+        return None
+
+    # Номер ищем только там, где он действительно номер карточки. Просто
+    # «первые цифры в адресе» брать нельзя: в ссылке на карту сначала идёт
+    # номер региона, и по нему открылась бы чужая организация.
+    found_id = (
+        re.search(r"\bid=(\d+)", parts.query)
+        or re.search(r"/org/[^/]+/(\d+)", parts.path)
+        # Нынешний код виджета из «Поделиться» на Картах: номер прямо
+        # в пути, без параметров. Старый вид с ?id= оставлен выше —
+        # он мог сохраниться у кого-то в закладках.
+        or re.search(r"/maps-reviews-widget/(\d+)", parts.path)
+        or re.search(r"/rating-badge/(\d+)", parts.path)
+    )
+    if found_id:
+        return reviews_by_org(found_id.group(1))
+
+    # Номера нет — дали короткую ссылку вида yandex.ru/maps/-/XXXXXXXX.
+    # Разворачиваем её сами, в фоне: сервер в интернете, а хозяйка сайта
+    # с телефона адресную строку посмотреть не может.
+    org = short_link_org(src)
+    if org:
+        return reviews_by_org(org)
+
+    # Пока не развернулась (или Яндекс не дал развернуть) — отправляем
+    # человека на карточку кнопкой. Это честнее, чем показать пустоту.
+    return {"frame": None, "page": src, "add": src}
+
+
+# Что вернула короткая ссылка: номер карточки или пусто. Держим в памяти,
+# чтобы не ходить в Яндекс на каждый показ страницы.
+_SHORT_LINK = {"url": "", "org": "", "asked": False}
+
+
+def short_link_org(url):
+    """Номер карточки из короткой ссылки. Пусто — пока не развернулась.
+
+    Первый посетитель ждать не должен, поэтому в Яндекс идём в фоновом
+    потоке, а страницу отдаём сразу — с кнопкой вместо рамки. Развернётся
+    — рамка появится у следующего посетителя.
+    """
+    if _SHORT_LINK["url"] != url:
+        _SHORT_LINK.update({"url": url, "org": "", "asked": False})
+
+    if _SHORT_LINK["org"]:
+        return _SHORT_LINK["org"]
+
+    if not _SHORT_LINK["asked"]:
+        _SHORT_LINK["asked"] = True
+        NOTIFY_POOL.submit(_expand_short_link, url)
+
+    return ""
+
+
+def _expand_short_link(url):
+    """Сходить по короткой ссылке и запомнить номер карточки из адреса."""
+    try:
+        resp = requests.get(url, timeout=8, allow_redirects=True,
+                            headers={"User-Agent": "Mozilla/5.0 (granat-kmv.ru)"})
+        where = resp.url or ""
+        found = re.search(r"/org/[^/]+/(\d+)", where) or re.search(r"/org/[^/]+/(\d+)", resp.text[:200000])
+        if found:
+            _SHORT_LINK["org"] = found.group(1)
+            print(f"[отзывы] короткая ссылка развернулась, карточка {found.group(1)}", flush=True)
+        else:
+            print(f"[отзывы] в адресе {where[:120]} номера карточки нет — "
+                  f"оставляем кнопку на карточку", flush=True)
+    except Exception as e:
+        print(f"[отзывы] короткую ссылку развернуть не вышло: {e}", flush=True)
+
+
+def reviews_by_org(org):
+    """Три адреса по номеру карточки: рамка, чтение, написать отзыв.
+
+    Рамку отдаём, только если Яндекс разрешает вставить её к нам. Он
+    разрешает не всегда: 21.08.2026 на живом сайте виджет ответил
+    ERR_BLOCKED_BY_RESPONSE — то есть страница пришла, но с запретом
+    показывать её внутри чужого сайта. На странице получалась белая
+    дыра в 560 пикселей под заголовком «Что о нас пишут».
+
+    Не разрешает — вместо рамки кнопка на карточку. Отправить человека
+    в Яндекс честнее, чем показать ему пустое место.
+    """
+    # Номер карточки идёт В ПУТИ, а не параметром. Формат с ?id= отдаёт
+    # 404, и это стоило нам недели с кнопкой вместо рамки: сначала
+    # решили, что Яндекс закрыл виджет новым карточкам, потом — что
+    # запрещает вставку. Ни то, ни другое. Проверено 22.08.2026:
+    # /maps-reviews-widget/237257245054?comments отвечает 200, отдаёт
+    # пять живых отзывов и заголовок x-frame-options: ALLOWALL.
+    # ?comments — показывать сами отзывы, а не одну оценку.
+    frame = f"https://yandex.ru/maps-reviews-widget/{org}?comments"
+    return {
+        "frame": frame if vidzhet_pustyat(frame) else None,
+        "page": f"https://yandex.ru/maps/org/{org}/reviews/",
+        "add": f"https://yandex.ru/maps/org/{org}/reviews/?add-review=true",
+    }
+
+
+# Пустит ли Яндекс виджет к нам на страницу. Спрашиваем один раз
+# и держим ответ в памяти: на каждый показ страницы в Яндекс не ходим.
+_VIDZHET = {"url": "", "mozhno": False, "sprosili": False, "pochemu": "ещё не спрашивали"}
+
+
+def vidzhet_pustyat(url):
+    """True — рамку можно рисовать. Первому посетителю отвечаем «нет».
+
+    Спрашиваем в фоновом потоке: посетитель не должен ждать чужой сервер.
+    Пока ответа нет, показываем кнопку — это верный ответ по умолчанию,
+    потому что пустая рамка хуже кнопки.
+    """
+    if _VIDZHET["url"] != url:
+        _VIDZHET.update({"url": url, "mozhno": False, "sprosili": False,
+                         "pochemu": "ещё не спрашивали"})
+
+    if not _VIDZHET["sprosili"]:
+        _VIDZHET["sprosili"] = True
+        NOTIFY_POOL.submit(_proverit_vidzhet, url)
+
+    return _VIDZHET["mozhno"]
+
+
+def _proverit_vidzhet(url):
+    """Сходить за виджетом и посмотреть, разрешено ли встраивание."""
+    try:
+        resp = requests.get(url, timeout=8,
+                            headers={"User-Agent": "Mozilla/5.0 (granat-kmv.ru)",
+                                     "Referer": NEW_DOMAIN + "/"})
+        if resp.status_code != 200:
+            _zapisat_vidzhet(False, f"Яндекс ответил {resp.status_code}")
+            return
+
+        # X-Frame-Options: DENY или SAMEORIGIN — это и есть запрет,
+        # который браузер показывает как ERR_BLOCKED_BY_RESPONSE.
+        xfo = resp.headers.get("X-Frame-Options", "").strip().upper()
+        if xfo in ("DENY", "SAMEORIGIN"):
+            _zapisat_vidzhet(False, f"Яндекс запрещает вставку: X-Frame-Options {xfo}")
+            return
+
+        # То же самое, но новым способом: frame-ancestors в CSP.
+        csp = resp.headers.get("Content-Security-Policy", "")
+        found = re.search(r"frame-ancestors([^;]*)", csp, re.I)
+        if found:
+            komu = found.group(1).lower()
+            if "granat-kmv.ru" not in komu and "*" not in komu:
+                _zapisat_vidzhet(False, "Яндекс запрещает вставку: frame-ancestors")
+                return
+
+        _zapisat_vidzhet(True, "Яндекс пускает виджет")
+    except Exception as e:
+        _zapisat_vidzhet(False, f"виджет не проверить: {type(e).__name__}")
+
+
+def _zapisat_vidzhet(mozhno, pochemu):
+    _VIDZHET.update({"mozhno": mozhno, "pochemu": pochemu})
+    print(f"[отзывы] {pochemu}", flush=True)
+
+
+@app.context_processor
+def inject_reviews():
+    """Отзывы нужны и на главной, и в контактах — разбираем номер один раз."""
+    return {"reviews": yandex_reviews()}
+
+
 # ── Страницы сайта ──────────────────────────────────────────────────────
 # Раньше сайт был одностраничным: все разделы жили в index.html и
 # открывались якорями (#pechat, #cifra). Для поиска это одна страница с
@@ -450,6 +780,29 @@ def pechat():
     return render_template("pechat.html")
 
 
+# Отдельная страница под запросы вроде «сделать копию миграционной
+# карты» и «копия патента Лермонтов». Общая страница печати по таким
+# словам не находится: их там просто нет. Цена та же, что у копирования.
+@app.route("/dokumenty")
+def dokumenty():
+    return render_template("dokumenty.html")
+
+
+# Ещё две страницы под запросы, а не под товар. Владелица 19.08.2026:
+# «про сертификаты и открытки тоже есть». Человек ищет «напечатать
+# грамоту» и «приглашения на свадьбу», а этих слов на общей странице
+# печати нет — они спрятаны в примечании к таблице. Цены те же, что
+# в прайсе: страницы разные, прайс один.
+@app.route("/sertifikaty")
+def sertifikaty():
+    return render_template("sertifikaty.html")
+
+
+@app.route("/otkrytki")
+def otkrytki():
+    return render_template("otkrytki.html")
+
+
 @app.route("/cifra")
 def cifra():
     return render_template("cifra.html")
@@ -468,6 +821,80 @@ def kak_rabotaem():
 @app.route("/kontakty")
 def kontakty():
     return render_template("kontakty.html")
+
+
+# ── Короткие адреса для карточек и рекламы ───────────────────────────────
+#
+# 19.08.2026 владелица: «с рекламы звонят и говорят: я не знаю о вашем
+# сайте ничего». В карточках стоит телефон, ссылки на сайт нет — человек
+# звонит, чтобы спросить цену, вместо того чтобы посчитать её сам.
+#
+# Длинный адрес с метками в карточку вписывать неудобно и легко
+# ошибиться. Поэтому короткий адрес живёт у нас, а метку он подставляет
+# сам. В карточку вписывается granat-kmv.ru/2gis — и всё.
+#
+# Метки нужны не для красоты: без них в Метрике все эти люди
+# сливаются в «переходы по рекламе», и непонятно, какая карточка
+# работает, а какая просто стоит.
+# Адреса объявляем ПОИМЁННО, а не одним правилом «/что-угодно».
+# Общее правило перехватило бы и /logo.png, и /robots.txt: статика
+# раздаётся из корня, и одиночный сегмент адреса Werkzeug считает
+# более точным совпадением, чем путь к файлу. Картинки на сайте
+# просто пропали бы, и искать причину пришлось бы долго.
+KOROTKIE_ADRESA = {
+    "2gis": "2gis",
+    "ya": "yandex_business",
+    "karty": "yandex_maps",
+    "vizitka": "vizitka",       # печатная визитка и листовки
+}
+
+
+def _korotkij(istochnik):
+    # Ведём сразу к секретарю: человек пришёл из карточки за ценой,
+    # а не читать про студию.
+    return redirect(
+        "/?utm_source={}&utm_medium=referral&utm_campaign=kartochka#sekretar"
+        .format(istochnik), code=302)
+
+
+@app.route("/2gis")
+def kor_2gis():
+    return _korotkij(KOROTKIE_ADRESA["2gis"])
+
+
+@app.route("/ya")
+def kor_ya():
+    return _korotkij(KOROTKIE_ADRESA["ya"])
+
+
+@app.route("/karty")
+def kor_karty():
+    return _korotkij(KOROTKIE_ADRESA["karty"])
+
+
+@app.route("/vizitka")
+def kor_vizitka():
+    return _korotkij(KOROTKIE_ADRESA["vizitka"])
+
+
+# ── Постоянный адрес для QR-кода на отзыв ────────────────────────────────
+#
+# ЗАЧЕМ ОТДЕЛЬНЫЙ АДРЕС, а не прямая ссылка на Яндекс. QR-код печатается
+# на бумаге: тейбл-тент на стойке, вкладыш в заказ, наклейка на пакет.
+# Перепечатать тираж, когда ссылка поменяется, стоит денег и времени.
+# Поэтому в код зашивается НАШ короткий адрес, он не меняется никогда,
+# а куда он ведёт — решает эта функция.
+#
+# Ведём сразу в форму отзыва на карточке, а не на сайт: человек уже
+# держит заказ в руках, лишний шаг между ним и формой теряет отзыв.
+# Номер карточки неизвестен или Яндекс молчит — ведём на страницу
+# отзывов, в крайнем случае на блок отзывов у нас.
+@app.route("/otzyv")
+def kor_otzyv():
+    got = yandex_reviews()
+    if got and got["add"]:
+        return redirect(got["add"], code=302)
+    return redirect("/#otzyvy", code=302)
 
 
 # Старые ссылки с якорями остаются рабочими: их присылали в переписке,
@@ -614,7 +1041,30 @@ def health():
         # Джарвис живёт отдельным приложением и в Telegram остаётся —
         # показываем его состояние справочно.
         bots=bots_state.result(),
+        # В каком виде на страницах стоят отзывы. Проверять по этой строке
+        # удобнее, чем искать в логах: она открывается с телефона.
+        otzyvy=reviews_state(),
     )
+
+
+def reviews_state():
+    """Одной строкой: что сейчас показывает блок отзывов и почему."""
+    got = yandex_reviews()
+    if not got:
+        return "выключены: не задан YANDEX_REVIEWS"
+    if got["frame"]:
+        # Номер вынимаем регулярно, а не отрезанием по «=»: в нынешнем
+        # адресе виджета номер стоит в пути, и отрезание давало
+        # всю ссылку целиком вместо номера.
+        nomer = re.search(r"(\d{6,})", got["frame"])
+        return f"виджет с отзывами, карточка {nomer.group(1) if nomer else got['frame']}"
+    if _SHORT_LINK["org"] or _VIDZHET["url"]:
+        # Номер карточки есть, а рамки нет — значит виджет не пустили.
+        # Пишем прямо почему: иначе непонятно, поломка это или так задумано.
+        return f"кнопка на карточку: {_VIDZHET['pochemu']}"
+    return "кнопка на карточку: номер карточки ещё не известен"
+
+
 
 
 def follow_up(channel, lead_id, name):
@@ -633,12 +1083,15 @@ def follow_up(channel, lead_id, name):
     vk_exit = {
         "url": VK_WRITE_LINK,
         "label": "Написать во ВКонтакте →",
-        "note": "Напишите нам в сообщения сообщества — ответим там же, "
-                f"по заявке №{lead_id}.",
+        # Номера может не быть: у проверки со своего телефона его нет,
+        # и писать «по заявке №0» бессмысленно.
+        "note": "Напишите нам в сообщения сообщества — ответим там же"
+                + (f", по заявке №{lead_id}." if lead_id else "."),
     }
 
     if channel == "WhatsApp":
-        text = (f"Здравствуйте! Я оставил заявку №{lead_id} на сайте "
+        nomer = f" №{lead_id}" if lead_id else ""
+        text = (f"Здравствуйте! Я оставил заявку{nomer} на сайте "
                 f"granat-kmv.ru")
         if name:
             text += f". Меня зовут {name}"
@@ -716,11 +1169,17 @@ def order():
 
     # Номер нужен, чтобы Джарвис узнал клиента, когда тот придёт в бота,
     # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
-    lead_id = leads.next_id()
+    proverka = eto_proverka(phone)
+    lead_id = 0 if proverka else leads.next_id()
     payload["lead"] = lead_id
-    leads.log(lead_id, "created", source="site_form", **payload)
+    if proverka:
+        payload["proverka"] = True
+    else:
+        leads.log(lead_id, "created", source="site_form", **payload)
 
-    lines = [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
+    lines = ["🧪 ПРОВЕРКА, НЕ КЛИЕНТ — заявка со своего номера, "
+             "номер не потрачен"] if proverka else []
+    lines += [f"🔔 НОВАЯ ЗАЯВКА С САЙТА №{lead_id}", "", f"👤 Имя: {name}"]
     if phone:
         label = "Ник в Telegram" if got["kind"] == "username" else "Телефон"
         lines.append(f"📞 {label}: {contact.pretty(phone)}")
@@ -757,14 +1216,16 @@ def order():
         """Разослать заявку по каналам и записать результат. Возвращает,
         дошла ли она хоть куда-нибудь."""
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка с сайта №{lead_id} — {name}", text
+            (f"🧪 Проверка с сайта — {name}" if proverka
+             else f"Заявка с сайта №{lead_id} — {name}"), text
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,
                    reason="" if delivered else
                           f"вк: {vk_reason}; почта: {mail_reason}")
-        leads.log(lead_id, "notified", delivered=delivered,
-                  vk=vk_ok, mail=mail_ok)
+        if not proverka:
+            leads.log(lead_id, "notified", delivered=delivered,
+                      vk=vk_ok, mail=mail_ok)
         if not delivered:
             print(f"[order] заявка №{lead_id} сохранена, но не доставлена: "
                   f"вк: {vk_reason}; почта: {mail_reason}", flush=True)
@@ -830,30 +1291,37 @@ def bot_lead():
     # Сохраняем на диск ДО всякой отправки — тем же правилом, что и заявку:
     # почта может молчать, а файл клиента единственный, второй раз он его
     # не пришлёт.
-    maket_imya, maket_bajty, maket_zametka = "", None, ""
-    fajl = request.files.get("maket")
-    if fajl and fajl.filename:
+    # Файлов может быть несколько: у листовки две стороны, у буклета три
+    # панели. До 18.08.2026 бралcя ровно один, и клиент об этом не знал —
+    # он видел, что файл прикрепился, и был уверен, что отправил всё.
+    makety, maket_zametki = [], []
+    for fajl in request.files.getlist("maket")[:MAX_MAKETOV]:
+        if not (fajl and fajl.filename):
+            continue
         # Браузеры на Windows иногда шлют полный путь с обратными слешами,
         # а os.path.basename на Linux их за разделитель не считает — имя
         # выходило вроде «CUsersАняграмота.jpg».
         ish = os.path.basename(fajl.filename.replace("\\", "/"))
         rasshirenie = os.path.splitext(ish)[1].lower()
         if rasshirenie not in MAKET_RASSHIRENIYA:
-            maket_zametka = f"файл {ish} не принят: расширение {rasshirenie or 'без расширения'}"
-        else:
-            bajty = fajl.read(MAX_MAKET + 1)
-            if len(bajty) > MAX_MAKET:
-                maket_zametka = f"файл {ish} не принят: больше {MAX_MAKET // 1024 // 1024} МБ"
-            else:
-                # Имя клиента в имя файла на диске не берём: там бывает что
-                # угодно, вплоть до путей. Своё имя, а клиентское — в письме.
-                bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
-                maket_imya = bezopasnoe or ("maket" + rasshirenie)
-                maket_bajty = bajty
-                try:
-                    os.makedirs(MAKETY_DIR, exist_ok=True)
-                except OSError as e:
-                    print(f"[maket] не создать папку: {e}", flush=True)
+            maket_zametki.append(
+                f"файл {ish} не принят: расширение {rasshirenie or 'без расширения'}")
+            continue
+        bajty = fajl.read(MAX_MAKET + 1)
+        if len(bajty) > MAX_MAKET:
+            maket_zametki.append(
+                f"файл {ish} не принят: больше {MAX_MAKET // 1024 // 1024} МБ")
+            continue
+        # Имя клиента в имя файла на диске не берём: там бывает что
+        # угодно, вплоть до путей. Своё имя, а клиентское — в письме.
+        bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
+        makety.append((bezopasnoe or ("maket" + rasshirenie), bajty))
+
+    if makety:
+        try:
+            os.makedirs(MAKETY_DIR, exist_ok=True)
+        except OSError as e:
+            print(f"[maket] не создать папку: {e}", flush=True)
 
     try:
         total = int(data.get("total") or 0)
@@ -870,37 +1338,62 @@ def bot_lead():
         "scenario": (data.get("scenario") or "").strip(),
     }
 
-    lead_id = leads.next_id()
+    proverka = eto_proverka(contact)
+    lead_id = 0 if proverka else leads.next_id()
     payload["lead"] = lead_id
+    if proverka:
+        payload["proverka"] = True
 
     # Кладём файл на диск под номером заявки: так его находят по заявке,
     # не разбирая, кто из клиентов какой «scan1.pdf» прислал.
-    if maket_bajty is not None:
-        put_na_diske = os.path.join(MAKETY_DIR, f"{lead_id}_{maket_imya}")
+    puti = []
+    for nomer, (imya, bajty) in enumerate(makety, 1):
+        # Номер в имени сохраняет ПОРЯДОК сторон: лицо и оборот приходят
+        # двумя файлами, и какой из них какой — видно только по очереди,
+        # в которой их выбрал клиент.
+        put_na_diske = os.path.join(MAKETY_DIR, f"{lead_id}_{nomer}_{imya}")
         try:
             with open(put_na_diske, "wb") as f:
-                f.write(maket_bajty)
-            payload["maket"] = put_na_diske
+                f.write(bajty)
+            puti.append(put_na_diske)
         except OSError as e:
-            maket_zametka = f"файл {maket_imya} не сохранён на диск: {e}"
-            print(f"[maket] {maket_zametka}", flush=True)
-    if maket_zametka:
-        payload["maket_zametka"] = maket_zametka
+            maket_zametki.append(f"файл {imya} не сохранён на диск: {e}")
+            print(f"[maket] файл {imya} не сохранён на диск: {e}", flush=True)
+    if puti:
+        payload["makety"] = puti
+        payload["maket"] = puti[0]   # старое поле — чтобы не сломать читателей
+    if maket_zametki:
+        payload["maket_zametka"] = "; ".join(maket_zametki)
 
-    leads.log(lead_id, "created", **payload)
+    if not proverka:
+        leads.log(lead_id, "created", **payload)
 
     # ── ГЕНЕРАЛ докладывает ──────────────────────────────────────────────
-    lines = [f"🤖 ЗАЯВКА ИЗ СИМУЛЯТОРА №{lead_id}", "", f"📞 Контакт: {contact}"]
+    lines = ["🧪 ПРОВЕРКА, НЕ КЛИЕНТ — заявка со своего номера, "
+             "номер не потрачен"] if proverka else []
+    lines += [f"🤖 ЗАЯВКА С САЙТА №{lead_id}", "", f"📞 Контакт: {contact}"]
     if route_text:
         lines.append(f"🧭 Собрал: {route_text}")
     if total:
         lines.append("💰 На сумму: {:,} ₽".format(total).replace(",", " "))
-    if maket_bajty is not None:
-        lines.append(f"📎 Макет приложен к письму: {maket_imya}")
-    elif maket_zametka:
-        lines.append(f"⚠️ {maket_zametka} — попросите прислать другим способом")
+    if makety:
+        imena = ", ".join(imya for imya, _ in makety)
+        skolko = "Файл приложен" if len(makety) == 1 else f"Файлов приложено {len(makety)}"
+        lines.append(f"📎 {skolko} к письму: {imena}")
+    if maket_zametki:
+        lines.append("⚠️ " + "; ".join(maket_zametki) +
+                     " — попросите прислать другим способом")
+    if total:
+        # НПД: чек обязателен и формируется вручную в «Мой налог».
+        # Забытый чек — это и штраф, и невозможность для клиента-юрлица
+        # поставить заказ в расходы. Напоминание стоит одной строкой.
+        lines.append("🧾 После оплаты — чек в «Мой налог» и клиенту")
     lines.append("")
-    lines.append("Ждём клиента в боте для сбора ТЗ.")
+    # Раньше здесь стояло «Ждём клиента в боте для сбора ТЗ». Это
+    # осталось от времён, когда сайт только принимал телефон, а задачу
+    # выяснял бот. Теперь секретарь собирает всё сам — ждать нечего,
+    # заказ можно ставить в работу.
+    lines.append("Заказ собран секретарём — уточнять нечего, можно печатать.")
 
     # Все каналы сразу и в фоне — как и в заявке с формы выше. Симулятор
     # ждал ответа всех трёх наравне с формой, значит и висел так же.
@@ -908,15 +1401,17 @@ def bot_lead():
 
     def notify():
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
-            f"Заявка из симулятора №{lead_id}", text,
-            vlozhenie=(maket_imya, maket_bajty) if maket_bajty is not None else None
+            ("🧪 Проверка с сайта" if proverka
+             else f"Заявка с сайта №{lead_id}"), text,
+            vlozhenie=makety or None
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,
                    reason="" if delivered else
                           f"вк: {vk_reason}; почта: {mail_reason}")
-        leads.log(lead_id, "notified", delivered=delivered,
-                  vk=vk_ok, mail=mail_ok)
+        if not proverka:
+            leads.log(lead_id, "notified", delivered=delivered,
+                      vk=vk_ok, mail=mail_ok)
         if not delivered:
             print(f"[bot-lead] заявка №{lead_id} сохранена, но не доставлена: "
                   f"вк: {vk_reason}; почта: {mail_reason}", flush=True)
@@ -936,7 +1431,316 @@ def bot_lead():
         return jsonify(ok=False, saved=True, error="not_delivered",
                        lead=lead_id, next=follow_up("", lead_id, "")), 200
 
-    return jsonify(ok=True, lead=lead_id, next=follow_up("", lead_id, ""))
+    # Ссылка на счёт — только когда есть что оплачивать и это не проверка.
+    # Подпись в ссылке обязательна: без неё чужой счёт открывается
+    # подстановкой номера.
+    schet_url = ""
+    if total > 0 and not proverka:
+        schet_url = "/schet/{}?k={}".format(lead_id, klyuch_scheta(lead_id))
+
+    # Памятка клиенту. Даётся всегда, когда заявка настоящая: человек
+    # закроет вкладку и останется без номера и без состава заказа.
+    pamyatka_url = ""
+    if not proverka:
+        pamyatka_url = "/zayavka/{}?k={}".format(lead_id, klyuch_scheta(lead_id))
+
+    return jsonify(ok=True, lead=lead_id, schet=schet_url,
+                   pamyatka=pamyatka_url,
+                   next=follow_up("", lead_id, ""))
+
+
+# ── Реквизиты для счёта ──────────────────────────────────────────────────
+#
+# Лежат в коде, а не в секретах, и это осознанно: расчётный счёт, БИК
+# и ИНН печатаются на каждом счёте и уходят каждому клиенту — секретом
+# они не являются. Через переменные Amvera их можно переопределить,
+# не трогая код: сменился банк — поменяли переменную и перезапустили.
+REKVIZITY = {
+    "nazvanie": os.getenv("REKV_NAZVANIE",
+                          "Индивидуальный предприниматель "
+                          "Мелконян Гульнара Рифкатовна"),
+    "familiya": os.getenv("REKV_FAMILIYA", "Мелконян Г. Р."),
+    "inn": os.getenv("REKV_INN", "490600091128"),
+    "schet": os.getenv("REKV_SCHET", "40802810000009815176"),
+    "bank": os.getenv("REKV_BANK", "АО «ТБанк»"),
+    "bik": os.getenv("REKV_BIK", "044525974"),
+    "korschet": os.getenv("REKV_KORSCHET", "30101810145250000974"),
+    # ОГРНИП законом в счёте не требуется, но бухгалтерии его часто
+    # просят. Пусто — строка в счёте просто не печатается.
+    "ogrnip": os.getenv("REKV_OGRNIP", ""),
+    "adres": os.getenv("REKV_ADRES", "г. Лермонтов, ул. Нагорная 2/1, этаж 2"),
+    "telefon": os.getenv("REKV_TELEFON", "+7 (999) 244-99-99"),
+}
+
+# Строка про НДС. У ИП на НПД и на УСН её текст одинаков по смыслу —
+# налога на добавленную стоимость нет, — поэтому пишем нейтрально.
+# Появится другой режим — правится переменной, а не кодом.
+# Мелкий заказ оплачивается целиком и сразу — та же цифра, что в прайсе
+# секретаря (OPLATA.melkijZakazDo). Держим копией, потому что сервер
+# прайс не читает: он собирается в разметку на этапе сборки.
+MELKIJ_ZAKAZ_DO = int(os.getenv("MELKIJ_ZAKAZ_DO", "1000"))
+
+NDS_STROKA = os.getenv(
+    "REKV_NDS",
+    "Без НДС. Продавец применяет налог на профессиональный доход "
+    "(НПД), плательщиком НДС не является. Чек формируется "
+    "в приложении «Мой налог» и передаётся покупателю после оплаты.")
+
+
+def klyuch_scheta(lead_id: int) -> str:
+    """Короткая подпись ссылки на счёт.
+
+    Счёт лежит по адресу вида /schet/28, и без подписи любой человек
+    подставил бы чужой номер и увидел чужой заказ. Подпись считается
+    от номера и секрета студии, подобрать её нельзя.
+    """
+    sekret = (os.getenv("WATCH_TOKEN", "") or MAIL_PASSWORD or "granat").encode()
+    return hmac.new(sekret, str(lead_id).encode(), hashlib.sha256).hexdigest()[:12]
+
+
+def summa_propisyu(n: int) -> str:
+    """Сумма прописью — обязательная строка любого счёта.
+
+    Библиотеку не тянем: ради одной строки ставить зависимость,
+    которая может не собраться на Amvera, невыгодно.
+    """
+    ed = ["", "один", "два", "три", "четыре", "пять", "шесть", "семь",
+          "восемь", "девять"]
+    ed_zh = ["", "одна", "две", "три", "четыре", "пять", "шесть", "семь",
+             "восемь", "девять"]
+    do20 = ["десять", "одиннадцать", "двенадцать", "тринадцать",
+            "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать",
+            "восемнадцать", "девятнадцать"]
+    des = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят",
+           "шестьдесят", "семьдесят", "восемьдесят", "девяносто"]
+    sot = ["", "сто", "двести", "триста", "четыреста", "пятьсот",
+           "шестьсот", "семьсот", "восемьсот", "девятьсот"]
+
+    def gruppa(x, zhenskij=False):
+        slova = []
+        if x >= 100:
+            slova.append(sot[x // 100]); x %= 100
+        if 10 <= x < 20:
+            slova.append(do20[x - 10]); x = 0
+        if x >= 20:
+            slova.append(des[x // 10]); x %= 10
+        if x:
+            slova.append((ed_zh if zhenskij else ed)[x])
+        return slova
+
+    def okonchanie(x, formy):
+        x = x % 100
+        if 11 <= x <= 14:
+            return formy[2]
+        x = x % 10
+        if x == 1:
+            return formy[0]
+        if 2 <= x <= 4:
+            return formy[1]
+        return formy[2]
+
+    n = int(n)
+    if n <= 0:
+        return "ноль рублей 00 копеек"
+    slova = []
+    millionov, ostatok = divmod(n, 1000000)
+    tysyach, rublej = divmod(ostatok, 1000)
+    if millionov:
+        slova += gruppa(millionov) + [okonchanie(millionov, ["миллион", "миллиона", "миллионов"])]
+    if tysyach:
+        slova += gruppa(tysyach, True) + [okonchanie(tysyach, ["тысяча", "тысячи", "тысяч"])]
+    if rublej or not slova:
+        slova += gruppa(rublej)
+    slova.append(okonchanie(n, ["рубль", "рубля", "рублей"]))
+    fraza = " ".join(w for w in slova if w)
+    return fraza[0].upper() + fraza[1:] + " 00 копеек"
+
+
+@app.route("/schet/<int:lead_id>")
+def schet(lead_id):
+    """Счёт на оплату по заявке — для тех, кому нужен документ.
+
+    Просьба владелицы 18.08.2026: «можно формировать счёт: мне заявка,
+    а заказчику счёт с моими реквизитами». Юрлицо без счёта не платит,
+    а бухгалтерии нужен документ, а не сообщение в чате.
+
+    Счёт собирается ИЗ ЗАЯВКИ, руками ничего не переписывается: сумма
+    и состав заказа берутся оттуда же, откуда их видел клиент. Разойтись
+    им негде.
+    """
+    if request.args.get("k", "") != klyuch_scheta(lead_id):
+        return "Счёт не найден", 404
+
+    zayavka = leads.find(lead_id)
+    if not zayavka:
+        return "Счёт не найден", 404
+
+    try:
+        summa = int(zayavka.get("total") or 0)
+    except (TypeError, ValueError):
+        summa = 0
+    if summa <= 0:
+        return "По этой заявке сумма ещё не подтверждена", 404
+
+    # Состав заказа — то же, что клиент видел в разговоре. Телефон
+    # и служебные строки в счёт не выносим: документ уходит в чужую
+    # бухгалтерию.
+    sluzhebnye = ("Согласие на обработку", "ТЗ согласовано", "Клиент написал",
+                  "Оплата на момент заявки", "Макет к заявке", "Макетов приложено",
+                  "Макет приложен", "Замер по файлу")
+    sostav = [str(o) for o in (zayavka.get("options") or [])
+              if str(o).strip() and not str(o).startswith(sluzhebnye)]
+
+    naimenovanie = (sostav[0] if sostav else "Полиграфические услуги")
+    if not naimenovanie.strip():
+        naimenovanie = "Полиграфические услуги"
+
+    return render_template(
+        "schet.html",
+        nomer=lead_id,
+        data=now_msk().strftime("%d.%m.%Y"),
+        postavshchik=REKVIZITY,
+        platelshchik="Физическое лицо — по заявке № {}".format(lead_id),
+        naimenovanie="{} (по заявке № {})".format(naimenovanie, lead_id),
+        summa_str="{:,}".format(summa).replace(",", " "),
+        propisyu=summa_propisyu(summa),
+        nds=NDS_STROKA,
+        naznachenie=("Оплата по счёту № {} от {}. {}"
+                     .format(lead_id, now_msk().strftime("%d.%m.%Y"),
+                             NDS_STROKA.rstrip("."))),
+        srok_scheta=os.getenv("REKV_SROK_SCHETA",
+                              "Счёт действителен для оплаты 3 банковских дня."),
+        sostav=" · ".join(sostav[1:]) if len(sostav) > 1 else "",
+    )
+
+
+@app.route("/zayavka/<int:lead_id>")
+def zayavka_klientu(lead_id):
+    """Памятка клиенту: что он заказал, за сколько и куда прийти.
+
+    Просьба владелицы 19.08.2026: «а этой девушке такая заявка
+    не уйдёт? как клиент сохранит свою заявку». Не уходила: человек
+    видел экран, закрывал вкладку — и у него не оставалось ни номера,
+    ни состава, ни суммы. Приходил через день и спрашивал «а что я
+    заказывал».
+
+    Почты мы не спрашиваем и спрашивать не будем — лишнее поле в форме
+    стоит заявок. Поэтому памятка живёт по ссылке: её можно сохранить
+    в закладки, отправить себе в мессенджер или распечатать.
+    """
+    if request.args.get("k", "") != klyuch_scheta(lead_id):
+        return "Заявка не найдена", 404
+
+    zayavka = leads.find(lead_id)
+    if not zayavka:
+        return "Заявка не найдена", 404
+
+    # Служебные строки клиенту не нужны: он их и так только что видел
+    # в разговоре, а согласия и замеры — наша кухня.
+    sluzhebnye = ("Согласие на обработку", "Замер по файлу",
+                  "Оплата на момент заявки", "ТЗ согласовано")
+    sostav = [str(o) for o in (zayavka.get("options") or [])
+              if str(o).strip() and not str(o).startswith(sluzhebnye)]
+
+    try:
+        summa = int(zayavka.get("total") or 0)
+    except (TypeError, ValueError):
+        summa = 0
+
+    # Что дальше — зависит от того, ждёт нас человек сегодня или тираж
+    # в работе. Обещать «перезвоним» тому, кто придёт через час, нельзя:
+    # ровно на этом 18.08.2026 ушла клиентка из Краснодара.
+    srochno = any("Сегодня" in str(o) for o in sostav)
+    chto_dalshe = (
+        "Приезжайте — заказ будет готов к названному времени. "
+        "Назовите номер заявки, этого достаточно."
+        if srochno else
+        "Мы проверим файл и подтвердим срок. Если что-то в макете "
+        "помешает печати, скажем об этом до работы, а не после."
+    )
+
+    return render_template(
+        "zayavka-klientu.html",
+        nomer=lead_id,
+        data=now_msk().strftime("%d.%m.%Y"),
+        sostav=sostav,
+        summa="{:,}".format(summa).replace(",", " ") if summa else "",
+        oplata=("Оплата целиком сразу — печатаем, как только придёт"
+                if summa and summa < MELKIJ_ZAKAZ_DO
+                else "Печать запускаем после предоплаты"),
+        chto_dalshe=chto_dalshe,
+        studiya={
+            "adres": REKVIZITY["adres"],
+            "chasy": "Пн–Сб 09:00–20:00, Вс 10:00–19:00",
+            "telefon": REKVIZITY["telefon"],
+            "tel_ssylka": "+79992449999",
+        },
+    )
+
+
+@app.route("/api/sbros-schetchika")
+def sbros_schetchika():
+    """Начать нумерацию заявок заново — но НИЧЕГО НЕ ПОТЕРЯВ.
+
+    Просьба владелицы 18.08.2026: «у нас уже 27-я заявка, а по сути
+    только одна, надо обнулить счётчик». Проверки секретаря сожгли
+    двадцать шесть номеров, и по номеру нельзя понять, сколько людей
+    обратилось на самом деле.
+
+    ПОЧЕМУ НЕЛЬЗЯ ПРОСТО ЗАПИСАТЬ НОЛЬ В СЧЁТЧИК. Номера уже стоят
+    в журнале `/data/leads.jsonl` и в именах файлов с макетами. Начни
+    счёт заново — и новая заявка №5 совпадёт со старой: `leads.find(5)`
+    вернёт чужую запись, а макет одного клиента ляжет к заказу другого.
+    Разобрать это потом будет нечем.
+
+    ПОЭТОМУ СНАЧАЛА УБИРАЕМ СТАРОЕ В АРХИВ, а потом обнуляем. Ничего
+    не удаляется: журнал и макеты переименовываются с датой и остаются
+    на диске. Старую заявку можно будет найти руками, а новая нумерация
+    ни на что не наложится.
+
+    Делается один раз и вручную:
+        https://granat-kmv.ru/api/sbros-schetchika?token=ТОКЕН
+    Токен — тот же WATCH_TOKEN из переменных Amvera.
+    """
+    token = os.getenv("WATCH_TOKEN", "").strip()
+    if not token or request.args.get("token", "") != token:
+        return jsonify(ok=False, error="forbidden"), 403
+
+    metka = now_msk().strftime("%Y-%m-%d-%H%M")
+    sdelano, oshibki = [], []
+
+    zhurnal = os.path.join("/data", "leads.jsonl")
+    arhiv = os.path.join("/data", f"leads-arhiv-{metka}.jsonl")
+    try:
+        if os.path.exists(zhurnal):
+            os.rename(zhurnal, arhiv)
+            sdelano.append(f"журнал заявок убран в {os.path.basename(arhiv)}")
+    except OSError as e:
+        oshibki.append(f"журнал не переименован: {e}")
+
+    makety_arhiv = f"{MAKETY_DIR}-arhiv-{metka}"
+    try:
+        if os.path.isdir(MAKETY_DIR):
+            os.rename(MAKETY_DIR, makety_arhiv)
+            sdelano.append(f"макеты убраны в {os.path.basename(makety_arhiv)}")
+    except OSError as e:
+        oshibki.append(f"макеты не перенесены: {e}")
+
+    # Счётчик обнуляем ПОСЛЕДНИМ: если архивация не удалась, старые
+    # номера остаются в деле, и новая нумерация их не затрёт.
+    if oshibki:
+        return jsonify(ok=False, sdelano=sdelano, oshibki=oshibki,
+                       schetchik="не тронут — сначала разберитесь с архивом"), 500
+
+    try:
+        with open(os.path.join("/data", "lead_counter"), "w", encoding="utf-8") as f:
+            f.write("0")
+        sdelano.append("счётчик обнулён, следующая заявка будет №1")
+    except OSError as e:
+        return jsonify(ok=False, sdelano=sdelano, oshibki=[f"счётчик: {e}"]), 500
+
+    print(f"[sbros] {'; '.join(sdelano)}", flush=True)
+    return jsonify(ok=True, sdelano=sdelano)
 
 
 @app.route("/api/watch")

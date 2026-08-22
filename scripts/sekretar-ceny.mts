@@ -34,7 +34,9 @@ import {
   AKCII,
   OPLATA,
   OTDELKA,
-  UPAKOVKA_PODAROCHNAYA,
+  BAZOVAYA_ZASHCHITA,
+  PODAROCHNOE_OFORMLENIE,
+  DOSTAVKA_PODAROCHNOGO,
   BIGOVKA,
   FOLGIROVANIE,
   TISNENIE,
@@ -153,7 +155,9 @@ const CENY = {
 
   /* Отделка — за штуку, добавляется к базовой цене. */
   otdelka: OTDELKA,
-  upakovka: UPAKOVKA_PODAROCHNAYA,
+  zashchita: BAZOVAYA_ZASHCHITA,
+  oformlenie: PODAROCHNOE_OFORMLENIE,
+  dostavkaPodarochnogo: DOSTAVKA_PODAROCHNOGO,
   bigovka: BIGOVKA,
   folgirovanie: FOLGIROVANIE,
   /* Тиснение прессом — отдельная услуга, не заменяет фольгирование:

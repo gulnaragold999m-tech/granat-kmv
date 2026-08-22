@@ -602,6 +602,10 @@ def yandex_reviews():
     found_id = (
         re.search(r"\bid=(\d+)", parts.query)
         or re.search(r"/org/[^/]+/(\d+)", parts.path)
+        # Нынешний код виджета из «Поделиться» на Картах: номер прямо
+        # в пути, без параметров. Старый вид с ?id= оставлен выше —
+        # он мог сохраниться у кого-то в закладках.
+        or re.search(r"/maps-reviews-widget/(\d+)", parts.path)
         or re.search(r"/rating-badge/(\d+)", parts.path)
     )
     if found_id:
@@ -673,7 +677,14 @@ def reviews_by_org(org):
     Не разрешает — вместо рамки кнопка на карточку. Отправить человека
     в Яндекс честнее, чем показать ему пустое место.
     """
-    frame = f"https://yandex.ru/maps-reviews-widget/?id={org}"
+    # Номер карточки идёт В ПУТИ, а не параметром. Формат с ?id= отдаёт
+    # 404, и это стоило нам недели с кнопкой вместо рамки: сначала
+    # решили, что Яндекс закрыл виджет новым карточкам, потом — что
+    # запрещает вставку. Ни то, ни другое. Проверено 22.08.2026:
+    # /maps-reviews-widget/237257245054?comments отвечает 200, отдаёт
+    # пять живых отзывов и заголовок x-frame-options: ALLOWALL.
+    # ?comments — показывать сами отзывы, а не одну оценку.
+    frame = f"https://yandex.ru/maps-reviews-widget/{org}?comments"
     return {
         "frame": frame if vidzhet_pustyat(frame) else None,
         "page": f"https://yandex.ru/maps/org/{org}/reviews/",
@@ -1042,7 +1053,11 @@ def reviews_state():
     if not got:
         return "выключены: не задан YANDEX_REVIEWS"
     if got["frame"]:
-        return f"виджет с отзывами, карточка {got['frame'].rsplit('=', 1)[-1]}"
+        # Номер вынимаем регулярно, а не отрезанием по «=»: в нынешнем
+        # адресе виджета номер стоит в пути, и отрезание давало
+        # всю ссылку целиком вместо номера.
+        nomer = re.search(r"(\d{6,})", got["frame"])
+        return f"виджет с отзывами, карточка {nomer.group(1) if nomer else got['frame']}"
     if _SHORT_LINK["org"] or _VIDZHET["url"]:
         # Номер карточки есть, а рамки нет — значит виджет не пустили.
         # Пишем прямо почему: иначе непонятно, поломка это или так задумано.

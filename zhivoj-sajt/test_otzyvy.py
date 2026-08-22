@@ -73,18 +73,23 @@ r = app.yandex_reviews()
 proverit("читать", "https://yandex.ru/maps/org/1234567890/reviews/", r["page"])
 proverit("написать", "https://yandex.ru/maps/org/1234567890/reviews/?add-review=true", r["add"])
 proverit("после проверки: рамка",
-         "https://yandex.ru/maps-reviews-widget/?id=1234567890", dozhdatsya(app)["frame"])
+         "https://yandex.ru/maps-reviews-widget/1234567890?comments", dozhdatsya(app)["frame"])
 
 print("2. Код виджета целиком из кабинета")
-kod = '<iframe src="https://yandex.ru/maps-reviews-widget/?id=9876543210" width="560"></iframe>'
+kod = '<iframe src="https://yandex.ru/maps-reviews-widget/9876543210?comments" width="560"></iframe>'
 app = zagruzit(kod)
 proverit("номер вынут из кода",
-         "https://yandex.ru/maps-reviews-widget/?id=9876543210", dozhdatsya(app)["frame"])
+         "https://yandex.ru/maps-reviews-widget/9876543210?comments", dozhdatsya(app)["frame"])
+
+print("2б. Старый код виджета с ?id= — из закладок и старых инструкций")
+app = zagruzit("https://yandex.ru/maps-reviews-widget/?id=5550001111")
+proverit("номер вынут из старого вида",
+         "https://yandex.ru/maps-reviews-widget/5550001111?comments", dozhdatsya(app)["frame"])
 
 print("3. Полная ссылка на карточку")
 app = zagruzit("https://yandex.ru/maps/org/granat/111222333/reviews/")
 proverit("номер из /org/",
-         "https://yandex.ru/maps-reviews-widget/?id=111222333", dozhdatsya(app)["frame"])
+         "https://yandex.ru/maps-reviews-widget/111222333?comments", dozhdatsya(app)["frame"])
 
 print("4. Яндекс запрещает вставку — рамки быть не должно")
 for zapret, imya in [
@@ -97,7 +102,7 @@ for zapret, imya in [
 
 print("5. Яндекс разрешает вставку явно — рамка нужна")
 app = zagruzit("1234567890", otvet=Otvet(headers={"Content-Security-Policy": "frame-ancestors *"}))
-proverit("frame-ancestors *", "https://yandex.ru/maps-reviews-widget/?id=1234567890",
+proverit("frame-ancestors *", "https://yandex.ru/maps-reviews-widget/1234567890?comments",
          dozhdatsya(app)["frame"])
 
 print("6. Виджет не отдаётся — рамки нет, кнопки остаются")
@@ -112,8 +117,8 @@ app = zagruzit("1234567890", oshibka=OSError("сеть недоступна"))
 proverit("рамки нет", None, dozhdatsya(app)["frame"])
 
 print("8. Чужой домен и не https — блока нет вовсе")
-proverit("чужой домен", None, zagruzit("https://example.com/maps-reviews-widget/?id=1").yandex_reviews())
-proverit("http вместо https", None, zagruzit("http://yandex.ru/maps-reviews-widget/?id=1").yandex_reviews())
+proverit("чужой домен", None, zagruzit("https://example.com/maps-reviews-widget/1?comments").yandex_reviews())
+proverit("http вместо https", None, zagruzit("http://yandex.ru/maps-reviews-widget/1?comments").yandex_reviews())
 
 print("9. Ссылка на поиск по городу: номер региона брать нельзя")
 app = zagruzit("https://yandex.ru/maps/11079/lermontov/", otvet=Otvet(url="https://yandex.ru/maps/11079/lermontov/"))
@@ -135,7 +140,7 @@ for adres in ("/", "/kontakty"):
     html = c.get(adres, base_url="https://granat-kmv.ru").get_data(as_text=True)
     proverit(f"{adres}: заголовок отзывов", True, "Что о нас пишут на Яндекс Картах" in html)
     proverit(f"{adres}: рамка виджета", True,
-             'src="https://yandex.ru/maps-reviews-widget/?id=1234567890"' in html)
+             'src="https://yandex.ru/maps-reviews-widget/1234567890?comments"' in html)
     proverit(f"{adres}: ленивая загрузка", True, 'loading="lazy"' in html)
     proverit(f"{adres}: секретарь на месте", True, "sekretar" in html)
 

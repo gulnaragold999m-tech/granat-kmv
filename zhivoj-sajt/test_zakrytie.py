@@ -5,12 +5,31 @@ os.environ["LEADS_DIR"]="/tmp/leads-zakr"
 os.environ["YANDEX_REVIEWS"]="237257245054"
 import app
 
-# кладём рядом файлы, которые должны быть закрыты и открыты
+# Кладём рядом файлы, которые должны быть закрыты и открыты.
+# Запоминаем, что создали САМИ: чужое (настоящий robots.txt, если он
+# появится в репозитории) удалять нельзя, а свои заглушки убрать
+# обязаны. 22.08.2026 они остались лежать после прогона, попали
+# в неотслеживаемые и сбили соседнюю самопроверку test_qr.py:
+# первый её прогон падал, второй проходил — на том же коде.
+NASHI = []
 for imya, soderzhimoe in [("robots.txt","User-agent: *"), ("sitemap.xml","<urlset/>"),
                           ("privacy.html","политика"), ("requirements.txt","flask"),
                           ("secret.md","тайна"), ("logo.png","PNG")]:
     if not os.path.exists(imya):
         open(imya,"w").write(soderzhimoe)
+        NASHI.append(imya)
+
+
+def ubrat():
+    for imya in NASHI:
+        try:
+            os.remove(imya)
+        except OSError:
+            pass
+
+
+import atexit
+atexit.register(ubrat)
 
 c = app.app.test_client()
 ZAKRYT = ["app.py","leads.py","bots.py","contact.py","fraud_check.py","amvera.yaml",

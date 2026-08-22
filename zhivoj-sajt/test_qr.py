@@ -43,8 +43,25 @@ p("куда", "https://yandex.ru/maps/-/CTFBZ4kK", o.headers["Location"])
 print("Картинки не перехвачены новым адресом")
 app = zagruzit("237252454")
 c = app.app.test_client()
-for a in ("/robots.txt", "/sitemap.xml", "/"):
-    p(f"{a} жив", 200, c.get(a, base_url="https://granat-kmv.ru").status_code)
+
+# Заглушки создаём сами и сами убираем. Раньше проверка держалась
+# на файлах, которые оставляла после себя test_zakrytie.py: запустишь
+# самопроверки на чистом месте — падает, запустишь второй раз —
+# проходит. Тест, зависящий от порядка запуска, врёт про код.
+svoi = []
+for imya, soderzhimoe in [("robots.txt", "User-agent: *"), ("sitemap.xml", "<urlset/>")]:
+    if not os.path.exists(imya):
+        open(imya, "w").write(soderzhimoe)
+        svoi.append(imya)
+try:
+    for a in ("/robots.txt", "/sitemap.xml", "/"):
+        p(f"{a} жив", 200, c.get(a, base_url="https://granat-kmv.ru").status_code)
+finally:
+    for imya in svoi:
+        try:
+            os.remove(imya)
+        except OSError:
+            pass
 
 print()
 if ploho: print("НЕ СОШЛОСЬ:", "; ".join(ploho)); sys.exit(1)

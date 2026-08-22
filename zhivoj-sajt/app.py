@@ -1185,5 +1185,157 @@ def lead_event(lead_id):
     return jsonify(ok=True)
 
 
+# ══════════════════════════════════════════════════════════════════════
+#  ЖУРНАЛ ЗАЯВОК: ПОСМОТРЕТЬ И ПОЧИСТИТЬ ОТ СВОИХ ПРОВЕРОК
+#
+#  Заведено 22.08.2026 по задаче владелицы: «посмотреть по номерам
+#  телефонов, убрать все мои и оставить чужие номера». В журнале
+#  накопились её собственные проверки, а настоящих заявок «наверно
+#  только две» — и отличить одни от других можно лишь по телефону.
+#
+#  До этого дня журнал Граната нельзя было посмотреть НИКАК: он лежит
+#  файлом на диске приложения, а страницы просмотра не было.
+#
+#  ЗАКРЫТО КЛЮЧОМ НАМЕРЕННО. В журнале имена и телефоны живых людей:
+#  открытый адрес с такими данными — это утечка персональных данных
+#  по 152-ФЗ, сделанная своими руками. Ключ задаётся переменной
+#  LEADS_KEY в настройках приложения. Не задана — страницы нет вовсе:
+#  забыть включить защиту безопаснее, чем забыть выключить.
+#
+#  ЧИСТКА НИЧЕГО НЕ УДАЛЯЕТ БЕЗВОЗВРАТНО. Прежний журнал переносится
+#  в файл с датой в имени и остаётся на диске. Ошиблись номером —
+#  всё на месте.
+# ══════════════════════════════════════════════════════════════════════
+
+def _kluch_ok() -> bool:
+    """Ключ из настроек против ключа в адресе. Нет переменной — нет доступа."""
+    kluch = os.getenv("LEADS_KEY")
+    return bool(kluch) and request.args.get("key") == kluch
+
+
+def _tolko_cifry(s: str) -> str:
+    """Телефоны в журнале записаны по-разному: +7, 8, со скобками и без.
+    Сравнивать их можно только по цифрам, и по последним десяти: 8 и +7
+    в начале — это одна и та же линия."""
+    cifry = "".join(c for c in str(s or "") if c.isdigit())
+    return cifry[-10:] if len(cifry) >= 10 else cifry
+
+
+def _chitat_zhurnal():
+    """Журнал — это события по заявкам, а не сами заявки. Собираем
+    состояние по номеру: имя и телефон приходят с событием created."""
+    put = os.path.join(os.getenv("LEADS_DIR", "/data"), "leads.jsonl")
+    if not os.path.exists(put):
+        return [], put
+    stroki = []
+    with open(put, encoding="utf-8") as f:
+        for stroka in f:
+            stroka = stroka.strip()
+            if not stroka:
+                continue
+            try:
+                stroki.append(json.loads(stroka))
+            except Exception:
+                # Битая строка не должна ронять просмотр всего журнала.
+                continue
+    return stroki, put
+
+
+@app.route("/api/zayavki")
+def zayavki_spisok():
+    """Показать журнал: номер, дата, имя, телефон. Только чтение."""
+    if not _kluch_ok():
+        # 404, а не 403: тому, кто подбирает ключ, не подсказываем,
+        # что по этому адресу вообще что-то есть.
+        return jsonify(ok=False, error="not_found"), 404
+
+    sobytiya, _ = _chitat_zhurnal()
+    zayavki = {}
+    for e in sobytiya:
+        nomer = e.get("id")
+        if nomer is None:
+            continue
+        z = zayavki.setdefault(nomer, {"nomer": nomer, "sobytiy": 0})
+        z["sobytiy"] += 1
+        if e.get("event") == "created":
+            z["kogda"] = e.get("at", "")
+            z["imya"] = e.get("name") or ""
+            z["telefon"] = e.get("phone") or e.get("contact") or ""
+            z["usluga"] = e.get("service") or ""
+            z["otkuda"] = e.get("source") or ""
+
+    spisok = sorted(zayavki.values(), key=lambda z: z["nomer"])
+    # Сводка по номерам — по ней и решать, какие телефоны свои.
+    po_nomeram = {}
+    for z in spisok:
+        k = _tolko_cifry(z.get("telefon", "")) or "без телефона"
+        po_nomeram[k] = po_nomeram.get(k, 0) + 1
+
+    return jsonify(ok=True, vsego=len(spisok),
+                   po_nomeram=po_nomeram, zayavki=spisok)
+
+
+@app.route("/api/zayavki/ochistit")
+def zayavki_ochistit():
+    """Убрать из журнала заявки с указанными телефонами.
+
+    Адрес: /api/zayavki/ochistit?key=КЛЮЧ&telefony=79992449999,79280000000
+    Номера через запятую, в любом виде — сравниваются по последним
+    десяти цифрам.
+
+    Прежний журнал сохраняется файлом leads-do-ДАТА.jsonl. Счётчик
+    ставится на наибольший оставшийся номер, а НЕ на ноль: номера
+    настоящих заявок клиенты уже видели, и повторно выдавать их нельзя.
+    """
+    if not _kluch_ok():
+        return jsonify(ok=False, error="not_found"), 404
+
+    syrye = request.args.get("telefony", "")
+    ubrat = {_tolko_cifry(t) for t in syrye.split(",") if _tolko_cifry(t)}
+    if not ubrat:
+        return jsonify(ok=False,
+                       error="не указан ни один телефон в параметре telefony"), 400
+
+    sobytiya, put = _chitat_zhurnal()
+    if not sobytiya:
+        return jsonify(ok=True, note="Журнал пуст, чистить нечего")
+
+    # Сначала решаем по СОБЫТИЮ created, чей это номер, и только потом
+    # выбрасываем ВСЕ события этой заявки: события «пришёл в бота» или
+    # «ТЗ собрано» телефона не содержат и сами по себе неопознаваемы.
+    svoi_nomera = set()
+    for e in sobytiya:
+        if e.get("event") == "created":
+            tel = _tolko_cifry(e.get("phone") or e.get("contact") or "")
+            if tel and tel in ubrat:
+                svoi_nomera.add(e.get("id"))
+
+    ostalos = [e for e in sobytiya if e.get("id") not in svoi_nomera]
+
+    stamp = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%Y-%m-%d-%H%M%S")
+    arhiv = put.replace(".jsonl", f"-do-{stamp}.jsonl")
+    try:
+        os.rename(put, arhiv)
+        with open(put, "w", encoding="utf-8") as f:
+            for e in ostalos:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+
+        nomera = [e.get("id") for e in ostalos if isinstance(e.get("id"), int)]
+        novyj_schetchik = max(nomera) if nomera else 0
+        with open(os.path.join(os.getenv("LEADS_DIR", "/data"), "lead_counter"),
+                  "w", encoding="utf-8") as f:
+            f.write(str(novyj_schetchik))
+    except Exception as e:
+        return jsonify(ok=False, error=f"не удалось переписать журнал: {e}"), 500
+
+    return jsonify(ok=True,
+                   ubrano_zayavok=len(svoi_nomera),
+                   ubrany_nomera=sorted(n for n in svoi_nomera if n is not None),
+                   ostalos_sobytij=len(ostalos),
+                   schetchik_teper=novyj_schetchik,
+                   sledushaya_zayavka=novyj_schetchik + 1,
+                   arhiv=os.path.basename(arhiv))
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80, threaded=True)

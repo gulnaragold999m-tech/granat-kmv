@@ -34,11 +34,23 @@ import {
   AKCII,
   OPLATA,
   OTDELKA,
+  BAZOVAYA_ZASHCHITA,
+  DOSTAVKA,
+  PODAROCHNOE_OFORMLENIE,
+  DOSTAVKA_PODAROCHNOGO,
   BIGOVKA,
   FOLGIROVANIE,
+  TISNENIE,
+  CHERTEZHI,
+  MINIMUM_PLOTTER,
+  FALCOVKA,
+  PLOTNAYA_BUMAGA_KOEF,
   NACENKA_ZA_PLOTNOST,
   type TirazhTablica,
   type Yacheyka,
+  SKIDKA_PENSIONERAM,
+  PODARKI,
+  MAKET_CIFRY,
 } from '../data/prices.ts';
 
 import { writeFileSync } from 'node:fs';
@@ -100,7 +112,11 @@ const CENY = {
      `prices.py` бота: у него те же значения в MIN_ORDER, включая
      отдельный порог 1200 ₽ на штучную открытку А4. */
   minimalki: {
-    kopii: 50,
+    /* Ноль, а не 50: решение владелицы 19.08.2026. Один лист стоит
+       12 ₽, и столько же она за него берёт — «мне это оплачивали».
+       Ноль оставлен строкой, а не убран, чтобы секретарь не сломался
+       на отсутствующем ключе, а порог было видно в одном месте. */
+    kopii: 0,
     laminaciya: 50,
     poligrafiya: 300,
     otkrytki: 700,
@@ -111,21 +127,41 @@ const CENY = {
   /* Штучная А4 на картоне: цена за экземпляр при 1–9 штуках. */
   shtuchnayaA4: SHTUCHNAYA_A4.cena,
 
-  /* Работа с макетом. Цифры из RABOTA_S_MAKETOM, но плоские: секретарю
-     нужны числа, а не строки вида «300–500 ₽». Нижняя граница вилки —
-     чтобы расчёт не завышал, а точную сумму называют после проверки. */
-  maket: {
-    proverka: 150,
-    adaptaciyaOt: 300,
-    adaptaciyaDo: 500,
-    slozhnyjOt: 600,
-    sNulyaOt: 1000,
+  /* Работа с макетом — плоскими числами из MAKET_CIFRY: секретарю нужны
+     числа, а не строки вида «300–500 ₽». До 22.08.2026 они были вписаны
+     прямо здесь, и это была сумма в коде вопреки правилу проекта: прайс
+     говорил одно, сборка могла говорить другое, и заметить это было
+     некому. Теперь источник один — data/prices.ts. */
+  maket: MAKET_CIFRY,
+
+  /* Плоттер. Таблица не тиражная: столбцы — это заливка листа,
+     а не количество. Поэтому выгружаем как есть, без порогов. */
+  plotter: {
+    formaty: CHERTEZHI.stroki.map((s) => s.nazvanie),
+    zalivki: CHERTEZHI.kolonki,
+    ceny: Object.fromEntries(
+      CHERTEZHI.stroki.map((s) => [s.nazvanie, s.ceny.map(chislo)]),
+    ),
+    minimum: MINIMUM_PLOTTER,
+    falcovka: FALCOVKA,
+    plotnayaKoef: PLOTNAYA_BUMAGA_KOEF,
+    /* А0 печатается только на широком рулоне 914 мм, а он у нас
+       офисный 80 г/м². Плотного А0 предложить нельзя — секретарь
+       должен сказать это до расчёта, а не после. */
+    a0TolkoObychnaya: true,
   },
 
   /* Отделка — за штуку, добавляется к базовой цене. */
   otdelka: OTDELKA,
+  zashchita: BAZOVAYA_ZASHCHITA,
+  dostavka: DOSTAVKA,
+  oformlenie: PODAROCHNOE_OFORMLENIE,
+  dostavkaPodarochnogo: DOSTAVKA_PODAROCHNOGO,
   bigovka: BIGOVKA,
   folgirovanie: FOLGIROVANIE,
+  /* Тиснение прессом — отдельная услуга, не заменяет фольгирование:
+     в счёте они складываются. */
+  tisnenie: TISNENIE,
   plotnosti: NACENKA_ZA_PLOTNOST.stroki,
   /* Категории заполнения макета. Заведены 18.08.2026: струйник тратит
      чернила по площади краски, и белая листовка с фотоколлажем не могут
@@ -146,6 +182,14 @@ const CENY = {
      объявили скидку в рекламе — секретарь о ней знает. */
   akcii: AKCII.filter((a) => a.aktivna),
 
+  /* Персональное поздравление — апсейл после согласованного заказа.
+     Цены те же, что у бота: в двух каналах цифра должна быть одна. */
+  podarki: PODARKI.pozicii.filter((p) => (p as { aktivna?: boolean }).aktivna !== false),
+
+  /* Скидка пенсионерам. В счёт НЕ вносится: подтверждается
+     удостоверением на месте. Секретарь про неё говорит. */
+  skidkaPensioneram: SKIDKA_PENSIONERAM.aktivna ? SKIDKA_PENSIONERAM : null,
+
   /* Предоплата: процент, номер для перевода и — когда появится —
      ссылка на оплату вместе с нарисованным по ней QR-кодом. */
   oplata: {
@@ -153,6 +197,8 @@ const CENY = {
     /* Половина вперёд на тиражах от 200 штук: 30% не покрывают
        материалы, а купить их надо до печати. */
     procentBolshoj: OPLATA.predoplataBolshojTirazh,
+    // Ниже этой суммы заказ оплачивается целиком и сразу.
+    melkijDo: OPLATA.melkijZakazDo,
     bolshojOt: OPLATA.bolshojTirazhOt,
     nomer: OPLATA.nomer,
     ssylka: OPLATA.ssylka,

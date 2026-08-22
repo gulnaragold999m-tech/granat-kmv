@@ -55,6 +55,13 @@ SHRIFTY = {
 # Пороги резины. Ниже них штамп печатает пятно вместо рисунка.
 MIN_LINIYA_MM = 0.40
 MIN_BUKVA_MM = 2.00
+
+# Пороги термотрансферной этикетки на Godex G530 (300 точек на дюйм).
+# Одна точка — 0.085 мм, поэтому печатать можно куда тоньше, чем резиной:
+# линия в три точки уже держится, буква читается от полутора миллиметров.
+# Ниже — риск, что фольга ляжет не полностью и штрих выйдет рваным.
+MIN_LINIYA_ETIKETKA_MM = 0.25
+MIN_BUKVA_ETIKETKA_MM = 1.50
 DOLYA_PROPISNOJ = 0.7          # высота прописной буквы от кегля
 MIN_KEGL = MIN_BUKVA_MM / DOLYA_PROPISNOJ * mm
 
@@ -113,8 +120,14 @@ def podobrat_kegl(tekst, shrift, dostupno, ne_bolshe):
     return kegl
 
 
-def narisovat(c, storona_mm, s_venzelem=False):
-    """Один оттиск: два кольца, текст по дугам, название в центре."""
+def narisovat(c, storona_mm, etiketka=False):
+    """Один оттиск: два кольца, текст по дугам, название в центре.
+
+    etiketka=True — макет под термотрансферную этикетку: у неё пороги
+    втрое мягче резиновых, поэтому линии тоньше, а текст изящнее.
+    """
+    min_liniya, min_bukva = porogi(etiketka)
+    min_kegl = min_bukva / DOLYA_PROPISNOJ * mm
     storona = storona_mm * mm
     cx = cy = storona / 2
     vnesh = storona / 2 - 1.5 * mm       # внешнее кольцо, с полем от края
@@ -126,8 +139,8 @@ def narisovat(c, storona_mm, s_venzelem=False):
 
     # Два кольца. Толщина в долях размера: на маленьком штампе толстое
     # кольцо съедает место под текст, на большом тонкое теряется.
-    tolstoe = max(0.5 * mm, storona_mm * 0.011 * mm)
-    tonkoe = max(0.4 * mm, storona_mm * 0.006 * mm)
+    tolstoe = max(min_liniya * 1.25 * mm, storona_mm * 0.011 * mm)
+    tonkoe = max(min_liniya * mm, storona_mm * 0.006 * mm)
     c.setLineWidth(tolstoe)
     c.circle(cx, cy, vnesh, stroke=1, fill=0)
     c.setLineWidth(tonkoe)
@@ -136,8 +149,8 @@ def narisovat(c, storona_mm, s_venzelem=False):
 
     # Кегли считаем от размера штампа, но не ниже порога читаемости:
     # 2 мм — та высота, ниже которой буква на крафте заплывает.
-    kegl_dugi = max(MIN_KEGL, storona_mm * 0.052 * mm)
-    kegl_goroda = max(MIN_KEGL, storona_mm * 0.040 * mm)
+    kegl_dugi = max(min_kegl, storona_mm * 0.052 * mm)
+    kegl_goroda = max(min_kegl, storona_mm * 0.040 * mm)
 
     radius_teksta = vnutr - kegl_dugi * 0.75
 
@@ -182,20 +195,21 @@ def narisovat(c, storona_mm, s_venzelem=False):
             {"город не поместился": not gorod_vlez, "текст по дуге тесно": tesno})
 
 
-def proverit(storona_mm, kegli, linii, bedy):
-    """Проверка макета на пороги резины. Возвращает список замечаний."""
+def proverit(storona_mm, kegli, linii, bedy, etiketka=False):
+    """Проверка макета на пороги носителя. Возвращает список замечаний."""
+    min_liniya, min_bukva = porogi(etiketka)
     zamechaniya = []
 
 
     for imya, kegl in kegli.items():
         # Высота прописной примерно 0.7 кегля у большинства шрифтов.
         vysota = kegl / mm * DOLYA_PROPISNOJ
-        if vysota < MIN_BUKVA_MM:
-            zamechaniya.append(f"{imya}: буква {vysota:.2f} мм — меньше {MIN_BUKVA_MM}")
+        if vysota < min_bukva - 0.005:
+            zamechaniya.append(f"{imya}: буква {vysota:.2f} мм — меньше {min_bukva}")
     for imya, tolshchina in linii.items():
-        if tolshchina / mm < MIN_LINIYA_MM:
+        if tolshchina / mm < min_liniya - 0.005:
             zamechaniya.append(f"{imya}: линия {tolshchina / mm:.2f} мм — "
-                               f"меньше {MIN_LINIYA_MM}")
+                               f"меньше {min_liniya}")
     return zamechaniya
 
 
@@ -268,21 +282,29 @@ def narisovat_kvadrat(c, storona_mm):
             {"текст по дуге тесно": False, "разрядка убрана": tesno})
 
 
-def sobrat(storona_mm, kvadrat=False):
+def porogi(etiketka):
+    """Пороги того носителя, на котором печатаем."""
+    if etiketka:
+        return MIN_LINIYA_ETIKETKA_MM, MIN_BUKVA_ETIKETKA_MM
+    return MIN_LINIYA_MM, MIN_BUKVA_MM
+
+
+def sobrat(storona_mm, kvadrat=False, etiketka=False):
     os.makedirs(KUDA, exist_ok=True)
     storona = storona_mm * mm
-    vid = "kvadrat" if kvadrat else "krug"
+    vid = ("etiketka" if etiketka else "kvadrat" if kvadrat else "krug")
     pdf = os.path.join(KUDA, f"shtamp-{vid}-{storona_mm}mm.pdf")
     c = canvas.Canvas(pdf, pagesize=(storona, storona))
     kegli, linii, bedy = (narisovat_kvadrat(c, storona_mm) if kvadrat
-                          else narisovat(c, storona_mm))
+                          else narisovat(c, storona_mm, etiketka))
     c.showPage()
     c.save()
 
-    zamechaniya = proverit(storona_mm, kegli, linii, bedy)
-    imya_vida = "квадратный" if kvadrat else "круглый"
+    zamechaniya = proverit(storona_mm, kegli, linii, bedy, etiketka)
+    imya_vida = ("этикетка" if etiketka else "квадратный" if kvadrat else "круглый")
+    nositel = "ЭТИКЕТКИ" if etiketka else "РЕЗИНЫ"
     if zamechaniya:
-        print(f"  {imya_vida} {storona_mm} мм — НЕ ГОДИТСЯ ДЛЯ РЕЗИНЫ:")
+        print(f"  {imya_vida} {storona_mm} мм — НЕ ГОДИТСЯ ДЛЯ {nositel}:")
         for z in zamechaniya:
             print(f"    · {z}")
     else:
@@ -318,4 +340,6 @@ if __name__ == "__main__":
     for r in razmery:
         sobrat(r)
         sobrat(r, kvadrat=True)
+    # Этикетка для Godex G530 — только 50 мм, как выбрала владелица.
+    sobrat(50, etiketka=True)
     print("В мастерскую отдавать PDF. Зеркалить не надо — они сделают сами.")

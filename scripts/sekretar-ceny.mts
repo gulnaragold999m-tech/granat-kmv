@@ -34,6 +34,7 @@ import {
   AKCII,
   OPLATA,
   OTDELKA,
+  UPAKOVKA_PODAROCHNAYA,
   BIGOVKA,
   FOLGIROVANIE,
   TISNENIE,
@@ -152,6 +153,7 @@ const CENY = {
 
   /* Отделка — за штуку, добавляется к базовой цене. */
   otdelka: OTDELKA,
+  upakovka: UPAKOVKA_PODAROCHNAYA,
   bigovka: BIGOVKA,
   folgirovanie: FOLGIROVANIE,
   /* Тиснение прессом — отдельная услуга, не заменяет фольгирование:

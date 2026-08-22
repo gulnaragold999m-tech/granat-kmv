@@ -1470,7 +1470,62 @@
                  d.getFullYear() + ', ' + dvuznak(d.getHours()) + ':' + dvuznak(d.getMinutes()));
         obnovitChek();
         podpisEl.textContent = 'задание согласовано';
-        predlozhitPodarok(ktoZaberet);
+        predlozhitUpakovku(function () { predlozhitPodarok(ktoZaberet); });
+      });
+    }
+
+    /* ФИРМЕННАЯ УПАКОВКА. Владелица 21.08.2026: «надо чтобы бот предложил
+       упаковку и написать что клиент от упаковки отказался или согласился
+       и писать стоимость».
+
+       ПОЧЕМУ ОТДЕЛЬНЫМ ВОПРОСОМ, А НЕ СТРОКОЙ В ЦЕНЕ. Включённая
+       в стоимость упаковка дорожает заказ для всех, включая тех, кому
+       она не нужна: грамоту для внутреннего собрания в конверте
+       не понесут. Предложенная отдельно — это выбор, и его видно
+       в заявке.
+
+       ПОЧЕМУ ПОСЛЕ СОГЛАСОВАНИЯ ТЗ. Человек уже принял цену и подписал
+       задание. Предложение до этого добавляет строку в сумму, которую
+       он ещё не принял, — и он уходит на общей цифре.
+
+       ЧТО УЕЗЖАЕТ В ЗАЯВКУ. И согласие, и отказ: по отказам видно,
+       стоит ли упаковка своих денег, а по согласиям — сколько людей
+       готовы платить за вид. Молчание в заявке означало бы, что вопрос
+       не задавали. */
+    function predlozhitUpakovku(gotovo) {
+      var u = C.upakovka;
+      if (!u || !u.cena) return gotovo();
+      // Ксерокопию и фото на документы не упаковывают — предлагаем
+      // только там, где заказ несут дарить.
+      if (!u.gde || u.gde.indexOf(kodScenariya()) === -1) return gotovo();
+
+      skazat('bot', 'Заказ подарочный, поэтому спрошу: упаковать в ' +
+        '<b>фирменную упаковку</b> за ' + rub(u.cena) + '? Это ' + u.opisanie + '.');
+
+      pokazatKnopki([
+        { t: 'Да, упакуйте — ' + rub(u.cena), v: 'da' },
+        { t: 'Не нужно', v: 'net' }
+      ], function (v) {
+        skazat('ya', v.t);
+
+        if (v.v === 'net') {
+          put.push('От упаковки отказался');
+          obnovitChek();
+          return gotovo();
+        }
+
+        vybor.upakovka = true;
+        put.push('Фирменная упаковка: ' + rub(u.cena));
+        if (itog && itog.summa != null) {
+          itog.summa = itog.summa + u.cena;
+          summaEl.textContent = rub(itog.summa);
+          // Сумма выросла после подтверждённой цены — говорим об этом
+          // вслух, иначе на выдаче будет спор о том, откуда цифра.
+          skazat('bot', 'Добавил упаковку. Итого <b>' + rub(itog.summa) + '</b>.');
+        }
+        obnovitChek();
+        if (window.granatGoal) { window.granatGoal('upakovka_vzyata', { summa: u.cena }); }
+        gotovo();
       });
     }
 

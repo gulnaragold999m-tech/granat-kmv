@@ -21,6 +21,12 @@
 ЧТО НА ЛИСТЕ. Наклейки в сетке плюс тонкая линия реза. Линия светлая:
 если нож чуть уйдёт, на наклейке не останется тёмного следа.
 
+ВЫЛЕТ ОБЯЗАТЕЛЕН. Знак печатается на 1.5 мм больше во все стороны,
+а режется по номиналу. Без этого нож, ушедший на десятую долю
+миллиметра, оставляет по краю белый серп — и партия уходит в брак.
+Правило то же, что в scripts/vizitka.py и на открытке; на наклейках
+его сначала забыли, поймал разбор 21.08.2026.
+
 ДВА ВИДА, И ЭТО НЕ ПРИХОТЬ. Круглые режутся вручную и долго — по прайсу
 это отдельная позиция. Квадратные 60×60 режет резак прямыми линиями,
 то есть быстро и без брака. Начинать стоит с квадратных, круглые —
@@ -41,6 +47,8 @@ from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from PIL import Image, ImageDraw
 
@@ -49,8 +57,10 @@ LOGOTIP = os.path.join(KORNI, "firmennyj-stil", "granat-logo-dlya-pechati-1500.p
 KUDA_SHABLON = os.path.join(KORNI, "firmennyj-stil", "qr", "naklejki-{}mm-a4.pdf")
 
 POLE = 10 * mm          # отступ от края листа: принтер не печатает впритык
-PROMEZHUTOK = 3 * mm    # между наклейками, чтобы было куда вести нож
+PROMEZHUTOK = 5 * mm    # между наклейками: 3 мм не хватало на вылет соседей
+VYLET = 1.5 * mm        # знак печатается больше реза — см. ниже
 LINIYA_REZA = HexColor("#C9B79B")
+SHRIFT_PODPISI = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 
 def obrezat_v_krug(put):
@@ -90,7 +100,9 @@ def razlozhit(diametr_mm, kruglaya=True):
         for stolbec in range(stolbcov):
             x = nachalo_x + stolbec * shag
             y = nachalo_y + ryad * shag
-            c.drawImage(logo, x, y, diametr, diametr, mask="auto")
+            # Знак — с вылетом, рез — по номиналу.
+            c.drawImage(logo, x - VYLET, y - VYLET,
+                        diametr + 2 * VYLET, diametr + 2 * VYLET, mask="auto")
             # Линия реза поверх картинки: режут по видимой линии,
             # а не на глаз.
             c.setStrokeColor(LINIYA_REZA)
@@ -100,11 +112,13 @@ def razlozhit(diametr_mm, kruglaya=True):
             else:
                 c.rect(x, y, diametr, diametr, stroke=1, fill=0)
 
-    c.setFont("Helvetica", 6)
+    # Подпись читает Гульнара, а не иностранный подрядчик — по-русски.
+    pdfmetrics.registerFont(TTFont("Podpis", SHRIFT_PODPISI))
+    c.setFont("Podpis", 6.5)
     c.setFillColor(HexColor("#9A8A78"))
-    forma = "round" if kruglaya else "square"
+    forma = "круглые" if kruglaya else "квадратные"
     c.drawString(POLE, 5 * mm,
-                 f"granat-kmv.ru  ·  {diametr_mm} mm {forma}  ·  {stolbcov * ryadov} pcs")
+                 f"granat-kmv.ru  ·  {diametr_mm} мм, {forma}, {stolbcov * ryadov} шт.")
     c.showPage()
     c.save()
     print(f"{os.path.basename(kuda)}: {stolbcov}×{ryadov} = {stolbcov * ryadov} шт., "

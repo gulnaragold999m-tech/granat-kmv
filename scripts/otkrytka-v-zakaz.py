@@ -35,18 +35,23 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+from PIL import Image, ImageDraw
 
 KORNI = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QR = os.path.join(KORNI, "firmennyj-stil", "qr", "qr-otzyv.png")
 KUDA = os.path.join(KORNI, "firmennyj-stil", "qr", "otkrytka-v-zakaz.pdf")
+ZNAK = os.path.join(KORNI, "firmennyj-stil", "granat-logo-dlya-pechati-1500.png")
 
 SHIRINA, VYSOTA = 105 * mm, 148 * mm      # А6
 VYLET = 2 * mm
 POLNAYA_SHIRINA = SHIRINA + 2 * VYLET
 POLNAYA_VYSOTA = VYSOTA + 2 * VYLET
 
-GRANAT = HexColor("#4A0E17")
-ZOLOTO = HexColor("#C9A227")
+# Цвета сняты с логотипа (firmennyj-stil/sobrat.mjs), а не подобраны
+# на глаз: плоский #4A0E17 рядом со знаком читается почти чёрным,
+# а золото #C9A227 заметно желтее и зеленее фирменного.
+GRANAT = HexColor("#5A1020")
+ZOLOTO = HexColor("#C79A34")
 PESOK = HexColor("#F9F3EB")
 
 SHRIFTY = {
@@ -60,6 +65,20 @@ FAKTY = [
     ("Сайты и Telegram-боты —", "пишем кодом, исходники ваши"),
     ("Макет присылайте почтой —", "мессенджер сжимает картинку"),
 ]
+
+
+def znak_v_kruge():
+    """Знак с прозрачным фоном за кругом.
+
+    У файла логотипа гранатовая заливка идёт до самых углов. На тёмной
+    открытке она даёт видимый квадрат вокруг круга — та же ловушка,
+    что была на листе наклеек.
+    """
+    img = Image.open(ZNAK).convert("RGBA")
+    maska = Image.new("L", img.size, 0)
+    ImageDraw.Draw(maska).ellipse((0, 0, img.size[0] - 1, img.size[1] - 1), fill=255)
+    img.putalpha(maska)
+    return img
 
 
 def zaregistrirovat_shrifty():
@@ -96,10 +115,16 @@ def lico(c):
     c.rect(VYLET + 7 * mm, VYLET + 7 * mm, SHIRINA - 14 * mm, VYSOTA - 14 * mm,
            stroke=1, fill=0)
 
-    y = VYLET + VYSOTA - 46 * mm
-    y = po_centru(c, "СТУДИЯ «ГРАНАТ»", y, 8.5, "Osnovnoy-Bold", ZOLOTO, 20 * mm)
-    y = po_centru(c, "Спасибо", y, 30, "Osnovnoy-Bold", white, 12 * mm)
-    y = po_centru(c, "за заказ", y, 30, "Osnovnoy-Bold", white, 20 * mm)
+    # Знак вместо набранной строки: он несёт и название, и род занятий,
+    # и адрес сайта — всё то, что раньше писалось словами мелким кеглем.
+    znak = 36 * mm
+    verh_znaka = VYLET + VYSOTA - 30 * mm - znak
+    c.drawImage(ImageReader(znak_v_kruge()), (POLNAYA_SHIRINA - znak) / 2,
+                verh_znaka, znak, znak, mask="auto")
+
+    y = verh_znaka - 16 * mm
+    y = po_centru(c, "Спасибо", y, 24, "Osnovnoy-Bold", white, 11 * mm)
+    y = po_centru(c, "за заказ", y, 24, "Osnovnoy-Bold", white, 18 * mm)
 
     c.setStrokeColor(ZOLOTO)
     c.setLineWidth(0.7)

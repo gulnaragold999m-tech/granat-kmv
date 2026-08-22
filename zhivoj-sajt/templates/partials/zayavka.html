@@ -59,6 +59,23 @@
             <span class="text-white/70 text-xs uppercase tracking-widest">Пожелания</span>
             <textarea name="notes" rows="3" class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink ym-disable-keys" placeholder="Коротко опишите задачу, тираж, сроки"></textarea>
           </label>
+          <!-- Приём макета прямо в форме. Заведено 21.08.2026 после
+               потерянного клиента: женщина из Краснодара не смогла
+               приложить документы — форма файлов не принимала, и она
+               ушла к другим. Приехать из другого города нельзя, почта
+               по телефону диктуется плохо, мессенджер сжимает картинку.
+               Значит файл принимается там, где человек уже стоит.
+               multiple и предел в 4 файла — не прихоть: у листовки две
+               стороны, у буклета три панели, а сервер (MAX_MAKETOV в
+               app.py) берёт ровно четыре. Поле и сервер должны обещать
+               одно и то же, иначе человек уверен, что отправил всё. -->
+          <label class="block">
+            <span class="text-white/70 text-xs uppercase tracking-widest">Макет или документ</span>
+            <input type="file" name="maket" multiple
+                   accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,.ai,.eps,.psd,.cdr,.zip,.rar,.doc,.docx"
+                   class="w-full mt-2 rounded-lg px-4 py-3 bg-white/95 text-ink" />
+            <span class="block text-white/40 text-xs mt-2">Необязательно, до четырёх файлов. PDF, фото, документ Word, архив. Так посчитаем точнее и быстрее.</span>
+          </label>
           <div>
             <span class="text-white/70 text-xs uppercase tracking-widest">Где вам удобнее общаться? *</span>
             <div class="ch-pick mt-2">

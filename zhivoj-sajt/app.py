@@ -129,6 +129,93 @@ MAKET_RASSHIRENIYA = {
     ".ai", ".eps", ".psd", ".cdr", ".zip", ".rar", ".doc", ".docx",
 }
 
+
+# ── Приём макетов: одна дорога для секретаря и для формы заявки ──────────
+#
+# 22.08.2026 приём файлов существовал только в /api/bot-lead — у секретаря.
+# Форма заявки на /cifra файлов не принимала вовсе, и клиентка из Краснодара
+# из-за этого ушла: приехать ей нельзя, почту по телефону не продиктуешь,
+# мессенджер сжимает картинку.
+#
+# Дописать приём вторым куском кода было бы хуже, чем не дописать: два
+# места, где решается «какой файл принимаем и до скольки мегабайт»,
+# разъезжаются молча, и однажды форма примет то, что отвергнет секретарь.
+# Поэтому разбор вынесен сюда, а оба маршрута зовут одно и то же.
+
+
+def sobrat_makety():
+    """Забирает приложенные файлы из запроса и проверяет их.
+
+    Возвращает (makety, zametki): список пар «имя, байты» и список
+    человеческих причин, почему файл не взят. Причины идут в письмо
+    Гульнаре: клиент видит, что файл прикрепился, и уверен, что отправил
+    всё — значит про непринятый файл должны узнать МЫ, а не он потом.
+    """
+    makety, zametki = [], []
+    for fajl in request.files.getlist("maket")[:MAX_MAKETOV]:
+        if not (fajl and fajl.filename):
+            continue
+        # Браузеры на Windows иногда шлют полный путь с обратными слешами,
+        # а os.path.basename на Linux их за разделитель не считает — имя
+        # выходило вроде «CUsersАняграмота.jpg».
+        ish = os.path.basename(fajl.filename.replace("\\", "/"))
+        rasshirenie = os.path.splitext(ish)[1].lower()
+        if rasshirenie not in MAKET_RASSHIRENIYA:
+            zametki.append(
+                f"файл {ish} не принят: расширение {rasshirenie or 'без расширения'}")
+            continue
+        bajty = fajl.read(MAX_MAKET + 1)
+        if len(bajty) > MAX_MAKET:
+            zametki.append(
+                f"файл {ish} не принят: больше {MAX_MAKET // 1024 // 1024} МБ")
+            continue
+        # Имя клиента в имя файла на диске не берём: там бывает что
+        # угодно, вплоть до путей. Своё имя, а клиентское — в письме.
+        bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
+        makety.append((bezopasnoe or ("maket" + rasshirenie), bajty))
+    return makety, zametki
+
+
+def polozhit_makety(lead_id, makety, zametki):
+    """Кладёт макеты на диск под номером заявки и возвращает пути.
+
+    Пишем ДО всякой отправки, тем же правилом, что и саму заявку: почта
+    может молчать, а файл клиента единственный — второй раз он его
+    не пришлёт.
+    """
+    puti = []
+    if makety:
+        try:
+            os.makedirs(MAKETY_DIR, exist_ok=True)
+        except OSError as e:
+            print(f"[maket] не создать папку: {e}", flush=True)
+    for nomer, (imya, bajty) in enumerate(makety, 1):
+        # Номер в имени сохраняет ПОРЯДОК сторон: лицо и оборот приходят
+        # двумя файлами, и какой из них какой — видно только по очереди,
+        # в которой их выбрал клиент.
+        put_na_diske = os.path.join(MAKETY_DIR, f"{lead_id}_{nomer}_{imya}")
+        try:
+            with open(put_na_diske, "wb") as f:
+                f.write(bajty)
+            puti.append(put_na_diske)
+        except OSError as e:
+            zametki.append(f"файл {imya} не сохранён на диск: {e}")
+            print(f"[maket] файл {imya} не сохранён на диск: {e}", flush=True)
+    return puti
+
+
+def stroka_pro_makety(makety, zametki):
+    """Строки для письма Гульнаре: что приложено и что не взято."""
+    lines = []
+    if makety:
+        imena = ", ".join(imya for imya, _ in makety)
+        skolko = "Файл приложен" if len(makety) == 1 else f"Файлов приложено {len(makety)}"
+        lines.append(f"📎 {skolko} к письму: {imena}")
+    if zametki:
+        lines.append("⚠️ " + "; ".join(zametki) +
+                     " — попросите прислать другим способом")
+    return lines
+
 # ── Свой номер в заявке — это проверка, а не клиент ──────────────────────
 #
 # 18.08.2026 владелица сказала: «у нас уже 27-я заявка, а по сути только
@@ -877,6 +964,36 @@ def kor_vizitka():
     return _korotkij(KOROTKIE_ADRESA["vizitka"])
 
 
+# ── Короткий адрес для телефонного разговора ─────────────────────────────
+#
+# Заведён 21.08.2026 со слов владелицы: «Мне позвонили, а я прошу —
+# перейдите на сайт и заполните заявку. Я не знаю, как это сделать».
+#
+# Продиктовать голосом «гранат дефис кмв точка ру, там внизу форма»
+# человек не запишет без ошибки. «Наш сайт, слэш, зэ» — запишет.
+#
+# Ведём к секретарю, как и остальные короткие адреса: человек уже
+# разговаривает про заказ, ему нужна цена, а не рассказ о студии.
+# Метка zvonok отделяет пришедших со звонка — через неделю будет видно,
+# сколько заявок приносит сам разговор.
+@app.route("/z")
+def kor_zvonok():
+    # Этот же адрес напечатан в QR-коде на чеках и упаковке, и там ссылка
+    # идёт со своей меткой: /z?utm_source=qr. Затирать её нельзя, иначе
+    # печать и телефонные разговоры сольются в одну строку отчёта и будет
+    # непонятно, что из них работает. Пришли с меткой — уважаем чужую,
+    # пришли без метки — значит адрес продиктовали голосом.
+    istochnik = (request.args.get("utm_source") or "").strip()[:40]
+    if istochnik:
+        sreda = (request.args.get("utm_medium") or "print").strip()[:40]
+        return redirect(
+            "/?utm_source={}&utm_medium={}&utm_campaign=korotkij_adres#sekretar"
+            .format(istochnik, sreda), code=302)
+    return redirect(
+        "/?utm_source=zvonok&utm_medium=phone&utm_campaign=razgovor#sekretar",
+        code=302)
+
+
 # ── Постоянный адрес для QR-кода на отзыв ────────────────────────────────
 #
 # ЗАЧЕМ ОТДЕЛЬНЫЙ АДРЕС, а не прямая ссылка на Яндекс. QR-код печатается
@@ -1169,12 +1286,27 @@ def order():
 
     # Номер нужен, чтобы Джарвис узнал клиента, когда тот придёт в бота,
     # и чтобы Генерал мог сказать «заявка №47 висит без ответа».
+    # Макеты забираем ДО записи заявки: если человек их приложил, это часть
+    # заказа, а не приложение к нему. 22.08.2026 форма получила поле файла —
+    # разбор общий с секретарём, см. sobrat_makety().
+    makety, maket_zametki = sobrat_makety()
+
     proverka = eto_proverka(phone)
     lead_id = 0 if proverka else leads.next_id()
     payload["lead"] = lead_id
     if proverka:
         payload["proverka"] = True
-    else:
+
+    # Номер заявки нужен для имени файла на диске, поэтому кладём после него,
+    # но ДО отправки: почта может молчать, а файл у клиента единственный.
+    puti = polozhit_makety(lead_id, makety, maket_zametki)
+    if puti:
+        payload["makety"] = puti
+        payload["maket"] = puti[0]   # старое поле — чтобы не сломать читателей
+    if maket_zametki:
+        payload["maket_zametka"] = "; ".join(maket_zametki)
+
+    if not proverka:
         leads.log(lead_id, "created", source="site_form", **payload)
 
     lines = ["🧪 ПРОВЕРКА, НЕ КЛИЕНТ — заявка со своего номера, "
@@ -1190,6 +1322,7 @@ def order():
         lines.append(f"🛍 Услуга: {service}")
     if notes:
         lines.append(f"📝 Пожелания: {notes}")
+    lines += stroka_pro_makety(makety, maket_zametki)
 
     if risk and risk["flags"]:
         lines.append("")
@@ -1217,7 +1350,11 @@ def order():
         дошла ли она хоть куда-нибудь."""
         (vk_ok, vk_reason), (mail_ok, mail_reason) = deliver(
             (f"🧪 Проверка с сайта — {name}" if proverka
-             else f"Заявка с сайта №{lead_id} — {name}"), text
+             else f"Заявка с сайта №{lead_id} — {name}"), text,
+            # Макет уходит письмом, как и у секретаря. На диске он тоже
+            # лежит, но заказ смотрят в почте — файл должен быть там же,
+            # где заявка, иначе его будут искать.
+            vlozhenie=makety or None
         )
         delivered = vk_ok or mail_ok
         save_order(payload, delivered=delivered,
@@ -1286,36 +1423,10 @@ def bot_lead():
             path = [path]
     route_text = " → ".join(str(p) for p in path if str(p).strip())
 
-    # ── Макет, если клиент его приложил ──────────────────────────────────
-    #
-    # Сохраняем на диск ДО всякой отправки — тем же правилом, что и заявку:
-    # почта может молчать, а файл клиента единственный, второй раз он его
-    # не пришлёт.
-    # Файлов может быть несколько: у листовки две стороны, у буклета три
-    # панели. До 18.08.2026 бралcя ровно один, и клиент об этом не знал —
-    # он видел, что файл прикрепился, и был уверен, что отправил всё.
-    makety, maket_zametki = [], []
-    for fajl in request.files.getlist("maket")[:MAX_MAKETOV]:
-        if not (fajl and fajl.filename):
-            continue
-        # Браузеры на Windows иногда шлют полный путь с обратными слешами,
-        # а os.path.basename на Linux их за разделитель не считает — имя
-        # выходило вроде «CUsersАняграмота.jpg».
-        ish = os.path.basename(fajl.filename.replace("\\", "/"))
-        rasshirenie = os.path.splitext(ish)[1].lower()
-        if rasshirenie not in MAKET_RASSHIRENIYA:
-            maket_zametki.append(
-                f"файл {ish} не принят: расширение {rasshirenie or 'без расширения'}")
-            continue
-        bajty = fajl.read(MAX_MAKET + 1)
-        if len(bajty) > MAX_MAKET:
-            maket_zametki.append(
-                f"файл {ish} не принят: больше {MAX_MAKET // 1024 // 1024} МБ")
-            continue
-        # Имя клиента в имя файла на диске не берём: там бывает что
-        # угодно, вплоть до путей. Своё имя, а клиентское — в письме.
-        bezopasnoe = "".join(c for c in ish if c.isalnum() or c in " .-_()").strip()
-        makety.append((bezopasnoe or ("maket" + rasshirenie), bajty))
+    # Разбор макетов — в sobrat_makety() выше: тот же приём работает
+    # и в форме заявки. Файлов может быть несколько: у листовки две
+    # стороны, у буклета три панели.
+    makety, maket_zametki = sobrat_makety()
 
     if makety:
         try:
@@ -1346,19 +1457,7 @@ def bot_lead():
 
     # Кладём файл на диск под номером заявки: так его находят по заявке,
     # не разбирая, кто из клиентов какой «scan1.pdf» прислал.
-    puti = []
-    for nomer, (imya, bajty) in enumerate(makety, 1):
-        # Номер в имени сохраняет ПОРЯДОК сторон: лицо и оборот приходят
-        # двумя файлами, и какой из них какой — видно только по очереди,
-        # в которой их выбрал клиент.
-        put_na_diske = os.path.join(MAKETY_DIR, f"{lead_id}_{nomer}_{imya}")
-        try:
-            with open(put_na_diske, "wb") as f:
-                f.write(bajty)
-            puti.append(put_na_diske)
-        except OSError as e:
-            maket_zametki.append(f"файл {imya} не сохранён на диск: {e}")
-            print(f"[maket] файл {imya} не сохранён на диск: {e}", flush=True)
+    puti = polozhit_makety(lead_id, makety, maket_zametki)
     if puti:
         payload["makety"] = puti
         payload["maket"] = puti[0]   # старое поле — чтобы не сломать читателей
@@ -1376,13 +1475,7 @@ def bot_lead():
         lines.append(f"🧭 Собрал: {route_text}")
     if total:
         lines.append("💰 На сумму: {:,} ₽".format(total).replace(",", " "))
-    if makety:
-        imena = ", ".join(imya for imya, _ in makety)
-        skolko = "Файл приложен" if len(makety) == 1 else f"Файлов приложено {len(makety)}"
-        lines.append(f"📎 {skolko} к письму: {imena}")
-    if maket_zametki:
-        lines.append("⚠️ " + "; ".join(maket_zametki) +
-                     " — попросите прислать другим способом")
+    lines += stroka_pro_makety(makety, maket_zametki)
     if total:
         # НПД: чек обязателен и формируется вручную в «Мой налог».
         # Забытый чек — это и штраф, и невозможность для клиента-юрлица

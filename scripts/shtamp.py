@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Макет штампа на упаковку: круглая печать с логотипом студии.
 
-    python3 scripts/shtamp.py            # 70 мм и 50 мм
-    python3 scripts/shtamp.py 40         # только 40 мм
+    python3 scripts/shtamp.py            # круглые и квадратные, все размеры
+    python3 scripts/shtamp.py 40         # только 40 мм, оба вида
 
 ЗАЧЕМ. Идея владелицы 21.08.2026: штамп на крафтовые пакеты, коробки
 и конверты. Один штамп заменяет тираж наклеек и работает на любой
@@ -20,6 +20,10 @@
     садится мостиком, и в оттиске получается пятно.
 Всё это считается от РЕАЛЬНОГО размера штампа, поэтому на 40 мм текст
 по дуге даётся крупнее относительно круга, чем на 70 мм.
+
+КРУГЛЫЙ ИЛИ КВАДРАТНЫЙ. На квадрате текст идёт строками, а не по дуге:
+читается легче и помещается больше. Круглый выглядит как печать
+и уместнее на конверте. Для коробки владелица выбрала квадрат.
 
 ЗЕРКАЛИТЬ НЕ НАДО. Мастерская делает это сама при изготовлении клише.
 Макет отдаётся в прямом чтении.
@@ -195,30 +199,101 @@ def proverit(storona_mm, kegli, linii, bedy):
     return zamechaniya
 
 
-def sobrat(storona_mm):
+def narisovat_kvadrat(c, storona_mm):
+    """Квадратный оттиск: строки вместо дуг, поэтому текста влезает больше."""
+    storona = storona_mm * mm
+    cx = storona / 2
+    ramka = 1.5 * mm
+
+    c.setFillColor(white)
+    c.rect(0, 0, storona, storona, stroke=0, fill=1)
+    c.setStrokeColor(black)
+    c.setFillColor(black)
+
+    tolstoe = max(0.5 * mm, storona_mm * 0.011 * mm)
+    tonkoe = max(MIN_LINIYA_MM * mm, storona_mm * 0.006 * mm)
+    c.setLineWidth(tolstoe)
+    c.rect(ramka, ramka, storona - 2 * ramka, storona - 2 * ramka, stroke=1, fill=0)
+    vnutr_otstup = ramka + max(1.6 * mm, storona_mm * 0.030 * mm)
+    c.setLineWidth(tonkoe)
+    c.rect(vnutr_otstup, vnutr_otstup, storona - 2 * vnutr_otstup,
+           storona - 2 * vnutr_otstup, stroke=1, fill=0)
+
+    dostupno = storona - 2 * vnutr_otstup - 2 * (storona_mm * 0.03 * mm)
+    kegl_melkij = max(MIN_KEGL, storona_mm * 0.046 * mm)
+    kegl_nazvaniya = podobrat_kegl(NAZVANIE, "Shtamp-Bold", dostupno,
+                                   storona_mm * 0.185 * mm)
+
+    # Строки сверху вниз. Разрядку у мелких строк даём больше обычного:
+    # на резине плотный текст заплывает.
+    verh_s_razryadkoj = " ".join(VERH)
+    while (pdfmetrics.stringWidth(verh_s_razryadkoj, "Shtamp", kegl_melkij) > dostupno
+           and kegl_melkij > MIN_KEGL):
+        kegl_melkij -= 0.05 * mm
+    tesno = pdfmetrics.stringWidth(verh_s_razryadkoj, "Shtamp", kegl_melkij) > dostupno
+    if tesno:
+        verh_s_razryadkoj = VERH        # без разрядки, лишь бы влезло
+
+    # Блок строк центрируем по высоте: считаем, сколько он займёт,
+    # и начинаем так, чтобы его середина совпала с серединой штампа.
+    # Иначе текст садится под верхнюю рамку, а низ пустует.
+    vysota_bloka = storona_mm * (0.055 + 0.175 + 0.075 + 0.085 + 0.075) * mm
+    y = storona / 2 + vysota_bloka / 2
+
+    c.setFont("Shtamp", kegl_melkij)
+    c.drawCentredString(cx, y, verh_s_razryadkoj)
+
+    y -= storona_mm * 0.055 * mm
+    c.setLineWidth(tonkoe)
+    c.line(vnutr_otstup + storona_mm * 0.06 * mm, y,
+           storona - vnutr_otstup - storona_mm * 0.06 * mm, y)
+
+    y -= storona_mm * 0.175 * mm
+    c.setFont("Shtamp-Bold", kegl_nazvaniya)
+    c.drawCentredString(cx, y, NAZVANIE)
+
+    y -= storona_mm * 0.075 * mm
+    c.line(vnutr_otstup + storona_mm * 0.06 * mm, y,
+           storona - vnutr_otstup - storona_mm * 0.06 * mm, y)
+
+    y -= storona_mm * 0.085 * mm
+    c.setFont("Shtamp", kegl_melkij)
+    c.drawCentredString(cx, y, GOROD)
+
+    y -= storona_mm * 0.075 * mm
+    c.drawCentredString(cx, y, NIZ)
+
+    return ({"мелкий текст": kegl_melkij, "название": kegl_nazvaniya},
+            {"внешняя рамка": tolstoe, "внутренняя рамка": tonkoe},
+            {"текст по дуге тесно": False, "разрядка убрана": tesno})
+
+
+def sobrat(storona_mm, kvadrat=False):
     os.makedirs(KUDA, exist_ok=True)
     storona = storona_mm * mm
-    pdf = os.path.join(KUDA, f"shtamp-{storona_mm}mm.pdf")
+    vid = "kvadrat" if kvadrat else "krug"
+    pdf = os.path.join(KUDA, f"shtamp-{vid}-{storona_mm}mm.pdf")
     c = canvas.Canvas(pdf, pagesize=(storona, storona))
-    kegli, linii, bedy = narisovat(c, storona_mm)
+    kegli, linii, bedy = (narisovat_kvadrat(c, storona_mm) if kvadrat
+                          else narisovat(c, storona_mm))
     c.showPage()
     c.save()
 
     zamechaniya = proverit(storona_mm, kegli, linii, bedy)
+    imya_vida = "квадратный" if kvadrat else "круглый"
     if zamechaniya:
-        print(f"  {storona_mm} мм — НЕ ГОДИТСЯ ДЛЯ РЕЗИНЫ:")
+        print(f"  {imya_vida} {storona_mm} мм — НЕ ГОДИТСЯ ДЛЯ РЕЗИНЫ:")
         for z in zamechaniya:
             print(f"    · {z}")
     else:
         podrobno = ", ".join(f"{i} {k / mm * DOLYA_PROPISNOJ:.1f} мм"
                              for i, k in kegli.items())
-        vid = "короткий" if bedy.get("текст по дуге тесно") else "полный"
-        print(f"  {storona_mm} мм, {vid} вариант — пороги выдержаны: {podrobno}")
+        pometka = " (короткий вариант)" if bedy.get("текст по дуге тесно") else ""
+        print(f"  {imya_vida} {storona_mm} мм{pometka} — пороги выдержаны: {podrobno}")
 
-    png = os.path.join(KUDA, f"shtamp-{storona_mm}mm-1200dpi.png")
+    png = os.path.join(KUDA, f"shtamp-{vid}-{storona_mm}mm-1200dpi.png")
     v_png(pdf, png)
-    print(f"shtamp-{storona_mm}mm.pdf и .png: {os.path.getsize(pdf)} / "
-          f"{os.path.getsize(png)} байт")
+    print(f"    файлы: {os.path.basename(pdf)}, {os.path.basename(png)}")
 
 
 def v_png(pdf, png):
@@ -242,4 +317,5 @@ if __name__ == "__main__":
     razmery = [int(sys.argv[1])] if len(sys.argv) > 1 else [70, 50, 40]
     for r in razmery:
         sobrat(r)
+        sobrat(r, kvadrat=True)
     print("В мастерскую отдавать PDF. Зеркалить не надо — они сделают сами.")
